@@ -1,0 +1,11 @@
+.DS_Store
+*.xcodeproj
+xcuserdata/
+DerivedData/
+.build/
+.swiftpm/
+build/
+.impeccable/live/
+.impeccable/config.local.json
+.impeccable/review/
+.impeccable/questions/
