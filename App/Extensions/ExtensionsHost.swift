@@ -170,6 +170,7 @@ final class ExtensionsHost: NSObject {
             for permission in webExtension.requestedPermissions { context.setPermissionStatus(.grantedExplicitly, for: permission) }
             for pattern in webExtension.allRequestedMatchPatterns { context.setPermissionStatus(.grantedExplicitly, for: pattern) }
             try controller.load(context)
+            log.info("Loaded \(item.name, privacy: .public); permissions: \(context.grantedPermissions.keys.map(\.rawValue).sorted().joined(separator: ","), privacy: .public); errors: \(context.errors.map(\.localizedDescription).joined(separator: "; "), privacy: .public)")
             contexts.append((item.id, context))
             loadFailures[item.id] = nil
             announceOpenWindowsAndTabs(to: context)
@@ -255,11 +256,15 @@ final class ExtensionsHost: NSObject {
     fileprivate func connectNativeHost(_ name: String?, for context: WKWebExtensionContext) throws -> NativeMessagingConnection {
         let home = FileManager.default.homeDirectoryForCurrentUser
         guard let name, let host = NativeMessaging.hostManifest(named: name, in: NativeMessaging.chromeHostFolders(home: home)) else {
+            log.error("Native host \(name ?? "nil", privacy: .public) not found")
             throw NativeMessaging.Failure.hostNotFound
         }
-        guard let chromeID = installed.first(where: { $0.id == context.uniqueIdentifier })?.chromeID, host.allows(chromeID: chromeID) else {
+        let chromeID = installed.first(where: { $0.id == context.uniqueIdentifier })?.chromeID
+        guard let chromeID, host.allows(chromeID: chromeID) else {
+            log.error("Native host \(name, privacy: .public) forbids extension \(chromeID ?? "without Chrome ID", privacy: .public)")
             throw NativeMessaging.Failure.forbidden
         }
+        log.info("Launching native host \(name, privacy: .public) for \(chromeID, privacy: .public)")
         return try NativeMessagingConnection(host: host, chromeID: chromeID)
     }
 }
@@ -330,6 +335,7 @@ extension ExtensionsHost: WKWebExtensionControllerDelegate {
         nativePorts[key] = (port, connection)
         connection.onMessage = { [weak port] message in port?.sendMessage(message, completionHandler: nil) }
         connection.onClose = { [weak self, weak port] error in
+            self?.log.info("Native host closed: \(error.map { "\($0)" } ?? "exited", privacy: .public)")
             port?.disconnect(throwing: error ?? NativeMessaging.Failure.hostExited)
             self?.nativePorts[key] = nil
         }
@@ -345,6 +351,17 @@ extension ExtensionsHost: WKWebExtensionControllerDelegate {
     /// `runtime.sendNativeMessage`: start the host, send one message, return its first reply.
     func webExtensionController(_ controller: WKWebExtensionController, sendMessage message: Any, toApplicationWithIdentifier applicationIdentifier: String?,
                                 for extensionContext: WKWebExtensionContext, replyHandler: @escaping (Any?, (any Error)?) -> Void) {
+        if applicationIdentifier == ExtensionCompatibility.consoleHost {
+            let entry = message as? [String: Any]
+            let name = extensionContext.webExtension.displayName
+            let text = "\(name ?? "Extension"): \(entry?["text"] as? String ?? "\(message)")"
+            switch entry?["level"] as? String {
+            case "info": log.info("\(text, privacy: .public)")
+            case "warn": log.warning("\(text, privacy: .public)")
+            default: log.error("\(text, privacy: .public)")
+            }
+            return replyHandler(nil, NativeMessaging.Failure.hostNotFound)
+        }
         let connection: NativeMessagingConnection
         do {
             connection = try connectNativeHost(applicationIdentifier, for: extensionContext)

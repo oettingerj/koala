@@ -55,14 +55,25 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.joshoettinger.nano
         PRODUCT_NAME: Nano
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        CODE_SIGN_IDENTITY: "-"
+        # A stable signature: macOS keeps Nano's data, Keychain items, and permissions across rebuilds.
+        CODE_SIGN_IDENTITY: "Apple Development"
+        DEVELOPMENT_TEAM: B9XC6ZD8WD
         CODE_SIGN_STYLE: Manual
         ENABLE_HARDENED_RUNTIME: YES
         GENERATE_INFOPLIST_FILE: NO
         COMBINE_HIDPI_IMAGES: YES
         NANO_DISPLAY_NAME: Nano
       configs:
-        # Debug builds get their own bundle ID, so their sandbox container, defaults,
+        # Release is signed with Developer ID: 1Password's helper only talks to browsers whose leaf
+        # certificate is Developer ID or Mac App Store (never Apple Development, whatever the custom
+        # browser list says). Create the certificate in Xcode > Settings > Accounts > Manage
+        # Certificates. Developer ID signing also leaves out get-task-allow, so nothing can attach
+        # a debugger to the installed browser.
+        Release:
+          CODE_SIGN_IDENTITY: "Developer ID Application"
+          DEVELOPMENT_TEAM: CXWKXPU9U5
+          CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
+        # Debug builds get their own bundle ID and name, so their data folder, defaults,
         # Keychain item, and Launch Services entry stay apart from the installed Release app.
         Debug:
           PRODUCT_BUNDLE_IDENTIFIER: com.joshoettinger.nano.dev

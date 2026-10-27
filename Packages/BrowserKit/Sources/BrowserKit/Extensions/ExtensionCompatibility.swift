@@ -7,6 +7,8 @@ public enum ExtensionCompatibility {
     static let folder = "nano-compat"
     static let scriptPath = "/\(folder)/compat.js"
     static let wrapperPath = "\(folder)/background.js"
+    /// The native host name the compat script sends console errors to; Nano logs them instead of launching anything.
+    public static let consoleHost = "nano.console"
 
     /// Writes the script into `bundle` and points the manifest's background at it. Safe to repeat;
     /// a bundle that is already wrapped only gets the current script.
@@ -54,6 +56,37 @@ public enum ExtensionCompatibility {
         (() => {
           const api = globalThis.chrome ?? globalThis.browser;
           if (!api?.runtime?.getManifest) return;
+          // WebKit runs the background service worker on the thread its WebSocket channel waits on, so
+          // `new WebSocket` deadlocks the extension (a stack sample shows WorkerThreadableWebSocketChannel
+          // waiting on a BinarySemaphore forever). This stand-in fails the connection asynchronously instead.
+          if (typeof ServiceWorkerGlobalScope !== "undefined" && globalThis instanceof ServiceWorkerGlobalScope && globalThis.WebSocket) {
+            class NanoWebSocket extends EventTarget {
+              static CONNECTING = 0; static OPEN = 1; static CLOSING = 2; static CLOSED = 3;
+              CONNECTING = 0; OPEN = 1; CLOSING = 2; CLOSED = 3;
+              readyState = 0; bufferedAmount = 0; extensions = ""; protocol = ""; binaryType = "blob";
+              constructor(url) {
+                super();
+                this.url = String(url);
+                for (const name of ["open", "message", "error", "close"]) {
+                  let handler = null;
+                  Object.defineProperty(this, `on${name}`, {
+                    get: () => handler,
+                    set: value => { if (handler) this.removeEventListener(name, handler); handler = typeof value === "function" ? value : null; if (handler) this.addEventListener(name, handler); },
+                  });
+                }
+                console.warn("[Nano]", `WebSocket to ${new URL(this.url).host} refused: not available in a background service worker`);
+                setTimeout(() => {
+                  if (this.readyState === 3) return;
+                  this.readyState = 3;
+                  this.dispatchEvent(new Event("error"));
+                  this.dispatchEvent(typeof CloseEvent === "function" ? new CloseEvent("close", { wasClean: false, code: 1006 }) : Object.assign(new Event("close"), { wasClean: false, code: 1006, reason: "" }));
+                }, 0);
+              }
+              send() { throw new DOMException("WebSocket is not open", "InvalidStateError"); }
+              close() { this.readyState = 3; }
+            }
+            globalThis.WebSocket = NanoWebSocket;
+          }
           const stubs = new Map();
           const inert = path => {
             if (!stubs.has(path)) stubs.set(path, new Proxy(function () {}, {
@@ -95,6 +128,20 @@ public enum ExtensionCompatibility {
             if (!descriptor?.configurable) continue;
             const read = descriptor.get ? () => descriptor.get.call(globalThis) : () => descriptor.value;
             Object.defineProperty(globalThis, name, { get: () => patch(read()), configurable: true });
+          }
+          // Errors and warnings go to Nano's log (Console.app, subsystem com.joshoettinger.nano) through a
+          // native host name Nano reserves. Extensions without the nativeMessaging permission skip this.
+          if (manifest.permissions?.includes("nativeMessaging")) {
+            const report = (level, text) => {
+              try { api.runtime.sendNativeMessage("\(consoleHost)", { level, text: String(text).slice(0, 4000) }).catch(() => {}); } catch {}
+            };
+            const describe = value => value instanceof Error ? `${value.message}\\n${value.stack ?? ""}` : typeof value === "string" ? value : (() => { try { return JSON.stringify(value); } catch { return String(value); } })();
+            for (const level of ["error", "warn", "info"]) {
+              const original = console[level].bind(console);
+              console[level] = (...args) => { original(...args); report(level, args.map(describe).join(" ")); };
+            }
+            globalThis.addEventListener("error", e => report("error", `${e.message} (${e.filename}:${e.lineno})`));
+            globalThis.addEventListener("unhandledrejection", e => report("error", `Unhandled rejection: ${e.reason?.name ?? ""}: ${e.reason?.message ?? e.reason} @ ${e.reason?.stack ?? ""}`));
           }
         })();
 

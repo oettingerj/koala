@@ -1,5 +1,6 @@
 import BrowserKit
 import Foundation
+import os
 
 /// One running native messaging host: Nano launches it the way Chrome does, with the extension's
 /// origin as its argument, and relays framed JSON over its stdin and stdout.
@@ -10,6 +11,7 @@ final class NativeMessagingConnection {
     /// Writes can block while the host is busy, so they happen off the main thread, in order.
     private let writes = DispatchQueue(label: "com.joshoettinger.nano.native-messaging")
     private var reader = NativeMessaging.Reader()
+    private let log = Logger(subsystem: "com.joshoettinger.nano", category: "native-messaging")
     private var isClosed = false
 
     var onMessage: ((Any) -> Void)?
@@ -27,7 +29,8 @@ final class NativeMessagingConnection {
             let data = handle.availableData
             DispatchQueue.main.async { MainActor.assumeIsolated { self?.receive(data) } }
         }
-        process.terminationHandler = { [weak self] _ in
+        process.terminationHandler = { [weak self] process in
+            self?.log.info("Host exited with status \(process.terminationStatus)")
             DispatchQueue.main.async { MainActor.assumeIsolated { self?.finish(nil) } }
         }
         try process.run()
@@ -37,8 +40,16 @@ final class NativeMessagingConnection {
         guard !isClosed else { return }
         let data: Data
         do { data = try NativeMessaging.frame(message) } catch { return finish(error) }
+        log.debug("Extension -> host: \(Self.shape(of: message), privacy: .public)")
         let handle = input.fileHandleForWriting
         writes.async { try? handle.write(contentsOf: data) }
+    }
+
+    /// Top-level keys and any string under `type`/`action`/`name`, never values.
+    private static func shape(of message: Any) -> String {
+        guard let dict = message as? [String: Any] else { return "\(type(of: message))" }
+        let tags = ["type", "action", "name"].compactMap { key in (dict[key] as? String).map { "\(key)=\($0)" } }
+        return "{\(dict.keys.sorted().joined(separator: ","))}" + (tags.isEmpty ? "" : " " + tags.joined(separator: " "))
     }
 
     /// Stops the host. Its exit doesn't call `onClose`; the caller already knows.
@@ -53,7 +64,11 @@ final class NativeMessagingConnection {
         // An empty read is end of file: the host closed its stdout.
         guard !data.isEmpty else { return finish(nil) }
         do {
-            for message in try reader.append(data) { onMessage?(message) }
+            for message in try reader.append(data) {
+                // Only the shape of the message: hosts carry secrets.
+                log.debug("Host -> extension: \(Self.shape(of: message), privacy: .public)")
+                onMessage?(message)
+            }
         } catch {
             finish(error)
         }
