@@ -5,8 +5,6 @@ import os
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var windows: [BrowserWindowController] = []
-    /// Links opened before launch finished (extensions still loading).
-    private var pendingURLs: [URL] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = MainMenu.build()
@@ -29,20 +27,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let rest = (self?.windows ?? []).filter { controller in !ordered.contains { $0 === controller } }
             return (ordered + rest).reversed().map(\.snapshot)
         }
+        Perf.record("launch.didFinishLaunching", Perf.sinceProcessStart)
+        // Windows (chrome) appear now; pages wait for extensions so content blockers cover the
+        // first load. See BrowserWindowController.showSelectedTab.
+        let restored = services.loadSession()?.windows.filter { !$0.tabs.isEmpty } ?? []
+        if restored.isEmpty {
+            newWindow(nil)
+        } else {
+            for snapshot in restored { openWindow(snapshot: snapshot) }
+        }
+        Perf.record("launch.windowShown", Perf.sinceProcessStart)
         Task {
             let start = ContinuousClock.now
             await ExtensionsHost.shared.start()
-            Logger(subsystem: "com.joshoettinger.nano", category: "launch")
-                .info("Extensions ready in \(ContinuousClock.now - start, privacy: .public)")
-            guard windows.isEmpty else { return }
-            let restored = services.loadSession()?.windows.filter { !$0.tabs.isEmpty } ?? []
-            if restored.isEmpty {
-                newWindow(nil)
-            } else {
-                for snapshot in restored { openWindow(snapshot: snapshot) }
-            }
-            for url in pendingURLs { open(url) }
-            pendingURLs = []
+            Perf.record("launch.extensionsLoaded", ContinuousClock.now - start)
         }
     }
 
@@ -77,7 +75,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if !flag, ExtensionsHost.shared.isReady { newWindow(nil) }
+        if !flag { newWindow(nil) }
         return true
     }
 
@@ -85,10 +83,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Links opened from other apps land in a new tab of the frontmost window.
     func application(_ application: NSApplication, open urls: [URL]) {
-        guard ExtensionsHost.shared.isReady else {
-            pendingURLs.append(contentsOf: urls)
-            return
-        }
         for url in urls { open(url) }
         NSApp.activate()
     }

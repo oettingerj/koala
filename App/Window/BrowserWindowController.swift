@@ -11,6 +11,24 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     private var bookmarkObservation: ObservationLoop?
     private var mediaDecisions: [String: Bool] = [:]
     private var extensionObservation: ObservationLoop?
+    private var sleepTimer: Timer?
+    private static let sleepAfter: TimeInterval = 30 * 60
+
+    /// Puts background tabs to sleep after 30 idle minutes. Pinned tabs, split panes, and pages
+    /// using the camera, microphone, or playing audio stay awake.
+    private func sleepIdleTabs() {
+        let now = Date()
+        for tab in tabs.tabs where tab !== tabs.selected && !tab.isPinned && tab.splitTab == nil {
+            guard let webView = tab.webView, now.timeIntervalSince(tab.lastActiveAt) > Self.sleepAfter,
+                  webView.cameraCaptureState == .none, webView.microphoneCaptureState == .none else { continue }
+            webView.requestMediaPlaybackState { [weak tab, weak self] state in
+                MainActor.assumeIsolated {
+                    guard let tab, state != .playing, self?.tabs.selected !== tab else { return }
+                    tab.sleep()
+                }
+            }
+        }
+    }
     private var reportedTabs: [UUID: Tab] = [:]
     private weak var reportedActive: Tab?
 
@@ -104,6 +122,10 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         sessionObservation = ObservationLoop { [weak self] in self?.observeSessionState() }
         bookmarkObservation = ObservationLoop { [weak self] in self?.updateBookmarkStar() }
         extensionObservation = ObservationLoop { [weak self] in self?.reportTabChangesToExtensions() }
+        sleepTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.sleepIdleTabs() }
+        }
+        sleepTimer?.tolerance = 20
         rootView.devPanelModel.perform = { [weak self] action in self?.perform(action) }
         rootView.peek.onOpenInTab = { [weak self] webView in self?.openPeekInTab(webView) }
         rootView.peek.onOpenInSplit = { [weak self] webView in self?.openPeekInSplit(webView) }
@@ -558,6 +580,9 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     private func showSelectedTab() {
         guard let tab = tabs.selected else { return }
         window?.title = tab.displayTitle
+        // No page loads until enabled extensions are in place; this re-runs when they are.
+        guard ExtensionsHost.shared.isReady else { return }
+        tab.markActive()
         let webView = tab.materialize()
         let partner = tab.splitTab
         partner?.delegate = self
@@ -574,7 +599,10 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         guard shownTabID != tab.id || shownSplitID != partner?.id else { return }
         shownTabID = tab.id
         shownSplitID = partner?.id
-        rootView.show(webView, for: tab, split: partnerView.map { ($0, partner!) })
+        Perf.measure("tab.switch") {
+            rootView.show(webView, for: tab, split: partnerView.map { ($0, partner!) })
+            rootView.layoutSubtreeIfNeeded()
+        }
         // Switching tabs abandons whatever was typed for the previous one.
         if rootView.toolbar.addressField.isEditing, tab.url != nil {
             focusPage()
@@ -822,6 +850,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         }
         ExtensionsHost.shared.didClose(self)
         extensionObservation?.cancel()
+        sleepTimer?.invalidate()
         selectionObservation?.cancel()
         sessionObservation?.cancel()
         bookmarkObservation?.cancel()

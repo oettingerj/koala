@@ -27,7 +27,7 @@ final class SuggestionModel {
     func update(query: String) {
         self.query = query
         remoteTask?.cancel()
-        let local = engine.localResults(for: query)
+        let local = Perf.measure("suggestions.local") { engine.localResults(for: query) }
         let selectedID = selected?.id
         rows = local
         // Keep the highlight on the same row while typing refines the list, else the top row.

@@ -79,9 +79,11 @@ final class CommandBar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
             panel.parent?.removeChildWindow(panel)
             window.addChildWindow(panel, ordered: .above)
         }
-        resize()
-        panel.makeKeyAndOrderFront(nil)
-        panel.makeFirstResponder(field)
+        Perf.measure("commandbar.open") {
+            resize()
+            panel.makeKeyAndOrderFront(nil)
+            panel.makeFirstResponder(field)
+        }
     }
 
     func hide() {

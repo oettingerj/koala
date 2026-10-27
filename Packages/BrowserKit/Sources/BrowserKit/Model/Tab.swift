@@ -103,6 +103,25 @@ public final class Tab: NSObject, Identifiable {
 
     public func setFavicon(_ image: NSImage?) { favicon = image }
 
+    /// When the tab was last shown; background tabs idle long enough are put to sleep.
+    @ObservationIgnored public private(set) var lastActiveAt = Date()
+    public func markActive() { lastActiveAt = Date() }
+
+    /// Releases the web view and its WebContent process memory, keeping back/forward state.
+    /// The next `materialize()` restores the page.
+    public func sleep() {
+        guard let webView else { return }
+        restoredState = (webView.interactionState as? Data) ?? restoredState
+        webView.stopLoading()
+        webView.removeFromSuperview()
+        webView.navigationDelegate = nil
+        webView.uiDelegate = nil
+        observations = []
+        self.webView = nil
+        isLoading = false
+        progress = 0
+    }
+
     /// Wraps a web view WebKit already created for a popup.
     public init(adopting webView: WKWebView, openerID: UUID?) {
         self.id = UUID()

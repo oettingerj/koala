@@ -100,3 +100,17 @@ import Testing
         #expect(restored.splitTab?.url?.host() == "b.com")
     }
 }
+
+@MainActor
+@Suite struct TabSleepTests {
+    @Test func sleepReleasesWebViewAndWakesWithURL() {
+        let tab = Tab(url: URL(string: "about:blank"))
+        tab.materialize()
+        #expect(tab.webView != nil)
+        tab.sleep()
+        #expect(tab.webView == nil)
+        #expect(tab.url?.absoluteString == "about:blank")
+        tab.materialize()
+        #expect(tab.webView != nil)
+    }
+}
