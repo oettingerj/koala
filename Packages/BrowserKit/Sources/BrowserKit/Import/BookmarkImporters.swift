@@ -129,7 +129,45 @@ public enum BookmarkImporters {
     }
 }
 
-/// Copies visits from a Chrome `History` database into Nano's history.
+/// What one import brings in. A bookmarks file has no history.
+public struct ImportedData: Sendable {
+    public var bookmarks: [ImportedBookmark]
+    public var history: [HistoryEntry]
+
+    public init(bookmarks: [ImportedBookmark], history: [HistoryEntry] = []) {
+        self.bookmarks = bookmarks
+        self.history = history
+    }
+
+    /// Bookmarks only; folders don't count.
+    public var bookmarkCount: Int {
+        func count(_ items: [ImportedBookmark]) -> Int {
+            items.reduce(0) { $0 + ($1.url == nil ? count($1.children) : 1) }
+        }
+        return count(bookmarks)
+    }
+}
+
+/// A Chromium profile folder (Chrome's or Brave's "Default", "Profile 1", …): its `Bookmarks`
+/// file and `History` database, read together.
+public enum ChromiumProfileImporter {
+    /// Throws `unrecognized` when the folder holds neither file.
+    public static func contents(ofProfileAt folder: URL) throws -> ImportedData {
+        let bookmarksFile = folder.appendingPathComponent("Bookmarks")
+        let historyFile = folder.appendingPathComponent("History")
+        let files = FileManager.default
+        guard files.fileExists(atPath: bookmarksFile.path) || files.fileExists(atPath: historyFile.path) else {
+            throw BookmarkImporters.Failure.unrecognized
+        }
+        return ImportedData(
+            bookmarks: files.fileExists(atPath: bookmarksFile.path)
+                ? try BookmarkImporters.bookmarks(from: Data(contentsOf: bookmarksFile)) : [],
+            history: files.fileExists(atPath: historyFile.path)
+                ? try ChromeHistoryImporter.entries(fromDatabaseAt: historyFile) : [])
+    }
+}
+
+/// Copies visits from a Chromium `History` database (Chrome, Brave) into Nano's history.
 public enum ChromeHistoryImporter {
     public static func entries(fromDatabaseAt url: URL, limit: Int = 20_000) throws -> [HistoryEntry] {
         // Chrome keeps the file locked while running: read a copy.

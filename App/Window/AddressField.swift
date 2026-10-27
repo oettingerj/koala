@@ -172,4 +172,13 @@ private final class FocusAwareTextField: NSTextField {
         if accepted { onFocus?() }
         return accepted
     }
+
+    /// The field editor tracks the focusing click until mouse-up and leaves a caret where it
+    /// landed, overriding the select-all from focus. A plain click selects all; a drag keeps its range.
+    override func mouseDown(with event: NSEvent) {
+        let wasEditing = currentEditor() != nil
+        super.mouseDown(with: event)
+        guard !wasEditing, let editor = currentEditor(), editor.selectedRange.length == 0 else { return }
+        editor.selectAll(nil)
+    }
 }

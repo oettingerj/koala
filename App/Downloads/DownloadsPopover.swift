@@ -81,5 +81,5 @@ private struct DownloadRow: View {
 
 @MainActor
 enum DownloadsHosting {
-    static func popover(_ view: DownloadsPopover) -> NSViewController { NSHostingController(rootView: view) }
+    static func popover(_ view: DownloadsPopover) -> NSViewController { popoverController(view) }
 }

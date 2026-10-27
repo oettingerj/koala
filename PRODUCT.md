@@ -36,7 +36,7 @@ v1 scope:
 - Tabs (pinned, reorder, tear-off), address field, full macOS menu with standard shortcuts.
 - Command bar (Cmd+T): tabs, commands, keyword search (`gh`, `mdn`, `npm`, `crates`, `pypi`, `go`, `so`, `docs`), GitHub, bookmarks, history, web suggestions.
 - Peek (Shift+click link opens floating preview; promote to tab without reload). Split view (two pages in one tab).
-- History, bookmarks, import from Chrome / Arc / Safari. Session restore, recently closed.
+- History, bookmarks, import from Chrome / Brave / Arc / Safari. Session restore, recently closed.
 - Downloads manager. Web extensions via `WKWebExtension`.
 - GitHub (OAuth device flow, token in Keychain): PR/issue state and CI status in tabs, toolbar context chip, review queue, permalinks, open in local editor.
 - Devtools: Web Inspector (public API only: `isInspectable`, opened from the context menu), native dev panel (console, network timing, storage, vitals), page tools (force light/dark, hard reload, disable JS, view source, JSON viewer, responsive widths, full-page screenshot).

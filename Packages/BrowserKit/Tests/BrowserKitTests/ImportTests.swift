@@ -52,6 +52,21 @@ import Testing
         #expect(items[0].createdAt != nil)
     }
 
+    @Test func braveBookmarksWithSyncMetadata() throws {
+        // Brave writes Chromium's format plus checksum, version and sync fields.
+        let json = """
+        {"checksum": "abc", "version": 1, "sync_metadata": "Cg==",
+         "roots": {
+          "bookmark_bar": {"name": "Bookmarks", "type": "folder", "meta_info": {"order": "1.0"}, "children": [
+            {"name": "Brave Search", "type": "url", "url": "https://search.brave.com", "guid": "x"}]},
+          "other": {"name": "Other Bookmarks", "type": "folder", "children": []},
+          "synced": {"name": "Mobile Bookmarks", "type": "folder", "children": [
+            {"name": "Rewards", "type": "url", "url": "brave://rewards"}]}}}
+        """
+        let items = try BookmarkImporters.bookmarks(from: Data(json.utf8))
+        #expect(items.map(\.title) == ["Brave Search"])
+    }
+
     @Test func netscapeHTMLFromSafari() throws {
         let html = """
         <!DOCTYPE NETSCAPE-Bookmark-file-1>
@@ -99,8 +114,7 @@ import Testing
 }
 
 @Suite struct ChromeHistoryImportTests {
-    @Test func readsAndMergesVisits() async throws {
-        let file = FileManager.default.temporaryDirectory.appendingPathComponent("History-\(UUID())")
+    private func makeHistory(at file: URL) async throws {
         let chrome = try DatabaseQueue(path: file.path)
         try await chrome.write { db in
             try db.execute(sql: """
@@ -111,6 +125,11 @@ import Testing
                   ('chrome://settings', 'Settings', 3, 0, 13350000000000000);
                 """)
         }
+    }
+
+    @Test func readsAndMergesVisits() async throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("History-\(UUID())")
+        try await makeHistory(at: file)
         let entries = try ChromeHistoryImporter.entries(fromDatabaseAt: file)
         #expect(entries.map(\.url) == ["https://github.com/"])
         let history = HistoryStore(database: try .inMemory())
@@ -119,5 +138,25 @@ import Testing
         let merged = try #require(try await history.search("github").first)
         #expect(merged.visitCount == 41)
         #expect(merged.title == "GitHub")
+    }
+
+    @Test func profileFolderYieldsBookmarksAndHistory() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("Profile-\(UUID())")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try await makeHistory(at: folder.appendingPathComponent("History"))
+        try Data("""
+            {"roots": {"bookmark_bar": {"name": "Bookmarks", "type": "folder", "children": [
+              {"name": "Brave Search", "type": "url", "url": "https://search.brave.com"}]}}}
+            """.utf8).write(to: folder.appendingPathComponent("Bookmarks"))
+        let contents = try ChromiumProfileImporter.contents(ofProfileAt: folder)
+        #expect(contents.bookmarks.map(\.title) == ["Brave Search"])
+        #expect(contents.history.map(\.url) == ["https://github.com/"])
+    }
+
+    @Test func rejectsFolderWithoutProfileFiles() {
+        #expect(throws: BookmarkImporters.Failure.unrecognized) {
+            try ChromiumProfileImporter.contents(ofProfileAt: FileManager.default.temporaryDirectory)
+        }
     }
 }

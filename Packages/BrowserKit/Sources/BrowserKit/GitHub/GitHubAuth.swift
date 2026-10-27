@@ -3,7 +3,7 @@ import Security
 
 /// The GitHub token, kept only in the Keychain. Never written to defaults, the session, or logs.
 public enum GitHubKeychain {
-    private static let service = "com.joshoettinger.nano.github"
+    private static let service = (Bundle.main.bundleIdentifier ?? "com.joshoettinger.nano") + ".github"
     private static let account = "oauth-token"
 
     public static func read() -> String? {

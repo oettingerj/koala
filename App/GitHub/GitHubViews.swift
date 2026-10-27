@@ -279,7 +279,7 @@ struct GitHubSignInView: View {
 
 @MainActor
 enum GitHubHosting {
-    static func contextPopover(_ view: GitHubContextPopover) -> NSViewController { NSHostingController(rootView: view) }
-    static func queuePopover(_ view: ReviewQueuePopover) -> NSViewController { NSHostingController(rootView: view) }
+    static func contextPopover(_ view: GitHubContextPopover) -> NSViewController { popoverController(view) }
+    static func queuePopover(_ view: ReviewQueuePopover) -> NSViewController { popoverController(view) }
     static func signInSheet(_ view: GitHubSignInView) -> NSViewController { NSHostingController(rootView: view) }
 }

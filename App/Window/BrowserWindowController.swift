@@ -277,50 +277,68 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     @objc func findNext(_ sender: Any?) { rootView.findBar.find(backwards: false) }
     @objc func findPrevious(_ sender: Any?) { rootView.findBar.find(backwards: true) }
 
-    @objc func importBookmarks(_ sender: Any?) {
-        guard let window else { return }
-        let panel = NSOpenPanel()
-        panel.message = "Choose a bookmarks file: Chrome’s “Bookmarks”, Arc’s “StorableSidebar.json”, or an exported bookmarks HTML file (Safari: File › Export › Bookmarks)."
-        panel.prompt = "Import"
-        panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support")
-        panel.beginSheetModal(for: window) { [weak self] response in
-            guard response == .OK, let url = panel.url else { return }
-            Task { @MainActor in
-                do {
-                    let items = try BookmarkImporters.bookmarks(from: try Data(contentsOf: url))
-                    try await AppServices.shared.bookmarks.importTree(items)
-                    self?.report("Imported \(Self.count(items)) bookmarks.")
-                } catch {
-                    self?.report("Nano couldn’t read that file as bookmarks.", failed: true)
-                }
-            }
+    @objc func importFromChrome(_ sender: Any?) {
+        importBrowserProfile(named: "Chrome", in: "Library/Application Support/Google/Chrome")
+    }
+
+    @objc func importFromBrave(_ sender: Any?) {
+        importBrowserProfile(named: "Brave", in: "Library/Application Support/BraveSoftware/Brave-Browser")
+    }
+
+    @objc func importBookmarksFile(_ sender: Any?) {
+        chooseImport(
+            message: "Choose a bookmarks file: Arc’s “StorableSidebar.json”, a Chrome or Brave “Bookmarks” file, or an exported bookmarks HTML file (Safari: File › Export › Bookmarks).",
+            in: "Library/Application Support", folders: false) { url in
+            ImportedData(bookmarks: try BookmarkImporters.bookmarks(from: Data(contentsOf: url)))
         }
     }
 
-    @objc func importChromeHistory(_ sender: Any?) {
+    /// Chromium browsers keep each profile in its own folder: "Default", "Profile 1", and so on.
+    private func importBrowserProfile(named browser: String, in folder: String) {
+        chooseImport(
+            message: "Choose the \(browser) profile to import, usually “Default”. Nano brings in its bookmarks and history.",
+            in: folder, folders: true) { url in
+            try ChromiumProfileImporter.contents(ofProfileAt: url)
+        }
+    }
+
+    /// `folder` is relative to the real home folder, not the sandbox container. The sandbox
+    /// grants access to what the person picks; `read` runs off the main thread.
+    private func chooseImport(message: String, in folder: String, folders: Bool,
+                              read: @escaping @Sendable (URL) throws -> ImportedData) {
         guard let window else { return }
         let panel = NSOpenPanel()
-        panel.message = "Choose Chrome’s History file (Library › Application Support › Google › Chrome › Default › History)."
+        panel.message = message
         panel.prompt = "Import"
+        panel.canChooseDirectories = folders
+        panel.canChooseFiles = !folders
         panel.directoryURL = URL(fileURLWithPath: NSHomeDirectoryForUser(NSUserName()) ?? NSHomeDirectory())
-            .appendingPathComponent("Library/Application Support/Google/Chrome/Default")
+            .appendingPathComponent(folder)
         panel.beginSheetModal(for: window) { [weak self] response in
             guard response == .OK, let url = panel.url else { return }
             Task { @MainActor in
                 do {
-                    let entries = try await Task.detached { try ChromeHistoryImporter.entries(fromDatabaseAt: url) }.value
-                    try await AppServices.shared.history.importEntries(entries)
-                    await AppServices.shared.suggestions.reloadHostIndex()
-                    self?.report("Imported \(entries.count) pages from Chrome history.")
+                    let data = try await Task.detached { try read(url) }.value
+                    let services = AppServices.shared
+                    if !data.bookmarks.isEmpty { try await services.bookmarks.importTree(data.bookmarks) }
+                    if !data.history.isEmpty {
+                        try await services.history.importEntries(data.history)
+                        await services.suggestions.reloadHostIndex()
+                    }
+                    self?.report(Self.summary(of: data))
                 } catch {
-                    self?.report("Nano couldn’t read that file as Chrome history.", failed: true)
+                    self?.report(folders ? "Nano couldn’t find bookmarks or history in that folder."
+                                         : "Nano couldn’t read that file as bookmarks.", failed: true)
                 }
             }
         }
     }
 
-    private static func count(_ items: [ImportedBookmark]) -> Int {
-        items.reduce(0) { $0 + ($1.url == nil ? count($1.children) : 1) }
+    private static func summary(of data: ImportedData) -> String {
+        var parts: [String] = []
+        if data.bookmarkCount > 0 { parts.append("\(data.bookmarkCount) bookmarks") }
+        if !data.history.isEmpty { parts.append("\(data.history.count) pages of history") }
+        return parts.isEmpty ? "There was nothing to import." : "Imported \(parts.joined(separator: " and "))."
     }
 
     private func report(_ message: String, failed: Bool = false) {
