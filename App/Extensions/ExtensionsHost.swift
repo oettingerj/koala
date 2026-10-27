@@ -28,7 +28,7 @@ final class ExtensionsHost: NSObject {
 
     @ObservationIgnored let controller: WKWebExtensionController
     @ObservationIgnored private let store: ExtensionStore?
-    @ObservationIgnored private let log = Logger(subsystem: "com.joshoettinger.nano", category: "extensions")
+    @ObservationIgnored let log = Logger(subsystem: "com.joshoettinger.nano", category: "extensions")
 
     private override init() {
         // A stable identifier keeps extension storage (settings, rules) across launches.
@@ -146,7 +146,7 @@ final class ExtensionsHost: NSObject {
             store.removeBundle(named: bundleName)
             throw error
         }
-        guard await confirmInstall(webExtension) else {
+        guard await confirmInstall(webExtension, hiding: ExtensionCompatibility.addedPermissions(inBundleAt: store.bundleURL(for: item))) else {
             store.removeBundle(named: item.bundleName)
             return false
         }
@@ -158,12 +158,12 @@ final class ExtensionsHost: NSObject {
         return true
     }
 
-    /// Shows what the extension asks for before anything runs.
-    private func confirmInstall(_ webExtension: WKWebExtension) async -> Bool {
+    /// Shows what the extension asks for before anything runs. Permissions Nano added aren't the extension's to ask for.
+    private func confirmInstall(_ webExtension: WKWebExtension, hiding added: Set<String> = []) async -> Bool {
         let alert = NSAlert()
         alert.messageText = "Add “\(webExtension.displayName ?? "this extension")”?"
         var lines: [String] = []
-        let permissions = webExtension.requestedPermissions.map(\.rawValue).sorted()
+        let permissions = webExtension.requestedPermissions.map(\.rawValue).filter { !added.contains($0) }.sorted()
         if !permissions.isEmpty { lines.append("Permissions: " + permissions.joined(separator: ", ")) }
         let hosts = webExtension.allRequestedMatchPatterns.map(\.string).sorted()
         if hosts.contains("<all_urls>") || hosts.contains("*://*/*") {
@@ -203,6 +203,9 @@ final class ExtensionsHost: NSObject {
             log.info("Loaded \(item.name, privacy: .public); permissions: \(context.grantedPermissions.keys.map(\.rawValue).sorted().joined(separator: ","), privacy: .public); errors: \(context.errors.map(\.localizedDescription).joined(separator: "; "), privacy: .public)")
             contexts.append((item.id, context))
             loadFailures[item.id] = nil
+            if item.safariID == nil, ExtensionCompatibility.addedPermissions(inBundleAt: store.bundleURL(for: item)).contains("nativeMessaging") {
+                nativeMessagingAddedByNano.insert(item.id)
+            }
             announceOpenWindowsAndTabs(to: context)
         } catch {
             loadFailures[item.id] = error.localizedDescription
@@ -280,10 +283,16 @@ final class ExtensionsHost: NSObject {
     // MARK: Native messaging
 
     /// Open connections to native hosts. Releasing a port disconnects it, so it lives here too.
+    /// Extensions whose nativeMessaging permission Nano added to reach its own hosts; real hosts stay closed to them.
+    @ObservationIgnored private var nativeMessagingAddedByNano: Set<String> = []
     @ObservationIgnored fileprivate var nativePorts: [ObjectIdentifier: (port: WKWebExtension.MessagePort, connection: NativeMessagingConnection)] = [:]
 
     /// Launches the host `name` for an extension, if the host's manifest in Chrome's folders allows it.
     fileprivate func connectNativeHost(_ name: String?, for context: WKWebExtensionContext) throws -> NativeMessagingConnection {
+        guard !nativeMessagingAddedByNano.contains(context.uniqueIdentifier) else {
+            log.error("Native host \(name ?? "nil", privacy: .public) refused: the extension didn’t ask for native messaging")
+            throw NativeMessaging.Failure.forbidden
+        }
         let home = FileManager.default.homeDirectoryForCurrentUser
         guard let name, let host = NativeMessaging.hostManifest(named: name, in: NativeMessaging.chromeHostFolders(home: home)) else {
             log.error("Native host \(name ?? "nil", privacy: .public) not found")
@@ -396,6 +405,12 @@ extension ExtensionsHost: WKWebExtensionControllerDelegate {
             default: log.error("\(text, privacy: .public)")
             }
             return replyHandler(nil, NativeMessaging.Failure.hostNotFound)
+        }
+        if applicationIdentifier == ExtensionCompatibility.fetchHost {
+            Task {
+                do { replyHandler(try await performBackgroundFetch(message, for: extensionContext), nil) } catch { replyHandler(nil, error) }
+            }
+            return
         }
         let connection: NativeMessagingConnection
         do {

@@ -13,6 +13,10 @@ public enum ExtensionCompatibility {
     static let legacyWrapperPath = "\(folder)/background.js"
     /// The native host name the compat script sends console errors to; Nano logs them instead of launching anything.
     public static let consoleHost = "nano.console"
+    /// The native host name the compat script sends background requests to; Nano makes them with the site's cookies.
+    public static let fetchHost = "nano.fetch"
+    /// Manifest key listing permissions Nano added, which the extension never asked the user for.
+    static let addedPermissionsKey = "nano_added_permissions"
 
     /// Writes the script into `bundle` and points the manifest's background at it. Safe to repeat;
     /// a bundle that is already wrapped only gets the current script.
@@ -48,10 +52,26 @@ public enum ExtensionCompatibility {
             background["scripts"] = scripts
             changed = true
         }
+        // Extensions that read cookies work with site sessions, which their background requests carry only
+        // when Nano makes them (see compat.js), and the compat script reaches Nano through native messaging.
+        var permissions = manifest["permissions"] as? [String] ?? []
+        if permissions.contains("cookies"), !permissions.contains("nativeMessaging") {
+            permissions.append("nativeMessaging")
+            manifest["permissions"] = permissions
+            manifest[addedPermissionsKey] = ["nativeMessaging"]
+            changed = true
+        }
         guard changed else { return }
         manifest["background"] = background
         let output = try JSONSerialization.data(withJSONObject: manifest, options: [.prettyPrinted, .withoutEscapingSlashes])
         try output.write(to: manifestURL, options: .atomic)
+    }
+
+    /// Permissions in the bundle's manifest that Nano added rather than the extension's author.
+    public static func addedPermissions(inBundleAt bundle: URL) -> Set<String> {
+        guard let data = try? Data(contentsOf: bundle.appendingPathComponent("manifest.json")),
+              let manifest = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [] }
+        return Set(manifest[addedPermissionsKey] as? [String] ?? [])
     }
 
     /// The worker an older wrapper loads: the last quoted path in it, without the leading slash.
@@ -66,121 +86,10 @@ public enum ExtensionCompatibility {
         String(decoding: try JSONSerialization.data(withJSONObject: path, options: [.fragmentsAllowed, .withoutEscapingSlashes]), as: UTF8.self)
     }
 
-    /// Stand-ins accept every call: listeners never fire, `get` and `getAll` return empty results,
-    /// callbacks run with those results. Only namespaces the extension asked for in its permissions are
-    /// added, plus events WebKit lacks inside namespaces it has. WebKit rebuilds the `chrome` object after
-    /// startup, so the gaps are filled again on every read of `chrome` or `browser`.
-    static let script = """
-        // Added by Nano: inert stand-ins for Chrome extension APIs WebKit doesn't implement.
-        (() => {
-          const api = globalThis.chrome ?? globalThis.browser;
-          if (!api?.runtime?.getManifest) return;
-          // WebKit runs the background service worker on the thread its WebSocket channel waits on, so
-          // `new WebSocket` deadlocks the extension (a stack sample shows WorkerThreadableWebSocketChannel
-          // waiting on a BinarySemaphore forever). This stand-in fails the connection asynchronously instead.
-          if (typeof ServiceWorkerGlobalScope !== "undefined" && globalThis instanceof ServiceWorkerGlobalScope && globalThis.WebSocket) {
-            class NanoWebSocket extends EventTarget {
-              static CONNECTING = 0; static OPEN = 1; static CLOSING = 2; static CLOSED = 3;
-              CONNECTING = 0; OPEN = 1; CLOSING = 2; CLOSED = 3;
-              readyState = 0; bufferedAmount = 0; extensions = ""; protocol = ""; binaryType = "blob";
-              constructor(url) {
-                super();
-                this.url = String(url);
-                for (const name of ["open", "message", "error", "close"]) {
-                  let handler = null;
-                  Object.defineProperty(this, `on${name}`, {
-                    get: () => handler,
-                    set: value => { if (handler) this.removeEventListener(name, handler); handler = typeof value === "function" ? value : null; if (handler) this.addEventListener(name, handler); },
-                  });
-                }
-                console.warn("[Nano]", `WebSocket to ${new URL(this.url).host} refused: not available in a background service worker`);
-                setTimeout(() => {
-                  if (this.readyState === 3) return;
-                  this.readyState = 3;
-                  this.dispatchEvent(new Event("error"));
-                  this.dispatchEvent(typeof CloseEvent === "function" ? new CloseEvent("close", { wasClean: false, code: 1006 }) : Object.assign(new Event("close"), { wasClean: false, code: 1006, reason: "" }));
-                }, 0);
-              }
-              send() { throw new DOMException("WebSocket is not open", "InvalidStateError"); }
-              close() { this.readyState = 3; }
-            }
-            globalThis.WebSocket = NanoWebSocket;
-          }
-          const stubs = new Map();
-          const inert = path => {
-            if (!stubs.has(path)) stubs.set(path, new Proxy(function () {}, {
-              get: (_, key) => typeof key === "string" && key !== "then" ? inert(`${path}.${key}`) : undefined,
-              apply: (_, __, args) => {
-                if (/\\.hasListeners?$/.test(path)) return false;
-                const result = /\\.getAll$/.test(path) ? [] : /\\.get$/.test(path) ? {} : undefined;
-                const callback = args.findLast(arg => typeof arg === "function");
-                if (callback && !/Listener$/.test(path)) queueMicrotask(() => callback(result));
-                return Promise.resolve(result);
-              },
-            }));
-            return stubs.get(path);
-          };
-          const manifest = api.runtime.getManifest();
-          const permissions = [...(manifest.permissions ?? []), ...(manifest.optional_permissions ?? [])]
-            .filter(name => /^[a-z][A-Za-z]*$/.test(name));
-          const members = {
-            action: ["getUserSettings", "onUserSettingsChanged"],
-            runtime: ["onRestartRequired", "onSuspend", "onSuspendCanceled", "onUpdateAvailable", "setUninstallURL"],
-            storage: ["managed"],
-            tabs: ["onAttached", "onDetached", "onHighlighted", "onReplaced", "onZoomChange"],
-            webNavigation: ["onCreatedNavigationTarget", "onHistoryStateUpdated", "onReferenceFragmentUpdated", "onTabReplaced"],
-            webRequest: ["onAuthRequired"],
-            windows: ["onBoundsChanged"],
-          };
-          const fill = (target, key, path) => {
-            if (target && target[key] === undefined) {
-              try { Object.defineProperty(target, key, { value: inert(path), configurable: true, writable: true }); } catch {}
-            }
-          };
-          // WebKit throws when it can't convert a rule (a regexFilter with `|`, say) where Chrome rejects the
-          // returned promise, and a throw at startup stops the rest of the background script.
-          const rejecting = new WeakSet();
-          const rejectInsteadOfThrowing = (target, key) => {
-            const original = target?.[key];
-            if (typeof original !== "function" || rejecting.has(original)) return;
-            const wrapper = function (...args) {
-              try { return original.apply(this, args); } catch (error) {
-                console.warn("[Nano]", `declarativeNetRequest.${key} refused: ${error?.message ?? error}`);
-                const callback = args.findLast(arg => typeof arg === "function");
-                if (!callback) return Promise.reject(error);
-                queueMicrotask(() => callback());
-              }
-            };
-            rejecting.add(wrapper);
-            try { Object.defineProperty(target, key, { value: wrapper, configurable: true, writable: true }); } catch {}
-          };
-          const patch = root => {
-            for (const name of permissions) fill(root, name, name);
-            for (const [name, keys] of Object.entries(members)) for (const key of keys) fill(root?.[name], key, `${name}.${key}`);
-            for (const key of ["updateDynamicRules", "updateSessionRules", "updateEnabledRulesets"]) rejectInsteadOfThrowing(root?.declarativeNetRequest, key);
-            return root;
-          };
-          for (const name of ["chrome", "browser"]) {
-            const descriptor = Object.getOwnPropertyDescriptor(globalThis, name);
-            if (!descriptor?.configurable) continue;
-            const read = descriptor.get ? () => descriptor.get.call(globalThis) : () => descriptor.value;
-            Object.defineProperty(globalThis, name, { get: () => patch(read()), configurable: true });
-          }
-          // Errors and warnings go to Nano's log (Console.app, subsystem com.joshoettinger.nano) through a
-          // native host name Nano reserves. Extensions without the nativeMessaging permission skip this.
-          if (manifest.permissions?.includes("nativeMessaging")) {
-            const report = (level, text) => {
-              try { api.runtime.sendNativeMessage("\(consoleHost)", { level, text: String(text).slice(0, 4000) }).catch(() => {}); } catch {}
-            };
-            const describe = value => value instanceof Error ? `${value.message}\\n${value.stack ?? ""}` : typeof value === "string" ? value : (() => { try { return JSON.stringify(value); } catch { return String(value); } })();
-            for (const level of ["error", "warn", "info"]) {
-              const original = console[level].bind(console);
-              console[level] = (...args) => { original(...args); report(level, args.map(describe).join(" ")); };
-            }
-            globalThis.addEventListener("error", e => report("error", `${e.message} (${e.filename}:${e.lineno})`));
-            globalThis.addEventListener("unhandledrejection", e => report("error", `Unhandled rejection: ${e.reason?.name ?? ""}: ${e.reason?.message ?? e.reason} @ ${e.reason?.stack ?? ""}`));
-          }
-        })();
-
-        """
+    /// The script, from compat.js beside this file.
+    static let script: String = {
+        guard let url = Bundle.module.url(forResource: "compat", withExtension: "js"),
+              let source = try? String(contentsOf: url, encoding: .utf8) else { preconditionFailure("compat.js is missing from BrowserKit's resources") }
+        return source
+    }()
 }

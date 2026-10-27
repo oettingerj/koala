@@ -11,7 +11,8 @@ let package = Package(
         .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.9.0"),
     ],
     targets: [
-        .target(name: "BrowserKit", dependencies: [.product(name: "GRDB", package: "GRDB.swift")]),
+        .target(name: "BrowserKit", dependencies: [.product(name: "GRDB", package: "GRDB.swift")],
+                resources: [.copy("Extensions/compat.js")]),
         .testTarget(name: "BrowserKitTests", dependencies: ["BrowserKit"]),
     ]
 )

@@ -106,6 +106,22 @@ import Testing
         #expect((try manifest(in: bundle)["background"] as! [String: Any])["scripts"] as? [String] == ["/nano-compat/compat.js", "a.js"])
     }
 
+    @Test func givesCookieExtensionsNativeMessagingAndSaysSo() throws {
+        let bundle = try temporaryDirectory()
+        try Data(#"{"permissions":["cookies"],"background":{"service_worker":"sw.js"}}"#.utf8).write(to: bundle.appendingPathComponent("manifest.json"))
+        try ExtensionCompatibility.apply(toBundleAt: bundle)
+        try ExtensionCompatibility.apply(toBundleAt: bundle)
+        #expect(try manifest(in: bundle)["permissions"] as? [String] == ["cookies", "nativeMessaging"])
+        #expect(ExtensionCompatibility.addedPermissions(inBundleAt: bundle) == ["nativeMessaging"])
+
+        // An extension that asked for native messaging itself keeps it as its own.
+        try Data(#"{"permissions":["cookies","nativeMessaging"],"background":{"service_worker":"sw.js"}}"#.utf8).write(to: bundle.appendingPathComponent("manifest.json"))
+        try ExtensionCompatibility.apply(toBundleAt: bundle)
+        #expect(ExtensionCompatibility.addedPermissions(inBundleAt: bundle).isEmpty)
+        #expect(ExtensionCompatibility.script.contains("\"\(ExtensionCompatibility.fetchHost)\"")
+                && ExtensionCompatibility.script.contains("\"\(ExtensionCompatibility.consoleHost)\""))
+    }
+
     @Test func unpacksArchivesAndOldZipBundles() async throws {
         let store = ExtensionStore(directory: try temporaryDirectory())
         let archive = try zipOf(["manifest.json": #"{"name":"X","background":{"service_worker":"sw.js"}}"#, "sw.js": ""])
