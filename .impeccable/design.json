@@ -1,0 +1,641 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-27T01:47:08+00:00",
+  "title": "Design System: Nano",
+  "extensions": {
+    "colorMeta": {
+      "accent": {
+        "role": "primary",
+        "displayName": "Nano Teal",
+        "tonalRamp": [
+          "#06322C",
+          "#084F46",
+          "#0B7A6D",
+          "#0E8F80",
+          "#2CC3AE",
+          "#6ED8C8",
+          "#B0EBE2",
+          "#E3F8F4"
+        ]
+      },
+      "accent-dark": {
+        "role": "primary",
+        "displayName": "Nano Teal (dark)",
+        "tonalRamp": [
+          "#06322C",
+          "#084F46",
+          "#0B7A6D",
+          "#0E8F80",
+          "#2CC3AE",
+          "#6ED8C8",
+          "#B0EBE2",
+          "#E3F8F4"
+        ]
+      },
+      "accent-deep": {
+        "role": "primary",
+        "displayName": "Deep Teal"
+      },
+      "on-accent-dark": {
+        "role": "primary",
+        "displayName": "On Teal (dark)"
+      },
+      "pass": {
+        "role": "secondary",
+        "displayName": "Pass Green"
+      },
+      "pass-dark": {
+        "role": "secondary",
+        "displayName": "Pass Green (dark)"
+      },
+      "pending": {
+        "role": "secondary",
+        "displayName": "Pending Amber"
+      },
+      "pending-dark": {
+        "role": "secondary",
+        "displayName": "Pending Amber (dark)"
+      },
+      "fail": {
+        "role": "secondary",
+        "displayName": "Fail Red"
+      },
+      "fail-dark": {
+        "role": "secondary",
+        "displayName": "Fail Red (dark)"
+      },
+      "merged": {
+        "role": "secondary",
+        "displayName": "Merged Purple"
+      },
+      "merged-dark": {
+        "role": "secondary",
+        "displayName": "Merged Purple (dark)"
+      },
+      "strip-ground": {
+        "role": "neutral",
+        "displayName": "Strip Ground",
+        "tonalRamp": [
+          "#18181B",
+          "#2E2E33",
+          "#4E4E56",
+          "#6C6C75",
+          "#C8C8CD",
+          "#EBEBED",
+          "#FAFAFA",
+          "#FFFFFF"
+        ],
+        "rampStep": 3
+      },
+      "strip-ground-dark": {
+        "role": "neutral",
+        "displayName": "Strip Ground (dark)",
+        "tonalRamp": [
+          "#111113",
+          "#18181B",
+          "#26262A",
+          "#3E3E44",
+          "#8A8A93",
+          "#A6A6AE",
+          "#D4D4D8",
+          "#F4F4F5"
+        ],
+        "rampStep": 0
+      },
+      "chrome-surface": {
+        "role": "neutral",
+        "displayName": "Chrome Surface",
+        "tonalRamp": [
+          "#18181B",
+          "#2E2E33",
+          "#4E4E56",
+          "#6C6C75",
+          "#C8C8CD",
+          "#EBEBED",
+          "#FAFAFA",
+          "#FFFFFF"
+        ],
+        "rampStep": 1
+      },
+      "chrome-surface-dark": {
+        "role": "neutral",
+        "displayName": "Chrome Surface (dark)",
+        "tonalRamp": [
+          "#111113",
+          "#18181B",
+          "#26262A",
+          "#3E3E44",
+          "#8A8A93",
+          "#A6A6AE",
+          "#D4D4D8",
+          "#F4F4F5"
+        ],
+        "rampStep": 2
+      },
+      "field-fill": {
+        "role": "neutral",
+        "displayName": "Field Well",
+        "tonalRamp": [
+          "#18181B",
+          "#2E2E33",
+          "#4E4E56",
+          "#6C6C75",
+          "#C8C8CD",
+          "#EBEBED",
+          "#FAFAFA",
+          "#FFFFFF"
+        ],
+        "rampStep": 3
+      },
+      "field-fill-dark": {
+        "role": "neutral",
+        "displayName": "Field Well (dark)",
+        "tonalRamp": [
+          "#111113",
+          "#18181B",
+          "#26262A",
+          "#3E3E44",
+          "#8A8A93",
+          "#A6A6AE",
+          "#D4D4D8",
+          "#F4F4F5"
+        ],
+        "rampStep": 1
+      },
+      "field-editing": {
+        "role": "neutral",
+        "displayName": "Editing Field",
+        "tonalRamp": [
+          "#18181B",
+          "#2E2E33",
+          "#4E4E56",
+          "#6C6C75",
+          "#C8C8CD",
+          "#EBEBED",
+          "#FAFAFA",
+          "#FFFFFF"
+        ],
+        "rampStep": 0
+      },
+      "field-editing-dark": {
+        "role": "neutral",
+        "displayName": "Editing Field (dark)",
+        "tonalRamp": [
+          "#111113",
+          "#18181B",
+          "#26262A",
+          "#3E3E44",
+          "#8A8A93",
+          "#A6A6AE",
+          "#D4D4D8",
+          "#F4F4F5"
+        ],
+        "rampStep": 0
+      },
+      "hover-fill": {
+        "role": "neutral",
+        "displayName": "Hover",
+        "tonalRamp": [
+          "#18181B",
+          "#2E2E33",
+          "#4E4E56",
+          "#6C6C75",
+          "#C8C8CD",
+          "#EBEBED",
+          "#FAFAFA",
+          "#FFFFFF"
+        ],
+        "rampStep": 4
+      },
+      "hover-fill-dark": {
+        "role": "neutral",
+        "displayName": "Hover (dark)",
+        "tonalRamp": [
+          "#111113",
+          "#18181B",
+          "#26262A",
+          "#3E3E44",
+          "#8A8A93",
+          "#A6A6AE",
+          "#D4D4D8",
+          "#F4F4F5"
+        ],
+        "rampStep": 3
+      },
+      "pressed-fill": {
+        "role": "neutral",
+        "displayName": "Pressed",
+        "tonalRamp": [
+          "#18181B",
+          "#2E2E33",
+          "#4E4E56",
+          "#6C6C75",
+          "#C8C8CD",
+          "#EBEBED",
+          "#FAFAFA",
+          "#FFFFFF"
+        ],
+        "rampStep": 5
+      },
+      "pressed-fill-dark": {
+        "role": "neutral",
+        "displayName": "Pressed (dark)",
+        "tonalRamp": [
+          "#111113",
+          "#18181B",
+          "#26262A",
+          "#3E3E44",
+          "#8A8A93",
+          "#A6A6AE",
+          "#D4D4D8",
+          "#F4F4F5"
+        ],
+        "rampStep": 4
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "tonalRamp": [
+          "#18181B",
+          "#2E2E33",
+          "#4E4E56",
+          "#6C6C75",
+          "#C8C8CD",
+          "#EBEBED",
+          "#FAFAFA",
+          "#FFFFFF"
+        ],
+        "rampStep": 4
+      },
+      "hairline-dark": {
+        "role": "neutral",
+        "displayName": "Hairline (dark)",
+        "tonalRamp": [
+          "#111113",
+          "#18181B",
+          "#26262A",
+          "#3E3E44",
+          "#8A8A93",
+          "#A6A6AE",
+          "#D4D4D8",
+          "#F4F4F5"
+        ],
+        "rampStep": 4
+      },
+      "text-primary": {
+        "role": "neutral",
+        "displayName": "Primary Text",
+        "tonalRamp": [
+          "#18181B",
+          "#2E2E33",
+          "#4E4E56",
+          "#6C6C75",
+          "#C8C8CD",
+          "#EBEBED",
+          "#FAFAFA",
+          "#FFFFFF"
+        ],
+        "rampStep": 10
+      },
+      "text-primary-dark": {
+        "role": "neutral",
+        "displayName": "Primary Text (dark)",
+        "tonalRamp": [
+          "#111113",
+          "#18181B",
+          "#26262A",
+          "#3E3E44",
+          "#8A8A93",
+          "#A6A6AE",
+          "#D4D4D8",
+          "#F4F4F5"
+        ],
+        "rampStep": 10
+      },
+      "text-secondary": {
+        "role": "neutral",
+        "displayName": "Secondary Text",
+        "tonalRamp": [
+          "#18181B",
+          "#2E2E33",
+          "#4E4E56",
+          "#6C6C75",
+          "#C8C8CD",
+          "#EBEBED",
+          "#FAFAFA",
+          "#FFFFFF"
+        ],
+        "rampStep": 8
+      },
+      "text-secondary-dark": {
+        "role": "neutral",
+        "displayName": "Secondary Text (dark)",
+        "tonalRamp": [
+          "#111113",
+          "#18181B",
+          "#26262A",
+          "#3E3E44",
+          "#8A8A93",
+          "#A6A6AE",
+          "#D4D4D8",
+          "#F4F4F5"
+        ],
+        "rampStep": 8
+      },
+      "text-tertiary": {
+        "role": "neutral",
+        "displayName": "Tertiary Text",
+        "tonalRamp": [
+          "#18181B",
+          "#2E2E33",
+          "#4E4E56",
+          "#6C6C75",
+          "#C8C8CD",
+          "#EBEBED",
+          "#FAFAFA",
+          "#FFFFFF"
+        ],
+        "rampStep": 7
+      },
+      "text-tertiary-dark": {
+        "role": "neutral",
+        "displayName": "Tertiary Text (dark)",
+        "tonalRamp": [
+          "#111113",
+          "#18181B",
+          "#26262A",
+          "#3E3E44",
+          "#8A8A93",
+          "#A6A6AE",
+          "#D4D4D8",
+          "#F4F4F5"
+        ],
+        "rampStep": 7
+      },
+      "text-disabled": {
+        "role": "neutral",
+        "displayName": "Disabled Text",
+        "tonalRamp": [
+          "#18181B",
+          "#2E2E33",
+          "#4E4E56",
+          "#6C6C75",
+          "#C8C8CD",
+          "#EBEBED",
+          "#FAFAFA",
+          "#FFFFFF"
+        ],
+        "rampStep": 5
+      },
+      "text-disabled-dark": {
+        "role": "neutral",
+        "displayName": "Disabled Text (dark)",
+        "tonalRamp": [
+          "#111113",
+          "#18181B",
+          "#26262A",
+          "#3E3E44",
+          "#8A8A93",
+          "#A6A6AE",
+          "#D4D4D8",
+          "#F4F4F5"
+        ],
+        "rampStep": 5
+      }
+    },
+    "typographyMeta": {
+      "command-input": {
+        "displayName": "Command input",
+        "purpose": "Command bar query field only."
+      },
+      "panel-heading": {
+        "displayName": "Panel heading",
+        "purpose": "PR title in the GitHub context popover."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Popover titles."
+      },
+      "field": {
+        "displayName": "Field",
+        "purpose": "Address field and command row titles."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Tab titles, dev section tabs, popover copy, bookmarks."
+      },
+      "tab-title": {
+        "displayName": "Tab title",
+        "purpose": "Unselected tab."
+      },
+      "tab-title-selected": {
+        "displayName": "Tab title selected",
+        "purpose": "Selected tab; weight carries selection."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Subtitles, guide words, dev chips, metadata."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "URL paths, console, storage, refs."
+      },
+      "mono-small": {
+        "displayName": "Mono small",
+        "purpose": "Command row URLs, context chip, timings."
+      },
+      "badge": {
+        "displayName": "Badge",
+        "purpose": "Counts on toolbar buttons."
+      }
+    },
+    "shadows": [
+      {
+        "name": "floating-panel",
+        "value": "system NSWindow.hasShadow (approximated in snippets as 0 10px 30px rgba(0,0,0,.18))",
+        "purpose": "Command bar and address dropdown only."
+      },
+      {
+        "name": "peek-scrim",
+        "value": "text-primary (#18181B light / #F4F4F5 dark) at 18% opacity",
+        "purpose": "Backdrop behind the Peek card; not a shadow, the card's separation."
+      }
+    ],
+    "motion": [
+      {
+        "name": "hover",
+        "value": "80ms",
+        "purpose": "Hover and selection fills on tabs, buttons, chips."
+      },
+      {
+        "name": "panel",
+        "value": "120ms ease-out",
+        "purpose": "Panel open, Peek scale 0.97 to 1 with fade, tab strip reflow."
+      },
+      {
+        "name": "reduce-motion",
+        "value": "0ms",
+        "purpose": "All durations collapse when Reduce Motion is on."
+      },
+      {
+        "name": "input-path",
+        "value": "none",
+        "purpose": "Typing, tab switching, and row selection never animate."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "window-min",
+        "value": "480x320pt"
+      },
+      {
+        "name": "command-bar-narrow",
+        "value": "window width - 48pt below 688pt"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Tab",
+      "kind": "nav",
+      "refersTo": "tab",
+      "description": "Tab strip with an unselected, hovered, and selected tab joined to the toolbar.",
+      "html": "<div class=\"ds-strip\"><div class=\"ds-tab\"><span class=\"ds-fav\"></span>Fetch API - MDN</div><div class=\"ds-tab ds-tab-sel\"><span class=\"ds-fav\"><span class=\"ds-dot\"></span></span>[Runtime] Allow ~Esc...<span class=\"ds-x\"><svg width=\"9\" height=\"9\" viewBox=\"0 0 10 10\"><path d=\"M2 2l6 6M8 2l-6 6\" stroke=\"currentColor\" stroke-width=\"1.4\" stroke-linecap=\"round\"/></svg></span></div><div class=\"ds-tab\"><span class=\"ds-fav\"></span>tokio - Rust</div></div><div class=\"ds-toolbar\"></div>",
+      "css": ".ds-strip{display:flex;gap:4px;align-items:flex-end;height:40px;padding:0 8px;background:#EBEBED;font:12px/16px -apple-system, system-ui, sans-serif}.ds-tab{display:flex;align-items:center;gap:8px;width:180px;height:28px;margin-bottom:5px;padding:0 10px;border-radius:6px;color:#4E4E56;transition:background .08s ease-out}.ds-tab:hover{background:#DEDEE1}.ds-tab-sel,.ds-tab-sel:hover{height:32px;margin-bottom:0;border-radius:6px 6px 0 0;background:#FAFAFA;color:#18181B;font-weight:500}.ds-fav{position:relative;flex:none;width:16px;height:16px;border-radius:4px;background:#A0A0A8}.ds-dot{position:absolute;right:-3px;bottom:-2px;width:7px;height:7px;border-radius:50%;background:#248A57;box-shadow:0 0 0 1.5px #FAFAFA}.ds-x{margin-left:auto;display:flex;width:16px;height:16px;align-items:center;justify-content:center;border-radius:4px;color:#4E4E56}.ds-x:hover{background:#DEDEE1}.ds-toolbar{height:36px;background:#FAFAFA;border-bottom:1px solid #DEDEE1}"
+    },
+    {
+      "name": "Icon Button",
+      "kind": "button",
+      "refersTo": "icon-button",
+      "description": "28pt borderless SF Symbol button with hover and pressed fills.",
+      "html": "<button class=\"ds-icon\" aria-label=\"Reload\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 16 16\" fill=\"none\"><path d=\"M13 8a5 5 0 1 1-1.5-3.6M13 2.5v3h-3\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></button>",
+      "css": ".ds-icon{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:0;border-radius:6px;background:transparent;color:#4E4E56;transition:background .08s ease-out}.ds-icon:hover{background:#DEDEE1}.ds-icon:active{background:#C8C8CD}.ds-icon:focus-visible{outline:2px solid #0E8F80;outline-offset:1px}"
+    },
+    {
+      "name": "Address Field",
+      "kind": "input",
+      "refersTo": "address-field",
+      "description": "Resting: host in SF Pro, path in tertiary mono. Editing: full URL, teal ring.",
+      "html": "<label class=\"ds-addr\"><input value=\"https://github.com/swiftlang/swift/pull/80000\" aria-label=\"Address\"><span class=\"ds-addr-rest\"><b>github.com</b><i>/swiftlang/swift/pull/80000</i></span></label>",
+      "css": ".ds-addr{position:relative;display:block;width:420px;height:28px;border-radius:6px;background:#EBEBED}.ds-addr input{position:absolute;inset:0;width:100%;padding:0 10px;border:0;border-radius:6px;background:transparent;color:transparent;font:13px -apple-system, system-ui, sans-serif;outline:none}.ds-addr input:focus{background:#FFFFFF;color:#18181B;box-shadow:inset 0 0 0 1.5px #0E8F80}.ds-addr-rest{position:absolute;left:10px;top:0;line-height:28px;pointer-events:none;white-space:nowrap}.ds-addr-rest b{font:400 13px -apple-system, system-ui, sans-serif;color:#18181B}.ds-addr-rest i{font:normal 12px ui-monospace, SFMono-Regular, monospace;color:#6C6C75}.ds-addr input:focus+.ds-addr-rest{display:none}"
+    },
+    {
+      "name": "Context Chip",
+      "kind": "chip",
+      "refersTo": "context-chip",
+      "description": "Repo and PR on GitHub pages, mono, with a checks dot.",
+      "html": "<button class=\"ds-chip\"><svg width=\"11\" height=\"11\" viewBox=\"0 0 12 12\"><circle cx=\"3\" cy=\"3\" r=\"1.6\" fill=\"none\" stroke=\"#8E4EC6\" stroke-width=\"1.3\"/><circle cx=\"9\" cy=\"9\" r=\"1.6\" fill=\"none\" stroke=\"#8E4EC6\" stroke-width=\"1.3\"/><path d=\"M3 4.6V11M9 7.4C9 5 6 5 4 3\" stroke=\"#8E4EC6\" stroke-width=\"1.3\" fill=\"none\"/></svg>swiftlang/swift · #80000<span class=\"ds-chip-dot\"></span></button>",
+      "css": ".ds-chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px;border:0;border-radius:6px;background:#EBEBED;color:#4E4E56;font:500 11px ui-monospace, SFMono-Regular, monospace;transition:background .08s ease-out}.ds-chip:hover{background:#DEDEE1}.ds-chip:active{background:#C8C8CD}.ds-chip:focus-visible{outline:2px solid #0E8F80;outline-offset:1px}.ds-chip-dot{width:7px;height:7px;border-radius:50%;background:#248A57}"
+    },
+    {
+      "name": "Command Bar",
+      "kind": "custom",
+      "refersTo": "command-bar",
+      "description": "Opaque floating panel; selected row is neutral, never teal.",
+      "html": "<div class=\"ds-cmd\"><div class=\"ds-cmd-q\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 18 18\" fill=\"none\"><circle cx=\"8\" cy=\"8\" r=\"5\" stroke=\"#6C6C75\" stroke-width=\"1.5\"/><path d=\"M12 12l3.5 3.5\" stroke=\"#6C6C75\" stroke-width=\"1.5\" stroke-linecap=\"round\"/></svg>swift</div><div class=\"ds-cmd-list\"><div class=\"ds-row ds-row-sel\"><span class=\"ds-row-i\"></span><span class=\"ds-row-t\">swift</span><span class=\"ds-row-h\">Search</span></div><div class=\"ds-row\"><span class=\"ds-row-i\"></span><span><span class=\"ds-row-t\">GitHub - swiftlang/swift</span><span class=\"ds-row-u\"><b>github.com</b>/swiftlang/swift</span></span><span class=\"ds-row-h\">Switch to Tab</span></div><div class=\"ds-row\"><span class=\"ds-row-i ds-row-cmd\"></span><span class=\"ds-row-t\">Toggle Dev Panel</span><span class=\"ds-row-h\">⌥⌘J</span></div></div></div>",
+      "css": ".ds-cmd{width:560px;border:1px solid #DEDEE1;border-radius:10px;background:#FAFAFA;box-shadow:0 10px 30px rgba(0,0,0,.18);overflow:hidden;font-family:-apple-system, system-ui, sans-serif}.ds-cmd-q{display:flex;align-items:center;gap:10px;height:52px;padding:0 16px;font-size:16px;color:#18181B;border-bottom:1px solid #DEDEE1}.ds-cmd-list{padding:6px}.ds-row{display:flex;align-items:center;gap:10px;height:40px;padding:0 10px;border-radius:6px;font-size:13px;color:#18181B}.ds-row:hover,.ds-row-sel{background:#DEDEE1}.ds-row-sel .ds-row-t{font-weight:500}.ds-row>span:nth-child(2){display:flex;flex-direction:column;gap:1px;min-width:0}.ds-row-i{flex:none;width:16px;height:16px;border-radius:4px;background:#A0A0A8}.ds-row-cmd{background:#0E8F80}.ds-row-u{font:11px ui-monospace, SFMono-Regular, monospace;color:#6C6C75}.ds-row-u b{font-weight:400;color:#4E4E56}.ds-row-h{margin-left:auto;font-size:11px;color:#6C6C75;font-variant-numeric:tabular-nums}"
+    },
+    {
+      "name": "Dev Panel Chips and Table",
+      "kind": "custom",
+      "refersTo": "dev-chip",
+      "description": "Section tabs, level chips, and a mono table with shared-scale timing bars.",
+      "html": "<div class=\"ds-dev\"><div class=\"ds-dev-h\"><span class=\"ds-sec ds-on\">Console <em>3</em></span><span class=\"ds-sec\">Network</span><span class=\"ds-sec\">Storage</span><span class=\"ds-sec\">Vitals</span></div><div class=\"ds-dev-f\"><span class=\"ds-lvl ds-on\"><i style=\"background:#D1343A\"></i>Error <code>3</code></span><span class=\"ds-lvl\"><i></i>Warn</span></div><div class=\"ds-th\"><span>Name</span><span>Time</span></div><div class=\"ds-tr\"><span>/api/pulls</span><span>182 ms</span><span class=\"ds-bar\"><b style=\"left:10%;width:40%\"></b></span></div><div class=\"ds-tr ds-err\"><span>/favicon.ico</span><span>12 ms</span><span class=\"ds-bar\"><b style=\"left:55%;width:4%\"></b></span></div></div>",
+      "css": ".ds-dev{width:560px;background:#FAFAFA;border-top:1px solid #DEDEE1;font-family:-apple-system, system-ui, sans-serif;color:#18181B}.ds-dev-h{display:flex;gap:2px;align-items:center;height:32px;padding:0 8px}.ds-sec{display:inline-flex;gap:4px;align-items:center;height:24px;padding:0 10px;border-radius:5px;font-size:12px;color:#4E4E56}.ds-sec.ds-on{background:#DEDEE1;color:#18181B;font-weight:500}.ds-sec em{font:normal 600 10px -apple-system, system-ui, sans-serif;font-variant-numeric:tabular-nums;color:#D1343A}.ds-dev-f{display:flex;gap:4px;padding:0 8px 8px}.ds-lvl{display:inline-flex;gap:4px;align-items:center;height:22px;padding:0 8px;border-radius:5px;font-size:11px;color:#6C6C75}.ds-lvl:hover{background:#EBEBED}.ds-lvl.ds-on{background:#DEDEE1;color:#18181B;font-weight:500}.ds-lvl i{width:7px;height:7px;border-radius:50%;background:#6C6C75}.ds-lvl code{font:10px ui-monospace, SFMono-Regular, monospace}.ds-th{display:grid;grid-template-columns:200px 80px 1fr;height:22px;align-items:center;padding:0 10px;font-size:11px;font-weight:500;color:#4E4E56;border-bottom:1px solid #DEDEE1}.ds-tr{display:grid;grid-template-columns:200px 80px 1fr;height:22px;align-items:center;padding:0 10px;font:11px ui-monospace, SFMono-Regular, monospace}.ds-tr span:nth-child(2){color:#4E4E56}.ds-err{background:rgba(209,52,58,.07)}.ds-bar{position:relative;height:6px}.ds-bar b{position:absolute;top:0;height:6px;border-radius:1px;background:#0E8F80}"
+    },
+    {
+      "name": "Peek Card",
+      "kind": "card",
+      "refersTo": "peek-card",
+      "description": "Floating preview over a scrim; hairline border, mono host header.",
+      "html": "<div class=\"ds-scrim\"><div class=\"ds-peek\"><div class=\"ds-peek-h\"><span>developer.mozilla.org/en-US/docs/Web/API/Fetch_API</span><button class=\"ds-pk-b\" aria-label=\"Close\"><svg width=\"11\" height=\"11\" viewBox=\"0 0 10 10\"><path d=\"M2 2l6 6M8 2l-6 6\" stroke=\"currentColor\" stroke-width=\"1.4\" stroke-linecap=\"round\"/></svg></button></div><div class=\"ds-peek-b\"></div></div></div>",
+      "css": ".ds-scrim{padding:16px 24px;background:rgba(24,24,27,.18)}.ds-peek{border:1px solid #DEDEE1;border-radius:10px;background:#FAFAFA;overflow:hidden;animation:ds-pk .12s ease-out}.ds-peek-h{display:flex;align-items:center;height:36px;padding:0 6px 0 14px;font:12px ui-monospace, SFMono-Regular, monospace;color:#4E4E56}.ds-pk-b{margin-left:auto;display:flex;align-items:center;justify-content:center;width:28px;height:28px;border:0;border-radius:6px;background:transparent;color:#4E4E56}.ds-pk-b:hover{background:#DEDEE1}.ds-peek-b{height:160px;background:#FFFFFF;border-top:1px solid #DEDEE1}@keyframes ds-pk{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}@media (prefers-reduced-motion:reduce){.ds-peek{animation:none}}"
+    },
+    {
+      "name": "Split Focus Line",
+      "kind": "custom",
+      "refersTo": "split-focus",
+      "description": "Two panes divided by a hairline; the focused pane carries a 2pt teal top line.",
+      "html": "<div class=\"ds-split\"><div class=\"ds-pane ds-focus\"></div><div class=\"ds-pane\"></div></div>",
+      "css": ".ds-split{display:flex;gap:1px;width:560px;height:140px;background:#DEDEE1}.ds-pane{position:relative;flex:1;background:#FFFFFF}.ds-focus::before{content:'';position:absolute;left:0;right:0;top:0;height:2px;background:#0E8F80}"
+    },
+    {
+      "name": "Error Page",
+      "kind": "custom",
+      "refersTo": "error-retry",
+      "description": "Nano-authored page: muted copy, mono URL above a hairline, one deep-teal retry.",
+      "html": "<main class=\"ds-errp\"><h1>Nothing is answering at localhost:3000</h1><p>The server may not be running.</p><code class=\"ds-errp-url\">http://localhost:3000/</code><a class=\"ds-retry\" href=\"#\">Try Again</a></main>",
+      "css": ".ds-errp{max-width:520px;padding:24px;background:#FAFAFA;color:#18181B;font:13px/1.5 -apple-system, system-ui, sans-serif}.ds-errp h1{margin:0 0 8px;font-size:20px;font-weight:600;letter-spacing:-.01em}.ds-errp p{margin:0 0 4px;color:#6C6C75}.ds-errp-url{display:block;margin:16px 0 20px;padding-top:12px;border-top:1px solid #DEDEE1;font:12px/1.5 ui-monospace, SFMono-Regular, monospace;color:#6C6C75}.ds-retry{display:inline-block;padding:5px 12px;border-radius:6px;background:#0B7A6D;color:#FFFFFF;text-decoration:none;font-weight:500}.ds-retry:focus-visible{outline:2px solid #0B7A6D;outline-offset:2px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Editor Pane",
+    "overview": "Nano's chrome is built like a pro editor's frame: neutral, opaque, dense, and exact, at Linear's typographic care and Zed's density. Every surface, hairline, and text color is a step on one 11-step neutral ramp; chroma appears only where it carries meaning (focus, selection, the primary action, and engineering state). The chrome is two thin rows (40pt tab strip, 36pt toolbar) and then the page runs edge to edge below one hairline. Nothing in the chrome is decorative.\n\nThe world is native first. SF Pro Text sets the chrome at 11 to 13pt, SF Mono carries anything an engineer would copy (URLs, paths, refs, counts, timings), SF Symbols are the only icon set, and system-owned containers (menus, NSPopover, the Settings window, alerts) keep their platform material. Depth comes from tonal steps and 1px hairlines; shadow exists only where a surface floats above the page. Motion is short and never on the input path. It rejects Safari's soft glass toolbar and Arc's color-drenched sidebar.",
+    "keyCharacteristics": [
+      "One neutral ramp, light and dark derived, is the only tonal scale.",
+      "One accent (Nano teal) for focus, selection, and the primary action only.",
+      "Engineer-convention state colors: pass green, pending amber, fail red, merged purple.",
+      "Opaque flat fills, 1px hairlines, no gradients.",
+      "6pt radius on controls, 10pt on floating panels.",
+      "SF Mono with tabular figures for URLs, code, and figures; SF Pro for everything else.",
+      "80ms hover, 120ms ease-out panels, zero under Reduce Motion."
+    ],
+    "rules": [
+      {
+        "name": "The Action-Only Accent Rule",
+        "body": "Teal marks focus, selection, progress, and the primary action. It never fills a resting surface, never tints a header, and never decorates. The selected command row and selected dev tab are neutral (hover fill), not teal.",
+        "section": "colors"
+      },
+      {
+        "name": "The Convention Rule",
+        "body": "State hues mean exactly what an engineer expects (green pass, amber pending, red fail, purple merged) and nothing else. A draft or not-planned state is tertiary text, not a fifth hue.",
+        "section": "colors"
+      },
+      {
+        "name": "The Legible Favicon Rule",
+        "body": "In dark appearance, a glyph-on-transparent favicon that is dark and near-monochrome (mean luminance under 0.22, chroma under 0.15, under 70% coverage) is drawn as a template in secondary text. SVG favicons are rendered from their light variant with their `prefers-color-scheme: dark` blocks removed, so the icon keeps its full shape. Filled or colorful favicons are untouched.",
+        "section": "colors"
+      },
+      {
+        "name": "The Mono Means Data Rule",
+        "body": "SF Mono sets URLs and paths, refs and slugs, counts, timings, and code. Prose, titles, and labels are never mono, and figures that sit in a line of SF Pro use tabular (monospaced) digits.",
+        "section": "typography"
+      },
+      {
+        "name": "The Host First Rule",
+        "body": "A URL reads host in primary SF Pro, remainder in tertiary SF Mono, with scheme and \"www.\" dropped. The address field, command rows, and Peek header all follow it; focusing the address field shows the full URL, selected.",
+        "section": "typography"
+      },
+      {
+        "name": "The Floating-Only Shadow Rule",
+        "body": "Shadow belongs only to surfaces that float above the page. Docked chrome, tabs, chips, buttons, and panels never cast one.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Opaque Rule",
+        "body": "Every Nano-drawn surface is an opaque ramp step. Translucency, blur, and gradients are not part of this world; the only alpha in the chrome is the Peek scrim and the 7% fail/pending tint on console error and warning rows.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do take every surface, separator, and text color from the neutral ramp, in both appearances.",
+      "Do keep chrome surfaces opaque and flat, separated by 1px hairlines one ramp step apart.",
+      "Do reserve teal for focus, selection, progress, and the primary action; use accent-deep behind white text in light appearance.",
+      "Do use pass, pending, fail, and merged only for their engineering meanings, as glyphs, dots, bars, and counts.",
+      "Do set URLs, paths, refs, counts, timings, and code in SF Mono with tabular figures, host first.",
+      "Do use 6pt radius on controls and 10pt on floating panels, continuous curve.",
+      "Do animate hover at 80ms and panels at 120ms ease-out, and drop to zero under Reduce Motion.",
+      "Do tint dark monochrome favicons in dark appearance rather than leaving them invisible.",
+      "Do let system containers (menus, popovers, Settings, alerts) keep their native macOS material."
+    ],
+    "donts": [
+      "Don't add gradients, glass, blur, or translucency to Nano-drawn chrome.",
+      "Don't cast shadows from docked chrome, tabs, chips, or buttons; shadow is for floating surfaces only.",
+      "Don't fill resting surfaces or selected list rows with teal.",
+      "Don't set prose, titles, or labels in SF Mono.",
+      "Don't set small text in light-appearance teal, pass, or pending; their words stay in text tokens.",
+      "Don't animate anything on the input path (typing, tab switching, row selection).",
+      "Don't introduce a second icon family; SF Symbols only."
+    ]
+  }
+}
