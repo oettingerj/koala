@@ -13,6 +13,7 @@ enum MainMenu {
         main.addItem(submenu(viewMenu()))
         main.addItem(submenu(historyMenu()))
         main.addItem(submenu(developMenu()))
+        main.addItem(submenu(githubMenu()))
         let bookmarks = NSMenu(title: "Bookmarks")
         bookmarks.delegate = BookmarksMenuDelegate.shared
         main.addItem(submenu(bookmarks))
@@ -114,6 +115,20 @@ enum MainMenu {
         let note = NSMenuItem(title: "Web Inspector: right-click › Inspect Element", action: nil, keyEquivalent: "")
         note.isEnabled = false
         menu.addItem(note)
+        return menu
+    }
+
+    private static func githubMenu() -> NSMenu {
+        let menu = NSMenu(title: "GitHub")
+        menu.addItem(item("Show Pull Request Details", #selector(BrowserWindowController.showGitHubContext(_:)), "g", [.command, .option]))
+        menu.addItem(item("Review Queue", #selector(BrowserWindowController.showReviewQueue(_:)), "r", [.command, .option]))
+        menu.addItem(.separator())
+        menu.addItem(item("Copy Permalink", #selector(BrowserWindowController.copyPermalink(_:)), "p", [.command, .option]))
+        menu.addItem(item("Copy Checkout Command", #selector(BrowserWindowController.copyCheckoutCommand(_:))))
+        menu.addItem(item("Open in Editor", #selector(BrowserWindowController.openInEditor(_:)), "e", [.command, .option]))
+        menu.addItem(.separator())
+        menu.addItem(item("Sign In to GitHub…", #selector(BrowserWindowController.signInToGitHub(_:))))
+        menu.addItem(item("Sign Out of GitHub", #selector(BrowserWindowController.signOutOfGitHub(_:))))
         return menu
     }
 

@@ -86,6 +86,123 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         rootView.devPanelModel.perform = { [weak self] action in self?.perform(action) }
     }
 
+    // MARK: GitHub
+
+    private var github: GitHubService { .shared }
+    private var popover: NSPopover?
+
+    private func showPopover(_ controller: NSViewController, from view: NSView) {
+        popover?.close()
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.contentViewController = controller
+        popover.show(relativeTo: view.bounds, of: view, preferredEdge: .maxY)
+        self.popover = popover
+    }
+
+    @objc func showGitHubContext(_ sender: Any?) {
+        guard let tab = tabs.selected, let page = GitHubURL(tab.url) else { return }
+        let view = GitHubContextPopover(github: page, status: github.status(for: tab.url), isSignedIn: github.isSignedIn,
+                                        hasClone: github.clones.clone(for: page) != nil) { [weak self] action in
+            self?.popover?.close()
+            self?.performGitHub(action, page: page)
+        }
+        showPopover(GitHubHosting.contextPopover(view), from: rootView.toolbar.githubChip)
+    }
+
+    @objc func showReviewQueue(_ sender: Any?) {
+        let view = ReviewQueuePopover(items: github.queue, isSignedIn: github.isSignedIn,
+                                      open: { [weak self] url in self?.popover?.close(); self?.openTab(url: url, select: true) },
+                                      signIn: { [weak self] in self?.popover?.close(); self?.signInToGitHub(nil) })
+        let anchor = (sender as? NSView) ?? rootView.toolbar
+        showPopover(GitHubHosting.queuePopover(view), from: anchor)
+    }
+
+    @objc func signInToGitHub(_ sender: Any?) {
+        guard let window else { return }
+        let model = GitHubSignIn()
+        var sheet: NSWindow?
+        let view = GitHubSignInView(model: model, openURL: { [weak self] url in self?.openTab(url: url, select: true) },
+                                    dismiss: { if let sheet { window.endSheet(sheet) } })
+        let controller = GitHubHosting.signInSheet(view)
+        sheet = NSWindow(contentViewController: controller)
+        if let sheet { window.beginSheet(sheet) }
+    }
+
+    @objc func signOutOfGitHub(_ sender: Any?) { github.signOut() }
+
+    @objc func copyPermalink(_ sender: Any?) {
+        guard let page = GitHubURL(tabs.selected?.url) else { return }
+        performGitHub(.copyPermalink, page: page)
+    }
+
+    @objc func openInEditor(_ sender: Any?) {
+        guard let page = GitHubURL(tabs.selected?.url) else { return }
+        performGitHub(.openInEditor, page: page)
+    }
+
+    @objc func copyCheckoutCommand(_ sender: Any?) {
+        guard let page = GitHubURL(tabs.selected?.url), case .pullRequest(let number) = page.kind else { return }
+        performGitHub(.copyCheckout(number), page: page)
+    }
+
+    private func performGitHub(_ action: GitHubContextPopover.Action, page: GitHubURL) {
+        switch action {
+        case .copyBranch(let branch):
+            copyString(branch)
+        case .copyCheckout(let number):
+            copyString("gh pr checkout \(number) --repo \(page.slug)")
+        case .copyPermalink:
+            guard case .blob(let ref, _, _) = page.kind else { return }
+            Task {
+                // Already a SHA: no lookup needed.
+                let sha = ref.count == 40 && ref.allSatisfy(\.isHexDigit) ? ref
+                    : try? await github.client.resolveSHA(owner: page.owner, repo: page.repo, ref: ref)
+                guard let sha, let url = page.permalink(sha: sha) else { return NSSound.beep() }
+                Pasteboard.copy(url: url, title: "")
+            }
+        case .openInEditor:
+            if !github.openInEditor(page) { promptForCodeRoot(then: page) }
+        case .signIn:
+            signInToGitHub(nil)
+        case .open(let url):
+            openTab(url: url, select: true, opener: tabs.selected)
+        }
+    }
+
+    private func copyString(_ string: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(string, forType: .string)
+    }
+
+    /// No clone matched: offer to pick the code folder (once), or copy a clone command.
+    private func promptForCodeRoot(then page: GitHubURL) {
+        guard let window else { return }
+        let alert = NSAlert()
+        alert.messageText = "No local clone of \(page.slug)"
+        alert.informativeText = github.codeRoot == nil
+            ? "Choose the folder where you keep your code, and Nano will find clones in it."
+            : "Nano didn’t find this repository under \(github.codeRoot!.path). You can copy a clone command instead."
+        if github.codeRoot == nil { alert.addButton(withTitle: "Choose Folder…") }
+        alert.addButton(withTitle: "Copy Clone Command")
+        alert.addButton(withTitle: "Cancel")
+        let needsRoot = github.codeRoot == nil
+        alert.beginSheetModal(for: window) { [weak self] response in
+            if needsRoot && response == .alertFirstButtonReturn {
+                let panel = NSOpenPanel()
+                panel.canChooseDirectories = true
+                panel.canChooseFiles = false
+                panel.prompt = "Use Folder"
+                panel.begin { result in
+                    guard result == .OK, let url = panel.url else { return }
+                    GitHubService.shared.setCodeRoot(url)
+                }
+            } else if response == (needsRoot ? .alertSecondButtonReturn : .alertFirstButtonReturn) {
+                self?.copyString("git clone git@github.com:\(page.slug).git")
+            }
+        }
+    }
+
     // MARK: Dev tools
 
     @objc func toggleDevPanel(_ sender: Any?) {
@@ -260,7 +377,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private func navigate(to text: String) {
-        guard let url = AddressInput.resolve(text) else { return }
+        guard let url = AddressInput.resolve(text, searchTemplate: Preferences.searchTemplate) else { return }
         let tab = tabs.selected ?? openTab(url: nil, select: true)
         tab.nextNavigationIsTyped = true
         tab.load(url)
@@ -386,7 +503,12 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
 
     @objc func copyMarkdownLink(_ sender: Any?) {
         guard let tab = tabs.selected, let url = tab.url else { return }
-        let title = tab.displayTitle.replacingOccurrences(of: "]", with: "\\]").replacingOccurrences(of: "[", with: "\\[")
+        // GitHub links read as references: "owner/repo#123: Title".
+        var text = tab.displayTitle
+        if let page = GitHubURL(url), let number = page.number {
+            text = "\(page.slug)#\(number): " + (github.status(for: url)?.title ?? GitHubURL.itemTitle(fromPageTitle: text))
+        }
+        let title = text.replacingOccurrences(of: "]", with: "\\]").replacingOccurrences(of: "[", with: "\\[")
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString("[\(title)](\(url.absoluteString))", forType: .string)
@@ -431,6 +553,16 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         case #selector(goForward(_:)): return tabs.selected?.canGoForward ?? false
         case #selector(stopLoading(_:)): return tabs.selected?.isLoading ?? false
         case #selector(selectTabByNumber(_:)): return item.tag == 9 ? !tabs.tabs.isEmpty : item.tag <= tabs.tabs.count
+        case #selector(copyPermalink(_:)):
+            if case .blob = GitHubURL(tabs.selected?.url)?.kind { return true }
+            return false
+        case #selector(openInEditor(_:)), #selector(showGitHubContext(_:)):
+            return GitHubURL(tabs.selected?.url) != nil
+        case #selector(copyCheckoutCommand(_:)):
+            if case .pullRequest = GitHubURL(tabs.selected?.url)?.kind { return true }
+            return false
+        case #selector(signInToGitHub(_:)): return !github.isSignedIn
+        case #selector(signOutOfGitHub(_:)): return github.isSignedIn
         case #selector(toggleDevPanel(_:)):
             item.title = rootView.showsDevPanel ? "Hide Dev Panel" : "Show Dev Panel"
             return true
@@ -488,6 +620,7 @@ extension BrowserWindowController: TabDelegate {
         services.applyCachedFavicon(to: tab)
         guard let url = tab.url else { return }
         if let host = DisplayURL(url)?.host { services.suggestions.noteVisit(host: host) }
+        if GitHubURL(url)?.number != nil { github.refreshSoon() }
         let typed = tab.nextNavigationIsTyped
         let title = tab.title
         Task { try? await services.history.recordVisit(url: url, title: title, typed: typed) }

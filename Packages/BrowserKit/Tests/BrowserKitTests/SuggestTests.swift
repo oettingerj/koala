@@ -58,6 +58,12 @@ import Testing
         #expect(rows.first?.subtitle == "Search crates.io")
     }
 
+    @Test func githubShorthandLeads() {
+        let rows = engine().localResults(for: "swiftlang/swift#42")
+        #expect(rows.first?.kind == .github)
+        #expect(rows.first?.action == .open(URL(string: "https://github.com/swiftlang/swift/pull/42")!))
+    }
+
     @Test func knownHostCompletesBeforeSearch() {
         let e = engine()
         e.noteVisit(host: "github.com")

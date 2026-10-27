@@ -62,6 +62,8 @@ public final class SuggestionEngine {
     public var keywordSearches = KeywordSearch.defaults
     public var searchTemplate = AddressInput.defaultSearchTemplate
     public var webSuggestionsEnabled = true
+    /// Extra asynchronous rows from the app (GitHub review queue and repository search).
+    public var extraRemote: (@MainActor (String) async -> [Suggestion])?
 
     private let bookmarks: BookmarkLibrary?
     private let history: HistoryStore?
@@ -147,6 +149,10 @@ public final class SuggestionEngine {
         }
 
         var rows: [Suggestion] = []
+        if let url = GitHubURL.shorthand(text) {
+            rows.append(Suggestion(id: "url:\(url.absoluteString)", kind: .github, title: text,
+                                   subtitle: "Open on GitHub", action: .open(url), score: 11, iconHost: "github.com"))
+        }
         let resolved = AddressInput.resolve(text, searchTemplate: searchTemplate)
         let isSearch = resolved.map { AddressInput.searchURL(for: text, template: searchTemplate) == $0 } ?? true
 
@@ -192,7 +198,8 @@ public final class SuggestionEngine {
         guard !text.isEmpty, KeywordSearch.match(raw, in: keywordSearches) == nil else { return [] }
         async let historyRows = historyResults(for: text)
         async let webRows = webResults(for: text)
-        return await historyRows + webRows
+        let extra = await extraRemote?(text) ?? []
+        return await extra + historyRows + webRows
     }
 
     private func historyResults(for text: String) async -> [Suggestion] {

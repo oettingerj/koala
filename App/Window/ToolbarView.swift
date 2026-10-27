@@ -13,6 +13,10 @@ final class ToolbarView: NSView {
     private lazy var devButton = IconButton(symbol: "chevron.left.forwardslash.chevron.right", label: "Dev Panel",
                                             pointSize: 12, action: #selector(BrowserWindowController.toggleDevPanel(_:)))
     private let errorBadge = NSTextField(labelWithString: "")
+    let githubChip = GitHubChip()
+    private lazy var queueButton = IconButton(symbol: "tray", label: "Review Queue", pointSize: 12,
+                                              action: #selector(BrowserWindowController.showReviewQueue(_:)))
+    private let queueBadge = NSTextField(labelWithString: "")
     private let hairline = CALayer()
     var showsHairline = true { didSet { hairline.isHidden = !showsHairline } }
     private let progressBar = CALayer()
@@ -28,7 +32,12 @@ final class ToolbarView: NSView {
         errorBadge.font = .monospacedDigitSystemFont(ofSize: 9, weight: .semibold)
         errorBadge.textColor = Theme.fail
         errorBadge.alignment = .left
-        [backButton, forwardButton, reloadButton, addressField, devButton, errorBadge].forEach(addSubview)
+        queueBadge.font = .monospacedDigitSystemFont(ofSize: 9, weight: .semibold)
+        queueBadge.textColor = Theme.textSecondary
+        githubChip.target = nil
+        githubChip.action = #selector(BrowserWindowController.showGitHubContext(_:))
+        githubChip.isHidden = true
+        [backButton, forwardButton, reloadButton, addressField, githubChip, queueButton, queueBadge, devButton, errorBadge].forEach(addSubview)
         setAccessibilityElement(true)
         setAccessibilityRole(.toolbar)
         observation = ObservationLoop { [weak self] in self?.sync() }
@@ -56,10 +65,19 @@ final class ToolbarView: NSView {
         }
         x += 6
         let fieldHeight: CGFloat = 28
-        let trailing = bounds.width - 8 - Theme.iconButtonSize
+        var trailing = bounds.width - 8 - Theme.iconButtonSize
         devButton.frame = NSRect(x: trailing, y: y, width: Theme.iconButtonSize, height: Theme.iconButtonSize)
         errorBadge.sizeToFit()
         errorBadge.frame.origin = NSPoint(x: devButton.frame.maxX - 9, y: devButton.frame.maxY - 11)
+        trailing -= Theme.iconButtonSize + 2
+        queueButton.frame = NSRect(x: trailing, y: y, width: Theme.iconButtonSize, height: Theme.iconButtonSize)
+        queueBadge.sizeToFit()
+        queueBadge.frame.origin = NSPoint(x: queueButton.frame.maxX - 9, y: queueButton.frame.maxY - 11)
+        if !githubChip.isHidden {
+            let width = min(githubChip.intrinsicContentSize.width, 280)
+            trailing -= width + 6
+            githubChip.frame = NSRect(x: trailing, y: (bounds.height - 24) / 2, width: width, height: 24)
+        }
         addressField.frame = NSRect(x: x, y: (bounds.height - fieldHeight) / 2, width: trailing - x - 8, height: fieldHeight)
 
         CATransaction.begin()
@@ -79,6 +97,12 @@ final class ToolbarView: NSView {
             .withSymbolConfiguration(.init(pointSize: loading ? 12 : 13, weight: .medium))
         reloadButton.toolTip = loading ? "Stop" : "Reload"
         addressField.show(tab?.url)
+        let github = GitHubURL(tab?.url)
+        githubChip.isHidden = github == nil
+        if let github { githubChip.show(github, status: GitHubService.shared.status(for: tab?.url)) }
+        let queued = GitHubService.shared.queue.count
+        queueBadge.stringValue = queued == 0 ? "" : "\(queued)"
+        queueButton.toolTip = queued == 0 ? "Review Queue" : "Review Queue · \(queued) waiting"
         // Error count for the page in view; the dev panel lists them.
         let errors = tab?.devTools.errorCount ?? 0
         errorBadge.stringValue = errors == 0 ? "" : errors > 99 ? "99+" : "\(errors)"

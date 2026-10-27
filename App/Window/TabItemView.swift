@@ -22,6 +22,8 @@ final class TabItemView: NSView {
     private(set) var isHovered = false { didSet { if isHovered != oldValue { needsDisplayUpdate() } } }
 
     private let background = CALayer()
+    /// CI result for GitHub pull request tabs, on the icon's corner.
+    private let checksDot = CALayer()
     private let separator = CALayer()
     private let iconView = NSImageView()
     private let spinner = NSProgressIndicator()
@@ -31,6 +33,7 @@ final class TabItemView: NSView {
     private var observation: ObservationLoop?
     private var isDragging = false
     private var isPinned = false
+    private var checks: GitHubStatus.Checks = .none
 
     static let pinnedWidth: CGFloat = 40
 
@@ -47,6 +50,8 @@ final class TabItemView: NSView {
         background.cornerCurve = .continuous
         layer?.addSublayer(background)
         layer?.addSublayer(separator)
+        checksDot.cornerRadius = 3.5
+        checksDot.borderWidth = 1.5
 
         iconView.imageScaling = .scaleProportionallyDown
         spinner.style = .spinning
@@ -58,6 +63,7 @@ final class TabItemView: NSView {
         closeButton.layer?.cornerRadius = 4
 
         [iconView, spinner, titleField, closeButton].forEach(addSubview)
+        layer?.addSublayer(checksDot)
 
         setAccessibilityElement(true)
         setAccessibilityRole(.radioButton)
@@ -81,8 +87,15 @@ final class TabItemView: NSView {
         }
         titleField.stringValue = tab.displayTitle
         toolTip = tab.displayTitle
-        setAccessibilityLabel(tab.displayTitle)
-        iconView.image = tab.favicon ?? Self.placeholderIcon
+        // GitHub pull requests and issues show their live state in place of the favicon.
+        let status = GitHubService.shared.status(for: tab.url)
+        iconView.image = status.flatMap { GitHubStyle.image($0.state) } ?? tab.favicon ?? Self.placeholderIcon
+        checks = status?.checks ?? .none
+        var label = tab.displayTitle
+        if let status { label += ", " + GitHubStyle.glyph(status.state).label.lowercased() }
+        if let checks = GitHubStyle.label(checks) { label += ", " + checks }
+        setAccessibilityLabel(label)
+        updateColors()
         if tab.isLoading && tab.progress < 1 {
             spinner.startAnimation(nil)
             iconView.isHidden = true
@@ -117,6 +130,7 @@ final class TabItemView: NSView {
         if isPinned {
             iconView.frame = NSRect(x: (bounds.width - 16) / 2, y: midY - 8, width: 16, height: 16)
             spinner.frame = iconView.frame
+            checksDot.frame = NSRect(x: iconView.frame.maxX - 5, y: iconView.frame.minY - 2, width: 7, height: 7)
             titleField.isHidden = true
             closeButton.isHidden = true
             return
@@ -124,6 +138,7 @@ final class TabItemView: NSView {
         titleField.isHidden = false
         iconView.frame = NSRect(x: inset, y: midY - 8, width: 16, height: 16)
         spinner.frame = iconView.frame
+        checksDot.frame = NSRect(x: iconView.frame.maxX - 5, y: iconView.frame.minY - 2, width: 7, height: 7)
         let showsClose = isSelected || isHovered
         closeButton.isHidden = !showsClose
         closeButton.frame = NSRect(x: bounds.width - inset - 16 + 4, y: midY - 8, width: 16, height: 16)
@@ -146,6 +161,9 @@ final class TabItemView: NSView {
         background.backgroundColor = isSelected ? resolved(Theme.chromeSurface)
             : isHovered ? resolved(Theme.hoverFill) : .clear
         separator.backgroundColor = resolved(Theme.hairline)
+        checksDot.isHidden = checks == .none
+        checksDot.backgroundColor = GitHubStyle.color(checks).map(resolved)
+        checksDot.borderColor = resolved(isSelected ? Theme.chromeSurface : isHovered ? Theme.hoverFill : Theme.stripGround)
         CATransaction.commit()
     }
 

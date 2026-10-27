@@ -194,22 +194,35 @@ final class TabStripView: NSView {
         }
     }
 
+    /// Scrolls by whole tabs so the selected tab sits fully inside the guides.
     private func scrollSelectedIntoView() {
-        guard let index = order.firstIndex(where: \.isSelected), index >= pinnedCount else { return }
-        let width = tabWidth
-        let start = CGFloat(index - pinnedCount) * (width + Theme.tabSpacing)
-        let edgeReserve = maxScroll > 0 ? Self.guideWidth : 0
-        if start - edgeReserve < scrollOffset {
-            scrollOffset = start - edgeReserve
-        } else if start + width + edgeReserve > scrollOffset + scrollArea.width {
-            scrollOffset = start + width + edgeReserve - scrollArea.width
-        }
+        guard let index = order.firstIndex(where: \.isSelected), index >= pinnedCount, maxScroll > 0 else { return }
+        let step = tabWidth + Theme.tabSpacing
+        let position = CGFloat(index - pinnedCount)
+        let fits = max(1, ((scrollArea.width - 2 * Self.guideWidth + Theme.tabSpacing) / step).rounded(.down))
+        let firstVisible = scrollOffset <= 0 ? 0 : ((scrollOffset + Self.guideWidth) / step).rounded()
+        var first = firstVisible
+        if position < firstVisible { first = position }
+        if position > firstVisible + fits - 1 { first = position - fits + 1 }
+        scrollOffset = first <= 0 ? 0 : min(maxScroll, first * step - Self.guideWidth)
     }
 
     override func scrollWheel(with event: NSEvent) {
         guard maxScroll > 0 else { return super.scrollWheel(with: event) }
         let delta = abs(event.scrollingDeltaX) > abs(event.scrollingDeltaY) ? event.scrollingDeltaX : event.scrollingDeltaY
         scrollOffset -= delta * (event.hasPreciseScrollingDeltas ? 1 : 8)
+        let finished = event.momentumPhase == .ended || (event.momentumPhase == [] && event.phase == .ended) || !event.hasPreciseScrollingDeltas
+        if finished { snapScrollOffset() }
+        needsLayout = true
+    }
+
+    /// Lands the first visible tab exactly at the leading guide's edge, so overflow never leaves
+    /// a tab-sized gap where a clipped tab was hidden.
+    private func snapScrollOffset() {
+        guard maxScroll > 0, scrollOffset > 0 else { return }
+        let step = tabWidth + Theme.tabSpacing
+        let index = ((scrollOffset + Self.guideWidth) / step).rounded()
+        scrollOffset = min(maxScroll, max(0, index * step - Self.guideWidth))
         needsLayout = true
     }
 

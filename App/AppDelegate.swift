@@ -11,6 +11,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DebugCommands.install()
         #endif
         let services = AppServices.shared
+        Preferences.apply()
+        _ = GitHubService.shared
         services.windowSnapshots = { [weak self] in
             // Front-to-back order so the frontmost window restores on top.
             let ordered = NSApp.orderedWindows.compactMap { $0.windowController as? BrowserWindowController }
@@ -84,7 +86,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func newWindow(_ sender: Any?) { openWindow(url: nil) }
 
-    @objc func showSettings(_ sender: Any?) {}
+    @objc func showSettings(_ sender: Any?) {
+        SettingsWindowController.shared.showWindow(nil)
+        SettingsWindowController.shared.window?.center()
+    }
 
     @objc func clearHistory(_ sender: Any?) {
         let alert = NSAlert()

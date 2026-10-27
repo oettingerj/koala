@@ -47,6 +47,7 @@ final class AppServices {
                 .map { SuggestionEngine.TabInfo(id: $0.id, title: $0.displayTitle, url: $0.url) }
         }
         suggestions.commands = { [unowned self] in commands }
+        suggestions.extraRemote = { text in await GitHubService.shared.suggestions(for: text) }
         Task { await suggestions.reloadHostIndex() }
     }
 
