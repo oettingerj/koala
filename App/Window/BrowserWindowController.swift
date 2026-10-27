@@ -83,6 +83,78 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         selectionObservation = ObservationLoop { [weak self] in self?.showSelectedTab() }
         sessionObservation = ObservationLoop { [weak self] in self?.observeSessionState() }
         bookmarkObservation = ObservationLoop { [weak self] in self?.updateBookmarkStar() }
+        rootView.devPanelModel.perform = { [weak self] action in self?.perform(action) }
+    }
+
+    // MARK: Dev tools
+
+    @objc func toggleDevPanel(_ sender: Any?) {
+        rootView.showsDevPanel.toggle()
+    }
+
+    @objc func viewSource(_ sender: Any?) { perform(.viewSource) }
+
+    func showDevPanel(section: DevPanelModel.Section) {
+        rootView.devPanelModel.section = section
+        rootView.showsDevPanel = true
+    }
+
+    private func perform(_ action: DevPanelModel.PageAction) {
+        guard let tab = tabs.selected else { return }
+        switch action {
+        case .close:
+            rootView.showsDevPanel = false
+        case .hardReload:
+            tab.reload(fromOrigin: true)
+        case .viewSource:
+            guard let webView = tab.webView, let url = tab.url else { return }
+            webView.evaluateJavaScript(PageTools.readSource, in: nil, in: DevToolsScripts.world) { [weak self] result in
+                guard case .success(let value) = result, let html = value as? String else { return }
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    let source = self.openTab(url: nil, select: true, opener: tab)
+                    source.loadHTML(PageTools.sourcePage(for: html, url: url), baseURL: nil,
+                                    title: "Source · \(DisplayURL(url)?.host ?? url.absoluteString)")
+                }
+            }
+        case .copyScreenshot:
+            tab.webView?.takeSnapshot(with: nil) { image, _ in
+                guard let image else { return }
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.writeObjects([image])
+            }
+        case .savePDF:
+            guard let webView = tab.webView, let window else { return }
+            let panel = NSSavePanel()
+            panel.allowedContentTypes = [.pdf]
+            panel.nameFieldStringValue = (tab.displayTitle.isEmpty ? "Page" : tab.displayTitle) + ".pdf"
+            panel.beginSheetModal(for: window) { response in
+                guard response == .OK, let url = panel.url else { return }
+                webView.createPDF { result in
+                    if case .success(let data) = result { try? data.write(to: url) }
+                }
+            }
+        case .clearSiteData:
+            guard let host = tab.url?.host(), let window else { return }
+            let alert = NSAlert()
+            alert.messageText = "Clear data for \(host)?"
+            alert.informativeText = "Removes cookies, storage, and caches for this site. You will be signed out of it."
+            alert.addButton(withTitle: "Clear Data")
+            alert.addButton(withTitle: "Cancel")
+            alert.buttons.first?.hasDestructiveAction = true
+            alert.beginSheetModal(for: window) { [weak self] response in
+                guard response == .alertFirstButtonReturn else { return }
+                Task { @MainActor in
+                    let store = WKWebsiteDataStore.default()
+                    let types = WKWebsiteDataStore.allWebsiteDataTypes()
+                    let records = await store.dataRecords(ofTypes: types)
+                    let matching = records.filter { host == $0.displayName || host.hasSuffix("." + $0.displayName) }
+                    await store.removeData(ofTypes: types, for: matching)
+                    self?.rootView.devPanelModel.refreshStorage()
+                    tab.reload()
+                }
+            }
+        }
     }
 
     private func updateBookmarkStar() {
@@ -174,9 +246,13 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         guard let tab = tabs.selected else { return }
         window?.title = tab.displayTitle
         let webView = tab.materialize()
+        // Page tools read here so changing them re-runs this and applies immediately.
+        webView.appearance = tab.colorSchemeOverride.map { NSAppearance(named: $0 == "dark" ? .darkAqua : .aqua) } ?? nil
+        _ = tab.viewportWidth
+        rootView.pageLayoutChanged()
         guard shownTabID != tab.id else { return }
         shownTabID = tab.id
-        rootView.show(webView)
+        rootView.show(webView, for: tab)
         // Switching tabs abandons whatever was typed for the previous one.
         if rootView.toolbar.addressField.isEditing, tab.url != nil {
             focusPage()
@@ -355,6 +431,9 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         case #selector(goForward(_:)): return tabs.selected?.canGoForward ?? false
         case #selector(stopLoading(_:)): return tabs.selected?.isLoading ?? false
         case #selector(selectTabByNumber(_:)): return item.tag == 9 ? !tabs.tabs.isEmpty : item.tag <= tabs.tabs.count
+        case #selector(toggleDevPanel(_:)):
+            item.title = rootView.showsDevPanel ? "Hide Dev Panel" : "Show Dev Panel"
+            return true
         case #selector(toggleBookmarksBar(_:)):
             item.title = rootView.showsBookmarksBar ? "Hide Bookmarks Bar" : "Show Bookmarks Bar"
             return true
@@ -416,6 +495,9 @@ extension BrowserWindowController: TabDelegate {
 
     func tabDidFinishNavigation(_ tab: Tab) {
         services.refreshFavicon(for: tab)
+        if tab.isJSONDocument {
+            tab.webView?.evaluateJavaScript(PageTools.jsonViewer, in: nil, in: DevToolsScripts.world) { _ in }
+        }
         guard let url = tab.url else { return }
         let title = tab.title
         Task { try? await services.history.updateTitle(url: url, title: title) }
@@ -425,11 +507,18 @@ extension BrowserWindowController: TabDelegate {
 /// Lets the window claim key-equivalents before the web view swallows them.
 final class BrowserWindow: NSWindow {}
 
-/// Stacks strip, toolbar, and page. Frame-based so window resizes cost one layout pass.
+/// Stacks strip, toolbar, bookmarks bar, page, and the dev panel drawer.
+/// Frame-based so window resizes cost one layout pass.
 final class BrowserRootView: NSView {
     let strip: TabStripView
     let toolbar: ToolbarView
     let bookmarksBar = BookmarksBarView(library: AppServices.shared.bookmarks)
+    let devPanelModel = DevPanelModel()
+    private lazy var devPanel: NSView = DevPanel.host(model: devPanelModel)
+    private let devPanelHandle = DragHandle()
+    private let content = NSView()
+    private weak var current: WKWebView?
+    private weak var currentTab: Tab?
 
     var showsBookmarksBar = UserDefaults.standard.object(forKey: "ShowBookmarksBar") as? Bool ?? true {
         didSet {
@@ -439,8 +528,16 @@ final class BrowserRootView: NSView {
             needsLayout = true
         }
     }
-    private let content = NSView()
-    private weak var current: WKWebView?
+
+    var showsDevPanel = false {
+        didSet {
+            devPanel.isHidden = !showsDevPanel
+            devPanelHandle.isHidden = !showsDevPanel
+            needsLayout = true
+        }
+    }
+
+    private var devPanelHeight = UserDefaults.standard.object(forKey: "DevPanelHeight") as? CGFloat ?? 300
 
     var isFullScreen = false { didSet { strip.leadingInset = isFullScreen ? 12 : Theme.trafficLightInset } }
 
@@ -449,15 +546,29 @@ final class BrowserRootView: NSView {
         toolbar = ToolbarView(tabs: tabs)
         super.init(frame: .zero)
         content.wantsLayer = true
-        [content, strip, toolbar, bookmarksBar].forEach(addSubview)
+        [content, strip, toolbar, bookmarksBar, devPanel, devPanelHandle].forEach(addSubview)
         bookmarksBar.isHidden = !showsBookmarksBar
         toolbar.showsHairline = !showsBookmarksBar
+        devPanel.isHidden = true
+        devPanelHandle.isHidden = true
+        devPanelHandle.onDrag = { [weak self] delta in
+            guard let self else { return }
+            devPanelHeight = max(120, min(bounds.height * 0.8, devPanelHeight + delta))
+            UserDefaults.standard.set(devPanelHeight, forKey: "DevPanelHeight")
+            needsLayout = true
+        }
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
     override var isFlipped: Bool { false }
+
+    override func updateLayer() {
+        // Visible around the page only in responsive mode.
+        content.layer?.backgroundColor = resolved(Theme.stripGround)
+    }
+    override var wantsUpdateLayer: Bool { true }
 
     override func layout() {
         super.layout()
@@ -469,19 +580,64 @@ final class BrowserRootView: NSView {
             bookmarksBar.frame = NSRect(x: 0, y: contentTop - BookmarksBarView.height, width: bounds.width, height: BookmarksBarView.height)
             contentTop = bookmarksBar.frame.minY
         }
-        content.frame = NSRect(x: 0, y: 0, width: bounds.width, height: contentTop)
-        current?.frame = content.bounds
+        var contentBottom: CGFloat = 0
+        if showsDevPanel {
+            let panelHeight = min(devPanelHeight, contentTop * 0.8)
+            devPanel.frame = NSRect(x: 0, y: 0, width: bounds.width, height: panelHeight)
+            devPanelHandle.frame = NSRect(x: 0, y: panelHeight - 3, width: bounds.width, height: 6)
+            contentBottom = panelHeight
+        }
+        content.frame = NSRect(x: 0, y: contentBottom, width: bounds.width, height: contentTop - contentBottom)
+        layoutPage()
+    }
+
+    /// Fills the content area, or centers the page at the tab's responsive width.
+    private func layoutPage() {
+        guard let current else { return }
+        if let width = currentTab?.viewportWidth, width < content.bounds.width {
+            current.autoresizingMask = []
+            current.frame = NSRect(x: ((content.bounds.width - width) / 2).rounded(), y: 0, width: width, height: content.bounds.height)
+        } else {
+            current.autoresizingMask = [.width, .height]
+            current.frame = content.bounds
+        }
     }
 
     /// Height of everything above the page.
     var chromeHeight: CGFloat { bounds.height - content.frame.maxY }
 
-    func show(_ webView: WKWebView) {
-        guard current !== webView else { return }
-        current?.removeFromSuperview()
-        webView.frame = content.bounds
-        webView.autoresizingMask = [.width, .height]
-        content.addSubview(webView)
-        current = webView
+    func show(_ webView: WKWebView, for tab: Tab) {
+        currentTab = tab
+        devPanelModel.tab = tab
+        if current !== webView {
+            current?.removeFromSuperview()
+            content.addSubview(webView)
+            current = webView
+        }
+        layoutPage()
+    }
+
+    func pageLayoutChanged() { layoutPage() }
+}
+
+/// The dev panel's top edge, dragged to resize it.
+final class DragHandle: NSView {
+    var onDrag: ((CGFloat) -> Void)?
+    private var lastY: CGFloat = 0
+
+    override func resetCursorRects() { addCursorRect(bounds, cursor: .resizeUpDown) }
+    override var mouseDownCanMoveWindow: Bool { false }
+
+    override func mouseDown(with event: NSEvent) { lastY = event.locationInWindow.y }
+
+    override func mouseDragged(with event: NSEvent) {
+        let y = event.locationInWindow.y
+        onDrag?(y - lastY)
+        lastY = y
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        Theme.hairline.setFill()
+        NSRect(x: 0, y: bounds.midY - 0.5, width: bounds.width, height: 1).fill()
     }
 }

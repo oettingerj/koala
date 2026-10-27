@@ -12,6 +12,7 @@ enum MainMenu {
         main.addItem(submenu(editMenu()))
         main.addItem(submenu(viewMenu()))
         main.addItem(submenu(historyMenu()))
+        main.addItem(submenu(developMenu()))
         let bookmarks = NSMenu(title: "Bookmarks")
         bookmarks.delegate = BookmarksMenuDelegate.shared
         main.addItem(submenu(bookmarks))
@@ -101,6 +102,18 @@ enum MainMenu {
         menu.addItem(item("Show Bookmarks Bar", #selector(BrowserWindowController.toggleBookmarksBar(_:)), "b", [.command, .shift]))
         menu.addItem(.separator())
         menu.addItem(item("Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:)), "f", [.command, .control]))
+        return menu
+    }
+
+    private static func developMenu() -> NSMenu {
+        let menu = NSMenu(title: "Develop")
+        menu.addItem(item("Show Dev Panel", #selector(BrowserWindowController.toggleDevPanel(_:)), "j", [.command, .option]))
+        menu.addItem(item("View Source", #selector(BrowserWindowController.viewSource(_:)), "u", [.command, .option]))
+        menu.addItem(item("Reload from Origin", #selector(BrowserWindowController.hardReload(_:)), "r", [.command, .shift]))
+        menu.addItem(.separator())
+        let note = NSMenuItem(title: "Web Inspector: right-click › Inspect Element", action: nil, keyEquivalent: "")
+        note.isEnabled = false
+        menu.addItem(note)
         return menu
     }
 

@@ -11,6 +11,7 @@ public enum WebViewFactory {
         config.allowsAirPlayForMediaPlayback = true
         config.mediaTypesRequiringUserActionForPlayback = .all
         config.applicationNameForUserAgent = "Version/26.0 Safari/605.1.15"
+        DevToolsScripts.install(on: config.userContentController, handler: DevToolsRouter.shared)
         return config
     }()
 

@@ -10,6 +10,9 @@ final class ToolbarView: NSView {
     private lazy var backButton = IconButton(symbol: "chevron.left", label: "Back", action: #selector(BrowserWindowController.goBack(_:)))
     private lazy var forwardButton = IconButton(symbol: "chevron.right", label: "Forward", action: #selector(BrowserWindowController.goForward(_:)))
     private lazy var reloadButton = IconButton(symbol: "arrow.clockwise", label: "Reload", action: #selector(BrowserWindowController.reloadOrStop(_:)))
+    private lazy var devButton = IconButton(symbol: "chevron.left.forwardslash.chevron.right", label: "Dev Panel",
+                                            pointSize: 12, action: #selector(BrowserWindowController.toggleDevPanel(_:)))
+    private let errorBadge = NSTextField(labelWithString: "")
     private let hairline = CALayer()
     var showsHairline = true { didSet { hairline.isHidden = !showsHairline } }
     private let progressBar = CALayer()
@@ -22,7 +25,10 @@ final class ToolbarView: NSView {
         wantsLayer = true
         layer?.addSublayer(hairline)
         layer?.addSublayer(progressBar)
-        [backButton, forwardButton, reloadButton, addressField].forEach(addSubview)
+        errorBadge.font = .monospacedDigitSystemFont(ofSize: 9, weight: .semibold)
+        errorBadge.textColor = Theme.fail
+        errorBadge.alignment = .left
+        [backButton, forwardButton, reloadButton, addressField, devButton, errorBadge].forEach(addSubview)
         setAccessibilityElement(true)
         setAccessibilityRole(.toolbar)
         observation = ObservationLoop { [weak self] in self?.sync() }
@@ -50,7 +56,11 @@ final class ToolbarView: NSView {
         }
         x += 6
         let fieldHeight: CGFloat = 28
-        addressField.frame = NSRect(x: x, y: (bounds.height - fieldHeight) / 2, width: bounds.width - x - 12, height: fieldHeight)
+        let trailing = bounds.width - 8 - Theme.iconButtonSize
+        devButton.frame = NSRect(x: trailing, y: y, width: Theme.iconButtonSize, height: Theme.iconButtonSize)
+        errorBadge.sizeToFit()
+        errorBadge.frame.origin = NSPoint(x: devButton.frame.maxX - 9, y: devButton.frame.maxY - 11)
+        addressField.frame = NSRect(x: x, y: (bounds.height - fieldHeight) / 2, width: trailing - x - 8, height: fieldHeight)
 
         CATransaction.begin()
         CATransaction.setDisableActions(true)
@@ -69,6 +79,11 @@ final class ToolbarView: NSView {
             .withSymbolConfiguration(.init(pointSize: loading ? 12 : 13, weight: .medium))
         reloadButton.toolTip = loading ? "Stop" : "Reload"
         addressField.show(tab?.url)
+        // Error count for the page in view; the dev panel lists them.
+        let errors = tab?.devTools.errorCount ?? 0
+        errorBadge.stringValue = errors == 0 ? "" : errors > 99 ? "99+" : "\(errors)"
+        devButton.toolTip = errors == 0 ? "Dev Panel (⌥⌘J)" : "Dev Panel (⌥⌘J) · \(errors) console error\(errors == 1 ? "" : "s")"
+        needsLayout = true
         _ = tab?.progress
         let switchedTab = lastProgressTabID != tab?.id
         lastProgressTabID = tab?.id

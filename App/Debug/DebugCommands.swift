@@ -28,6 +28,11 @@ enum DebugCommands {
             NSApp.sendAction(NSSelectorFromString(argument), to: nil, from: nil)
         case "open":
             if let url = URL(string: argument) { NSApp.delegate?.application?(NSApp, open: [url]) }
+        case "devpanel":
+            let controller = window?.windowController as? BrowserWindowController
+            if let section = DevPanelModel.Section.allCases.first(where: { $0.rawValue.lowercased() == argument }) {
+                controller?.showDevPanel(section: section)
+            }
         case "resize":
             let size = argument.split(separator: "x").compactMap { Double($0) }
             if size.count == 2 { window?.setContentSize(NSSize(width: size[0], height: size[1])) }

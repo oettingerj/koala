@@ -31,6 +31,17 @@ public final class Tab: NSObject, Identifiable {
     public var openerID: UUID?
     public var isPinned = false
 
+    /// Console, network timing, vitals, and the main response for the dev panel.
+    @ObservationIgnored public let devTools = DevToolsRecord()
+    /// Page tools. Changing JavaScript takes effect on the next load.
+    public var javaScriptEnabled = true
+    /// Responsive mode: the page is laid out at this width, centered. nil fills the window.
+    public var viewportWidth: CGFloat?
+    /// Forces `prefers-color-scheme` for this tab: "light", "dark", or nil to follow the system.
+    public var colorSchemeOverride: String?
+    /// The main document was served as JSON; the app shows its viewer once loaded.
+    public private(set) var isJSONDocument = false
+
     @ObservationIgnored public weak var delegate: TabDelegate?
     @ObservationIgnored public private(set) var webView: WKWebView?
     @ObservationIgnored private var observations: [NSKeyValueObservation] = []
@@ -102,6 +113,13 @@ public final class Tab: NSObject, Identifiable {
         }
     }
 
+    /// Shows generated HTML (view source, tool pages) under `baseURL`.
+    public func loadHTML(_ html: String, baseURL: URL?, title: String) {
+        let webView = materialize()
+        self.title = title
+        webView.loadHTMLString(html, baseURL: baseURL)
+    }
+
     public func goBack() { webView?.goBack() }
     public func goForward() { webView?.goForward() }
     public func stop() { webView?.stopLoading() }
@@ -123,6 +141,7 @@ public final class Tab: NSObject, Identifiable {
 
     private func attach(_ webView: WKWebView) {
         self.webView = webView
+        DevToolsRouter.shared.register(devTools, for: webView)
         webView.navigationDelegate = self
         webView.uiDelegate = self
         observations = [
@@ -145,11 +164,22 @@ extension Tab: WKNavigationDelegate {
             delegate?.tab(self, openInNewTab: url, inBackground: !action.modifierFlags.contains(.shift))
             return (.cancel, preferences)
         }
+        preferences.allowsContentJavaScript = javaScriptEnabled
         return (.allow, preferences)
+    }
+
+    public func webView(_ webView: WKWebView, decidePolicyFor response: WKNavigationResponse) async -> WKNavigationResponsePolicy {
+        if response.isForMainFrame {
+            devTools.record(response: response.response)
+            let mime = response.response.mimeType ?? ""
+            isJSONDocument = mime == "application/json" || mime.hasSuffix("+json")
+        }
+        return .allow
     }
 
     public func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
         isShowingErrorPage = navigation != nil && navigation === errorNavigation
+        devTools.reset()
         if !isShowingErrorPage {
             delegate?.tabDidCommitNavigation(self)
         }
