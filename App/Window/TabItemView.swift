@@ -85,13 +85,15 @@ final class TabItemView: NSView {
             needsLayout = true
             superview?.needsLayout = true
         }
-        titleField.stringValue = tab.displayTitle
-        toolTip = tab.displayTitle
+        // A split reads as one pill naming both pages.
+        let title = tab.splitTab.map { "\(tab.displayTitle)  ⁄  \($0.displayTitle)" } ?? tab.displayTitle
+        titleField.stringValue = title
+        toolTip = title
         // GitHub pull requests and issues show their live state in place of the favicon.
         let status = GitHubService.shared.status(for: tab.url)
         iconView.image = status.flatMap { GitHubStyle.image($0.state) } ?? tab.favicon ?? Self.placeholderIcon
         checks = status?.checks ?? .none
-        var label = tab.displayTitle
+        var label = title
         if let status { label += ", " + GitHubStyle.glyph(status.state).label.lowercased() }
         if let checks = GitHubStyle.label(checks) { label += ", " + checks }
         setAccessibilityLabel(label)

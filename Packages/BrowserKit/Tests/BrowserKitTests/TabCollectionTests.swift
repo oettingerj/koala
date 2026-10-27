@@ -77,4 +77,26 @@ import Testing
         tabs.setPinned(c, false)
         #expect(tabs.tabs.map(\.title) == ["b", "c", "a"])
     }
+
+    @Test func splitAbsorbsPartnerAndUnsplitRestoresIt() {
+        let tabs = TabCollection()
+        let a = tab("a"), b = tab("b"), c = tab("c")
+        [a, b, c].forEach { tabs.insert($0, select: false) }
+        tabs.select(a)
+        tabs.split(a, with: c)
+        #expect(tabs.tabs.map(\.title) == ["a", "b"])
+        #expect(tabs.focused === c)
+        tabs.focusesSplit = false
+        #expect(tabs.focused === a)
+        tabs.unsplit(a)
+        #expect(tabs.tabs.map(\.title) == ["a", "c", "b"])
+        #expect(a.splitTab == nil)
+    }
+
+    @Test func splitSurvivesSnapshot() {
+        let a = tab("a")
+        a.splitTab = Tab(url: URL(string: "https://b.com"), title: "b")
+        let restored = Tab(snapshot: a.snapshot)
+        #expect(restored.splitTab?.url?.host() == "b.com")
+    }
 }

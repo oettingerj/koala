@@ -88,7 +88,7 @@ final class ToolbarView: NSView {
     }
 
     private func sync() {
-        let tab = tabs.selected
+        let tab = tabs.focused
         backButton.isEnabled = tab?.canGoBack ?? false
         forwardButton.isEnabled = tab?.canGoForward ?? false
         let loading = tab?.isLoading ?? false
@@ -116,7 +116,7 @@ final class ToolbarView: NSView {
 
     /// A 2pt accent line along the toolbar's bottom edge while the page loads.
     private func layoutProgress(animated: Bool) {
-        let tab = tabs.selected
+        let tab = tabs.focused
         let loading = tab?.isLoading ?? false
         let progress = loading ? max(0.08, tab?.progress ?? 0) : 0
         CATransaction.begin()

@@ -9,6 +9,8 @@ public protocol TabDelegate: AnyObject {
     func tab(_ tab: Tab, createWebViewWith configuration: WKWebViewConfiguration, for action: WKNavigationAction) -> WKWebView?
     /// A link was ⌘-clicked or middle-clicked.
     func tab(_ tab: Tab, openInNewTab url: URL, inBackground: Bool)
+    /// A link was ⇧-clicked: preview it without leaving the page.
+    func tab(_ tab: Tab, peek url: URL)
     func tabDidRequestClose(_ tab: Tab)
     /// A main-frame navigation committed (the URL changed for real) or finished loading.
     func tabDidCommitNavigation(_ tab: Tab)
@@ -30,6 +32,8 @@ public final class Tab: NSObject, Identifiable {
     public internal(set) var favicon: NSImage?
     public var openerID: UUID?
     public var isPinned = false
+    /// The second page when this tab is a split view. It is not in the strip on its own.
+    public var splitTab: Tab?
 
     /// Console, network timing, vitals, and the main response for the dev panel.
     @ObservationIgnored public let devTools = DevToolsRecord()
@@ -63,12 +67,25 @@ public final class Tab: NSObject, Identifiable {
         self.init(id: snapshot.id, url: snapshot.url, title: snapshot.title, openerID: snapshot.openerID)
         isPinned = snapshot.isPinned
         restoredState = snapshot.interactionState
+        if let split = snapshot.split {
+            let partner = Tab(url: split.url, title: split.title)
+            partner.restoredState = split.interactionState
+            splitTab = partner
+        }
     }
 
     /// Everything needed to bring this tab back after quit or close, without loading it now.
     public var snapshot: TabSnapshot {
-        TabSnapshot(id: id, url: url, title: title, isPinned: isPinned, openerID: openerID,
-                    interactionState: (webView?.interactionState as? Data) ?? restoredState)
+        var snapshot = TabSnapshot(id: id, url: url, title: title, isPinned: isPinned, openerID: openerID,
+                                   interactionState: currentInteractionState)
+        if let splitTab {
+            snapshot.split = SplitSnapshot(url: splitTab.url, title: splitTab.title, interactionState: splitTab.currentInteractionState)
+        }
+        return snapshot
+    }
+
+    private var currentInteractionState: Data? {
+        (webView?.interactionState as? Data) ?? restoredState
     }
 
     public func setFavicon(_ image: NSImage?) { favicon = image }
@@ -81,6 +98,12 @@ public final class Tab: NSObject, Identifiable {
         self.openerID = openerID
         super.init()
         attach(webView)
+        // KVO reports changes only; a web view adopted mid-load (Peek) already has state.
+        url = webView.url
+        title = webView.title ?? ""
+        isLoading = webView.isLoading
+        canGoBack = webView.canGoBack
+        canGoForward = webView.canGoForward
     }
 
     public var displayTitle: String {
@@ -158,6 +181,12 @@ public final class Tab: NSObject, Identifiable {
 extension Tab: WKNavigationDelegate {
     public func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
                         preferences: WKWebpagePreferences) async -> (WKNavigationActionPolicy, WKWebpagePreferences) {
+        let flags = action.modifierFlags.intersection([.command, .shift, .option, .control])
+        if action.navigationType == .linkActivated, flags == .shift, let url = action.request.url,
+           url.scheme == "http" || url.scheme == "https" {
+            delegate?.tab(self, peek: url)
+            return (.cancel, preferences)
+        }
         let opensNewTab = action.navigationType == .linkActivated
             && (action.modifierFlags.contains(.command) || action.buttonNumber == 2)
         if opensNewTab, let url = action.request.url {

@@ -17,6 +17,8 @@ final class CommandBar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
     private var heightObservation: ObservationLoop?
 
     var onActivate: ((Suggestion, _ newTab: Bool) -> Void)?
+    var onCancel: (() -> Void)?
+    private static let defaultPlaceholder = "Search, open a URL, or run a command"
 
     static let width: CGFloat = 640
     private static let fieldHeight: CGFloat = 52
@@ -65,9 +67,12 @@ final class CommandBar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
     /// below the chrome rather than over it.
     private var chromeHeight: CGFloat = 104
 
-    func show(over window: NSWindow, chromeHeight: CGFloat) {
+    func show(over window: NSWindow, chromeHeight: CGFloat, placeholder: String = CommandBar.defaultPlaceholder) {
         parent = window
         self.chromeHeight = chromeHeight
+        field.placeholderAttributedString = NSAttributedString(string: placeholder, attributes: [
+            .font: NSFont.systemFont(ofSize: 16), .foregroundColor: Theme.textTertiary,
+        ])
         model.reset()
         field.stringValue = ""
         if panel.parent !== window {
@@ -83,6 +88,11 @@ final class CommandBar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         guard panel.isVisible else { return }
         panel.orderOut(nil)
         parent?.makeKey()
+    }
+
+    private func cancel() {
+        hide()
+        onCancel?()
     }
 
     private func activate(_ row: Suggestion, newTab: Bool) {
@@ -129,7 +139,7 @@ final class CommandBar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
                 activate(row, newTab: NSApp.currentEvent?.modifierFlags.contains(.command) ?? false)
             }
         case #selector(NSResponder.cancelOperation(_:)):
-            hide()
+            cancel()
         default:
             return false
         }
@@ -138,7 +148,10 @@ final class CommandBar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
 
     func windowDidResignKey(_ notification: Notification) {
         // Clicking anywhere else dismisses the bar, like a menu.
-        if panel.isVisible { panel.orderOut(nil) }
+        if panel.isVisible {
+            panel.orderOut(nil)
+            onCancel?()
+        }
     }
 }
 

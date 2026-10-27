@@ -15,6 +15,15 @@ public final class TabCollection {
         return tabs.first { $0.id == selectedID }
     }
 
+    /// In a split view, whether the second page has focus.
+    public var focusesSplit = false
+
+    /// The page actions and the toolbar apply to: the focused side of a split, else the selected tab.
+    public var focused: Tab? {
+        guard let selected else { return nil }
+        return focusesSplit ? (selected.splitTab ?? selected) : selected
+    }
+
     public var selectedIndex: Int? {
         guard let selectedID else { return nil }
         return tabs.firstIndex { $0.id == selectedID }
@@ -40,12 +49,32 @@ public final class TabCollection {
 
     public func select(_ tab: Tab) {
         guard tabs.contains(where: { $0.id == tab.id }) else { return }
+        if selectedID != tab.id { focusesSplit = false }
         selectedID = tab.id
+    }
+
+    /// Makes `partner` the second page of `tab`. A partner already in the strip leaves it.
+    public func split(_ tab: Tab, with partner: Tab) {
+        guard tab.splitTab == nil, partner !== tab else { return }
+        if let index = index(of: partner) { tabs.remove(at: index) }
+        partner.openerID = nil
+        tab.splitTab = partner
+        focusesSplit = true
+    }
+
+    /// Ends a split. The second page becomes its own tab right after, unless it is discarded.
+    @discardableResult
+    public func unsplit(_ tab: Tab, keepingPartner: Bool = true) -> Tab? {
+        guard let partner = tab.splitTab, let index = index(of: tab) else { return nil }
+        tab.splitTab = nil
+        focusesSplit = false
+        if keepingPartner { tabs.insert(partner, at: index + 1) }
+        return partner
     }
 
     public func select(at index: Int) {
         guard tabs.indices.contains(index) else { return }
-        selectedID = tabs[index].id
+        select(tabs[index])
     }
 
     public func selectNext() { cycleSelection(by: 1) }

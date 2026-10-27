@@ -8,6 +8,8 @@ public struct TabSnapshot: Codable, Equatable, Sendable {
     public var openerID: UUID?
     /// WebKit's opaque back/forward state; restores history without reloading every entry.
     public var interactionState: Data?
+    /// The second page of a split view.
+    public var split: SplitSnapshot?
 
     public init(id: UUID, url: URL?, title: String, isPinned: Bool, openerID: UUID?, interactionState: Data?) {
         self.id = id
@@ -15,6 +17,18 @@ public struct TabSnapshot: Codable, Equatable, Sendable {
         self.title = title
         self.isPinned = isPinned
         self.openerID = openerID
+        self.interactionState = interactionState
+    }
+}
+
+public struct SplitSnapshot: Codable, Equatable, Sendable {
+    public var url: URL?
+    public var title: String
+    public var interactionState: Data?
+
+    public init(url: URL?, title: String, interactionState: Data?) {
+        self.url = url
+        self.title = title
         self.interactionState = interactionState
     }
 }

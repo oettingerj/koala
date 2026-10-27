@@ -71,6 +71,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
             for tabSnapshot in snapshot.tabs {
                 let tab = Tab(snapshot: tabSnapshot)
                 tab.delegate = self
+                tab.splitTab?.delegate = self
                 tabs.insert(tab, select: false)
                 services.applyCachedFavicon(to: tab)
             }
@@ -84,6 +85,9 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         sessionObservation = ObservationLoop { [weak self] in self?.observeSessionState() }
         bookmarkObservation = ObservationLoop { [weak self] in self?.updateBookmarkStar() }
         rootView.devPanelModel.perform = { [weak self] action in self?.perform(action) }
+        rootView.peek.onOpenInTab = { [weak self] webView in self?.openPeekInTab(webView) }
+        rootView.peek.onOpenInSplit = { [weak self] webView in self?.openPeekInSplit(webView) }
+        rootView.onFocusPane = { [weak self] secondary in self?.tabs.focusesSplit = secondary }
     }
 
     // MARK: GitHub
@@ -101,7 +105,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     }
 
     @objc func showGitHubContext(_ sender: Any?) {
-        guard let tab = tabs.selected, let page = GitHubURL(tab.url) else { return }
+        guard let tab = tabs.focused, let page = GitHubURL(tab.url) else { return }
         let view = GitHubContextPopover(github: page, status: github.status(for: tab.url), isSignedIn: github.isSignedIn,
                                         hasClone: github.clones.clone(for: page) != nil) { [weak self] action in
             self?.popover?.close()
@@ -132,17 +136,17 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     @objc func signOutOfGitHub(_ sender: Any?) { github.signOut() }
 
     @objc func copyPermalink(_ sender: Any?) {
-        guard let page = GitHubURL(tabs.selected?.url) else { return }
+        guard let page = GitHubURL(tabs.focused?.url) else { return }
         performGitHub(.copyPermalink, page: page)
     }
 
     @objc func openInEditor(_ sender: Any?) {
-        guard let page = GitHubURL(tabs.selected?.url) else { return }
+        guard let page = GitHubURL(tabs.focused?.url) else { return }
         performGitHub(.openInEditor, page: page)
     }
 
     @objc func copyCheckoutCommand(_ sender: Any?) {
-        guard let page = GitHubURL(tabs.selected?.url), case .pullRequest(let number) = page.kind else { return }
+        guard let page = GitHubURL(tabs.focused?.url), case .pullRequest(let number) = page.kind else { return }
         performGitHub(.copyCheckout(number), page: page)
     }
 
@@ -166,7 +170,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         case .signIn:
             signInToGitHub(nil)
         case .open(let url):
-            openTab(url: url, select: true, opener: tabs.selected)
+            openTab(url: url, select: true, opener: tabs.focused)
         }
     }
 
@@ -203,6 +207,79 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         }
     }
 
+    // MARK: Split view and Peek
+
+    /// "Split with…": the command bar picks the second page (an open tab or a new page).
+    @objc func splitWith(_ sender: Any?) {
+        guard let window, let tab = tabs.selected, tab.splitTab == nil else { return NSSound.beep() }
+        services.commands = []
+        commandBar.onActivate = { [weak self] row, _ in
+            self?.restoreCommandBarHandler()
+            self?.split(tab, with: row)
+        }
+        commandBar.onCancel = { [weak self] in self?.restoreCommandBarHandler() }
+        commandBar.show(over: window, chromeHeight: rootView.chromeHeight, placeholder: "Split with a tab or page")
+    }
+
+    private func restoreCommandBarHandler() {
+        commandBar.onActivate = { [weak self] row, _ in self?.activate(row, inNewTab: true) }
+        commandBar.onCancel = nil
+    }
+
+    private func split(_ tab: Tab, with row: Suggestion) {
+        switch row.action {
+        case .open(let url):
+            let partner = Tab(url: url)
+            partner.delegate = self
+            tabs.split(tab, with: partner)
+        case .switchToTab(let id):
+            guard let partner = tabs.tabs.first(where: { $0.id == id }), partner !== tab else { return NSSound.beep() }
+            if partner.splitTab != nil { tabs.unsplit(partner) }
+            tabs.split(tab, with: partner)
+        case .command:
+            NSSound.beep()
+        }
+    }
+
+    /// Turns the split back into two tabs.
+    @objc func separateSplit(_ sender: Any?) {
+        guard let tab = tabs.selected else { return }
+        tabs.unsplit(tab)
+    }
+
+    /// Closes the focused side of a split; the other side stays as the tab.
+    @objc func closeSplitPane(_ sender: Any?) {
+        guard let tab = tabs.selected, let partner = tab.splitTab else { return }
+        if tabs.focusesSplit {
+            tabs.unsplit(tab, keepingPartner: false)
+            partner.stop()
+            partner.webView?.removeFromSuperview()
+        } else {
+            // Closing the left side: the right side takes the tab's place.
+            let index = tabs.index(of: tab) ?? 0
+            tabs.unsplit(tab, keepingPartner: true)
+            close(tab)
+            tabs.move(partner, to: index)
+            tabs.select(partner)
+        }
+    }
+
+    /// Promotes the Peek page to a tab, keeping the same web view so nothing reloads.
+    func openPeekInTab(_ webView: WKWebView) {
+        let tab = Tab(adopting: webView, openerID: tabs.selected?.id)
+        tab.delegate = self
+        tabs.insert(tab, select: true)
+        services.applyCachedFavicon(to: tab)
+    }
+
+    func openPeekInSplit(_ webView: WKWebView) {
+        guard let tab = tabs.selected else { return }
+        let partner = Tab(adopting: webView, openerID: nil)
+        partner.delegate = self
+        if tab.splitTab != nil { tabs.unsplit(tab) }
+        tabs.split(tab, with: partner)
+    }
+
     // MARK: Dev tools
 
     @objc func toggleDevPanel(_ sender: Any?) {
@@ -217,7 +294,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private func perform(_ action: DevPanelModel.PageAction) {
-        guard let tab = tabs.selected else { return }
+        guard let tab = tabs.focused else { return }
         switch action {
         case .close:
             rootView.showsDevPanel = false
@@ -275,7 +352,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private func updateBookmarkStar() {
-        let url = tabs.selected?.url
+        let url = tabs.focused?.url
         let field = rootView.toolbar.addressField
         field.canBookmark = url.map { $0.scheme == "http" || $0.scheme == "https" } ?? false
         field.isBookmarked = url.flatMap { services.bookmarks.bookmark(for: $0) } != nil
@@ -284,7 +361,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     func openBookmark(_ url: URL, newTab: Bool) {
         if newTab {
             openTab(url: url, select: false, opener: nil)
-        } else if let tab = tabs.selected {
+        } else if let tab = tabs.focused {
             tab.load(url)
             focusPage()
         } else {
@@ -293,7 +370,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     }
 
     @objc func toggleBookmark(_ sender: Any?) {
-        guard let tab = tabs.selected, let url = tab.url, url.scheme == "http" || url.scheme == "https" else { return }
+        guard let tab = tabs.focused, let url = tab.url, url.scheme == "http" || url.scheme == "https" else { return }
         let library = services.bookmarks
         Task {
             if let existing = library.bookmark(for: url) {
@@ -311,7 +388,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     /// Reads every field the session persists, so any change schedules a save.
     private func observeSessionState() {
         _ = tabs.selectedID
-        for tab in tabs.tabs { _ = (tab.url, tab.title, tab.isPinned) }
+        for tab in tabs.tabs { _ = (tab.url, tab.title, tab.isPinned, tab.splitTab?.url, tab.splitTab?.title) }
         services.scheduleSessionSave()
     }
 
@@ -339,7 +416,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
 
     /// Opens `url` from outside the window: reuses an untouched blank tab, else a new tab.
     func open(_ url: URL) {
-        if let tab = tabs.selected, tab.url == nil, !tab.canGoBack {
+        if let tab = tabs.focused, tab.url == nil, !tab.canGoBack {
             tab.load(url)
             focusPage()
         } else {
@@ -358,18 +435,28 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private var shownTabID: UUID?
+    private var shownSplitID: UUID?
 
     private func showSelectedTab() {
         guard let tab = tabs.selected else { return }
         window?.title = tab.displayTitle
         let webView = tab.materialize()
+        let partner = tab.splitTab
+        partner?.delegate = self
+        let partnerView = partner?.materialize()
         // Page tools read here so changing them re-runs this and applies immediately.
-        webView.appearance = tab.colorSchemeOverride.map { NSAppearance(named: $0 == "dark" ? .darkAqua : .aqua) } ?? nil
-        _ = tab.viewportWidth
+        for (pane, view) in [(tab, webView), (partner, partnerView)] {
+            guard let pane, let view else { continue }
+            view.appearance = pane.colorSchemeOverride.map { NSAppearance(named: $0 == "dark" ? .darkAqua : .aqua) } ?? nil
+            _ = pane.viewportWidth
+        }
+        rootView.focusesSplit = tabs.focusesSplit
+        rootView.devPanelModel.tab = tabs.focused
         rootView.pageLayoutChanged()
-        guard shownTabID != tab.id else { return }
+        guard shownTabID != tab.id || shownSplitID != partner?.id else { return }
         shownTabID = tab.id
-        rootView.show(webView, for: tab)
+        shownSplitID = partner?.id
+        rootView.show(webView, for: tab, split: partnerView.map { ($0, partner!) })
         // Switching tabs abandons whatever was typed for the previous one.
         if rootView.toolbar.addressField.isEditing, tab.url != nil {
             focusPage()
@@ -378,7 +465,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
 
     private func navigate(to text: String) {
         guard let url = AddressInput.resolve(text, searchTemplate: Preferences.searchTemplate) else { return }
-        let tab = tabs.selected ?? openTab(url: nil, select: true)
+        let tab = tabs.focused ?? openTab(url: nil, select: true)
         tab.nextNavigationIsTyped = true
         tab.load(url)
         focusPage()
@@ -399,7 +486,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func focusPage() {
-        if let webView = tabs.selected?.webView { window?.makeFirstResponder(webView) }
+        if let webView = tabs.focused?.webView { window?.makeFirstResponder(webView) }
     }
 
     // MARK: Tab context menu
@@ -448,7 +535,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     // MARK: Menu actions
 
     @objc func copyURL(_ sender: Any?) {
-        guard let tab = tabs.selected, let url = tab.url else { return }
+        guard let tab = tabs.focused, let url = tab.url else { return }
         Pasteboard.copy(url: url, title: tab.title)
     }
 
@@ -478,12 +565,12 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         switch row.action {
         case .open(let url):
             let typed = row.kind == .navigate || row.kind == .search || row.kind == .keyword
-            if inNewTab, !(tabs.selected.map { $0.url == nil && !$0.canGoBack } ?? false) {
+            if inNewTab, !(tabs.focused.map { $0.url == nil && !$0.canGoBack } ?? false) {
                 let tab = openTab(url: nil, select: true)
                 tab.nextNavigationIsTyped = typed
                 tab.load(url)
             } else {
-                let tab = tabs.selected ?? openTab(url: nil, select: true)
+                let tab = tabs.focused ?? openTab(url: nil, select: true)
                 tab.nextNavigationIsTyped = typed
                 tab.load(url)
             }
@@ -502,7 +589,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     }
 
     @objc func copyMarkdownLink(_ sender: Any?) {
-        guard let tab = tabs.selected, let url = tab.url else { return }
+        guard let tab = tabs.focused, let url = tab.url else { return }
         // GitHub links read as references: "owner/repo#123: Title".
         var text = tab.displayTitle
         if let page = GitHubURL(url), let number = page.number {
@@ -514,19 +601,25 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         pasteboard.setString("[\(title)](\(url.absoluteString))", forType: .string)
     }
 
+    /// ⌘W closes the focused side of a split first, then the tab.
     @objc func closeTab(_ sender: Any?) {
-        if let tab = tabs.selected { close(tab) }
+        guard let tab = tabs.selected else { return }
+        if tab.splitTab != nil {
+            closeSplitPane(nil)
+        } else {
+            close(tab)
+        }
     }
 
     @objc func openLocation(_ sender: Any?) { focusAddressField() }
-    @objc func goBack(_ sender: Any?) { tabs.selected?.goBack() }
-    @objc func goForward(_ sender: Any?) { tabs.selected?.goForward() }
-    @objc func reloadPage(_ sender: Any?) { tabs.selected?.reload() }
-    @objc func hardReload(_ sender: Any?) { tabs.selected?.reload(fromOrigin: true) }
-    @objc func stopLoading(_ sender: Any?) { tabs.selected?.stop() }
+    @objc func goBack(_ sender: Any?) { tabs.focused?.goBack() }
+    @objc func goForward(_ sender: Any?) { tabs.focused?.goForward() }
+    @objc func reloadPage(_ sender: Any?) { tabs.focused?.reload() }
+    @objc func hardReload(_ sender: Any?) { tabs.focused?.reload(fromOrigin: true) }
+    @objc func stopLoading(_ sender: Any?) { tabs.focused?.stop() }
 
     @objc func reloadOrStop(_ sender: Any?) {
-        guard let tab = tabs.selected else { return }
+        guard let tab = tabs.focused else { return }
         if tab.isLoading { tab.stop() } else { tab.reload() }
     }
 
@@ -535,7 +628,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     @objc func actualSize(_ sender: Any?) { adjustZoom { _ in 1 } }
 
     private func adjustZoom(_ transform: (CGFloat) -> CGFloat) {
-        guard let webView = tabs.selected?.webView else { return }
+        guard let webView = tabs.focused?.webView else { return }
         webView.pageZoom = (transform(webView.pageZoom) * 10).rounded() / 10
     }
 
@@ -549,20 +642,24 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
 
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         switch item.action {
-        case #selector(goBack(_:)): return tabs.selected?.canGoBack ?? false
-        case #selector(goForward(_:)): return tabs.selected?.canGoForward ?? false
-        case #selector(stopLoading(_:)): return tabs.selected?.isLoading ?? false
+        case #selector(goBack(_:)): return tabs.focused?.canGoBack ?? false
+        case #selector(goForward(_:)): return tabs.focused?.canGoForward ?? false
+        case #selector(stopLoading(_:)): return tabs.focused?.isLoading ?? false
         case #selector(selectTabByNumber(_:)): return item.tag == 9 ? !tabs.tabs.isEmpty : item.tag <= tabs.tabs.count
         case #selector(copyPermalink(_:)):
-            if case .blob = GitHubURL(tabs.selected?.url)?.kind { return true }
+            if case .blob = GitHubURL(tabs.focused?.url)?.kind { return true }
             return false
         case #selector(openInEditor(_:)), #selector(showGitHubContext(_:)):
-            return GitHubURL(tabs.selected?.url) != nil
+            return GitHubURL(tabs.focused?.url) != nil
         case #selector(copyCheckoutCommand(_:)):
-            if case .pullRequest = GitHubURL(tabs.selected?.url)?.kind { return true }
+            if case .pullRequest = GitHubURL(tabs.focused?.url)?.kind { return true }
             return false
         case #selector(signInToGitHub(_:)): return !github.isSignedIn
         case #selector(signOutOfGitHub(_:)): return github.isSignedIn
+        case #selector(separateSplit(_:)), #selector(closeSplitPane(_:)):
+            return tabs.selected?.splitTab != nil
+        case #selector(splitWith(_:)):
+            return tabs.selected?.splitTab == nil
         case #selector(toggleDevPanel(_:)):
             item.title = rootView.showsDevPanel ? "Hide Dev Panel" : "Show Dev Panel"
             return true
@@ -573,9 +670,9 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
             item.title = tabs.selected?.isPinned == true ? "Unpin Tab" : "Pin Tab"
             return tabs.selected != nil
         case #selector(toggleBookmark(_:)):
-            let bookmarked = tabs.selected?.url.flatMap { services.bookmarks.bookmark(for: $0) } != nil
+            let bookmarked = tabs.focused?.url.flatMap { services.bookmarks.bookmark(for: $0) } != nil
             item.title = bookmarked ? "Remove Bookmark" : "Bookmark This Page"
-            return tabs.selected?.url != nil
+            return tabs.focused?.url != nil
         default: return true
         }
     }
@@ -614,7 +711,18 @@ extension BrowserWindowController: TabDelegate {
         openTab(url: url, select: !inBackground, opener: tab)
     }
 
-    func tabDidRequestClose(_ tab: Tab) { close(tab) }
+    func tabDidRequestClose(_ tab: Tab) {
+        if let owner = tabs.tabs.first(where: { $0.splitTab === tab }) {
+            tabs.unsplit(owner, keepingPartner: false)
+            tab.webView?.removeFromSuperview()
+        } else {
+            close(tab)
+        }
+    }
+
+    func tab(_ tab: Tab, peek url: URL) {
+        rootView.peek.show(url: url)
+    }
 
     func tabDidCommitNavigation(_ tab: Tab) {
         services.applyCachedFavicon(to: tab)
@@ -680,6 +788,7 @@ final class BrowserRootView: NSView {
         super.init(frame: .zero)
         content.wantsLayer = true
         [content, strip, toolbar, bookmarksBar, devPanel, devPanelHandle].forEach(addSubview)
+        splitDivider.isHidden = true
         bookmarksBar.isHidden = !showsBookmarksBar
         toolbar.showsHairline = !showsBookmarksBar
         devPanel.isHidden = true
@@ -724,53 +833,135 @@ final class BrowserRootView: NSView {
         layoutPage()
     }
 
-    /// Fills the content area, or centers the page at the tab's responsive width.
+    // MARK: Page and split panes
+
+    private weak var splitView: WKWebView?
+    private weak var splitTab: Tab?
+    private let splitDivider = DragHandle(vertical: true)
+    private let focusLine = CALayer()
+    private var splitRatio: CGFloat = 0.5
+    private var mouseMonitor: Any?
+    let peek = PeekView()
+    var focusesSplit = false { didSet { layoutPage() } }
+    /// true when the user clicked into the second pane.
+    var onFocusPane: ((Bool) -> Void)?
+
+    private var primaryFrame: NSRect {
+        guard splitView != nil else { return content.bounds }
+        let width = (content.bounds.width * splitRatio).rounded()
+        return NSRect(x: 0, y: 0, width: width, height: content.bounds.height)
+    }
+
+    private var secondaryFrame: NSRect {
+        let primary = primaryFrame
+        return NSRect(x: primary.maxX + 1, y: 0, width: content.bounds.width - primary.maxX - 1, height: content.bounds.height)
+    }
+
+    /// Fills each pane, or centers a page at its tab's responsive width.
     private func layoutPage() {
-        guard let current else { return }
-        if let width = currentTab?.viewportWidth, width < content.bounds.width {
-            current.autoresizingMask = []
-            current.frame = NSRect(x: ((content.bounds.width - width) / 2).rounded(), y: 0, width: width, height: content.bounds.height)
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        defer { CATransaction.commit() }
+        if let current { place(current, in: primaryFrame, width: currentTab?.viewportWidth) }
+        if let splitView {
+            place(splitView, in: secondaryFrame, width: splitTab?.viewportWidth)
+            splitDivider.isHidden = false
+            splitDivider.frame = NSRect(x: primaryFrame.maxX - 2, y: 0, width: 5, height: content.bounds.height)
+            focusLine.isHidden = false
+            let focused = focusesSplit ? secondaryFrame : primaryFrame
+            focusLine.frame = NSRect(x: focused.minX, y: focused.maxY - 2, width: focused.width, height: 2)
+            focusLine.backgroundColor = resolved(Theme.accent)
         } else {
-            current.autoresizingMask = [.width, .height]
-            current.frame = content.bounds
+            splitDivider.isHidden = true
+            focusLine.isHidden = true
+        }
+        peek.frame = content.bounds
+    }
+
+    private func place(_ webView: WKWebView, in frame: NSRect, width: CGFloat?) {
+        if let width, width < frame.width {
+            webView.frame = NSRect(x: (frame.minX + (frame.width - width) / 2).rounded(), y: 0, width: width, height: frame.height)
+        } else {
+            webView.frame = frame
+        }
+    }
+
+    func show(_ webView: WKWebView, for tab: Tab, split: (WKWebView, Tab)?) {
+        currentTab = tab
+        if current !== webView {
+            current?.removeFromSuperview()
+            content.addSubview(webView, positioned: .below, relativeTo: splitDivider)
+            current = webView
+        }
+        if splitView !== split?.0 {
+            splitView?.removeFromSuperview()
+            if let view = split?.0 { content.addSubview(view, positioned: .below, relativeTo: splitDivider) }
+            splitView = split?.0
+        }
+        splitTab = split?.1
+        layoutPage()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if mouseMonitor == nil, window != nil {
+            content.addSubview(splitDivider)
+            content.addSubview(peek)
+            content.layer?.addSublayer(focusLine)
+            focusLine.zPosition = 10
+            peek.isHidden = true
+            splitDivider.onDrag = { [weak self] delta in
+                guard let self, content.bounds.width > 0 else { return }
+                splitRatio = min(0.8, max(0.2, splitRatio + delta / content.bounds.width))
+                layoutPage()
+            }
+            // Clicking into a pane focuses it; pages swallow mouse events, so watch them here.
+            mouseMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+                guard let self, event.window === window, splitView != nil else { return event }
+                let point = content.convert(event.locationInWindow, from: nil)
+                if secondaryFrame.contains(point) { onFocusPane?(true) } else if primaryFrame.contains(point) { onFocusPane?(false) }
+                return event
+            }
         }
     }
 
     /// Height of everything above the page.
     var chromeHeight: CGFloat { bounds.height - content.frame.maxY }
 
-    func show(_ webView: WKWebView, for tab: Tab) {
-        currentTab = tab
-        devPanelModel.tab = tab
-        if current !== webView {
-            current?.removeFromSuperview()
-            content.addSubview(webView)
-            current = webView
-        }
-        layoutPage()
-    }
-
     func pageLayoutChanged() { layoutPage() }
 }
 
-/// The dev panel's top edge, dragged to resize it.
+/// A hairline that resizes what it separates: the dev panel's top edge, or the split divider.
 final class DragHandle: NSView {
     var onDrag: ((CGFloat) -> Void)?
-    private var lastY: CGFloat = 0
+    private let vertical: Bool
+    private var last: CGFloat = 0
 
-    override func resetCursorRects() { addCursorRect(bounds, cursor: .resizeUpDown) }
+    init(vertical: Bool = false) {
+        self.vertical = vertical
+        super.init(frame: .zero)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func resetCursorRects() { addCursorRect(bounds, cursor: vertical ? .resizeLeftRight : .resizeUpDown) }
     override var mouseDownCanMoveWindow: Bool { false }
 
-    override func mouseDown(with event: NSEvent) { lastY = event.locationInWindow.y }
+    override func mouseDown(with event: NSEvent) { last = vertical ? event.locationInWindow.x : event.locationInWindow.y }
 
     override func mouseDragged(with event: NSEvent) {
-        let y = event.locationInWindow.y
-        onDrag?(y - lastY)
-        lastY = y
+        let position = vertical ? event.locationInWindow.x : event.locationInWindow.y
+        onDrag?(position - last)
+        last = position
     }
 
     override func draw(_ dirtyRect: NSRect) {
         Theme.hairline.setFill()
-        NSRect(x: 0, y: bounds.midY - 0.5, width: bounds.width, height: 1).fill()
+        if vertical {
+            NSRect(x: bounds.midX - 0.5, y: 0, width: 1, height: bounds.height).fill()
+        } else {
+            NSRect(x: 0, y: bounds.midY - 0.5, width: bounds.width, height: 1).fill()
+        }
     }
 }
