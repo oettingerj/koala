@@ -10,6 +10,9 @@ public protocol TabDelegate: AnyObject {
     /// A link was ⌘-clicked or middle-clicked.
     func tab(_ tab: Tab, openInNewTab url: URL, inBackground: Bool)
     func tabDidRequestClose(_ tab: Tab)
+    /// A main-frame navigation committed (the URL changed for real) or finished loading.
+    func tabDidCommitNavigation(_ tab: Tab)
+    func tabDidFinishNavigation(_ tab: Tab)
 }
 
 /// One page in a window. The web view is created lazily, so restored or background tabs
@@ -32,6 +35,10 @@ public final class Tab: NSObject, Identifiable {
     @ObservationIgnored public private(set) var webView: WKWebView?
     @ObservationIgnored private var observations: [NSKeyValueObservation] = []
     @ObservationIgnored private var errorNavigation: WKNavigation?
+    /// Back/forward state from a restored session, applied when the web view is created.
+    @ObservationIgnored private var restoredState: Data?
+    /// The next committed navigation came from the address field (counts as typed in history).
+    @ObservationIgnored public var nextNavigationIsTyped = false
     public private(set) var isShowingErrorPage = false
 
     public init(id: UUID = UUID(), url: URL?, title: String = "", openerID: UUID? = nil) {
@@ -40,6 +47,20 @@ public final class Tab: NSObject, Identifiable {
         self.title = title
         self.openerID = openerID
     }
+
+    public convenience init(snapshot: TabSnapshot) {
+        self.init(id: snapshot.id, url: snapshot.url, title: snapshot.title, openerID: snapshot.openerID)
+        isPinned = snapshot.isPinned
+        restoredState = snapshot.interactionState
+    }
+
+    /// Everything needed to bring this tab back after quit or close, without loading it now.
+    public var snapshot: TabSnapshot {
+        TabSnapshot(id: id, url: url, title: title, isPinned: isPinned, openerID: openerID,
+                    interactionState: (webView?.interactionState as? Data) ?? restoredState)
+    }
+
+    public func setFavicon(_ image: NSImage?) { favicon = image }
 
     /// Wraps a web view WebKit already created for a popup.
     public init(adopting webView: WKWebView, openerID: UUID?) {
@@ -63,7 +84,12 @@ public final class Tab: NSObject, Identifiable {
         if let webView { return webView }
         let webView = WebViewFactory.makeWebView()
         attach(webView)
-        if let url { webView.load(URLRequest(url: url)) }
+        if let restoredState {
+            webView.interactionState = restoredState
+            self.restoredState = nil
+        } else if let url {
+            webView.load(URLRequest(url: url))
+        }
         return webView
     }
 
@@ -123,8 +149,15 @@ extension Tab: WKNavigationDelegate {
     }
 
     public func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
-        favicon = nil
         isShowingErrorPage = navigation != nil && navigation === errorNavigation
+        if !isShowingErrorPage {
+            delegate?.tabDidCommitNavigation(self)
+        }
+        nextNavigationIsTyped = false
+    }
+
+    public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        if !isShowingErrorPage { delegate?.tabDidFinishNavigation(self) }
     }
 
     public func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {

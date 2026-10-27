@@ -7,6 +7,7 @@ protocol TabItemViewDelegate: AnyObject {
     func tabItemDidDrag(_ item: TabItemView, event: NSEvent)
     func tabItemDidEndDrag(_ item: TabItemView)
     func tabItemDidRequestClose(_ item: TabItemView)
+    func tabItemMenu(_ item: TabItemView) -> NSMenu?
 }
 
 /// One tab in the strip. Selected tabs share the toolbar's surface and run down into it;
@@ -29,6 +30,9 @@ final class TabItemView: NSView {
     private var tracking: NSTrackingArea?
     private var observation: ObservationLoop?
     private var isDragging = false
+    private var isPinned = false
+
+    static let pinnedWidth: CGFloat = 40
 
     /// Height of the visible tab body; the selected tab extends from the strip's bottom edge.
     static let bodyHeight: CGFloat = 32
@@ -70,6 +74,11 @@ final class TabItemView: NSView {
     override var mouseDownCanMoveWindow: Bool { false }
 
     private func apply() {
+        if isPinned != tab.isPinned {
+            isPinned = tab.isPinned
+            needsLayout = true
+            superview?.needsLayout = true
+        }
         titleField.stringValue = tab.displayTitle
         toolTip = tab.displayTitle
         setAccessibilityLabel(tab.displayTitle)
@@ -105,6 +114,14 @@ final class TabItemView: NSView {
 
         let midY = body.midY
         let inset: CGFloat = 10
+        if isPinned {
+            iconView.frame = NSRect(x: (bounds.width - 16) / 2, y: midY - 8, width: 16, height: 16)
+            spinner.frame = iconView.frame
+            titleField.isHidden = true
+            closeButton.isHidden = true
+            return
+        }
+        titleField.isHidden = false
         iconView.frame = NSRect(x: inset, y: midY - 8, width: 16, height: 16)
         spinner.frame = iconView.frame
         let showsClose = isSelected || isHovered
@@ -170,6 +187,8 @@ final class TabItemView: NSView {
     }
 
     @objc private func closePressed() { delegate?.tabItemDidRequestClose(self) }
+
+    override func menu(for event: NSEvent) -> NSMenu? { delegate?.tabItemMenu(self) }
 
     override func accessibilityPerformPress() -> Bool {
         guard let event = NSApp.currentEvent else { return false }

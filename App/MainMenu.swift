@@ -1,4 +1,5 @@
 import AppKit
+import BrowserKit
 
 /// The menu bar is the single source of truth for every command and its shortcut.
 /// The command bar reads its commands from here.
@@ -11,6 +12,9 @@ enum MainMenu {
         main.addItem(submenu(editMenu()))
         main.addItem(submenu(viewMenu()))
         main.addItem(submenu(historyMenu()))
+        let bookmarks = NSMenu(title: "Bookmarks")
+        bookmarks.delegate = BookmarksMenuDelegate.shared
+        main.addItem(submenu(bookmarks))
         let window = windowMenu()
         main.addItem(submenu(window))
         NSApp.windowsMenu = window
@@ -26,7 +30,7 @@ enum MainMenu {
         return item
     }
 
-    private static func item(_ title: String, _ action: Selector?, _ key: String = "",
+    static func item(_ title: String, _ action: Selector?, _ key: String = "",
                              _ modifiers: NSEvent.ModifierFlags = .command, tag: Int = 0) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
         item.keyEquivalentModifierMask = modifiers
@@ -63,6 +67,9 @@ enum MainMenu {
         menu.addItem(.separator())
         menu.addItem(item("Close Tab", #selector(BrowserWindowController.closeTab(_:)), "w"))
         menu.addItem(item("Close Window", #selector(NSWindow.performClose(_:)), "w", [.command, .shift]))
+        menu.addItem(item("Reopen Closed Tab", #selector(AppDelegate.reopenClosed(_:)), "t", [.command, .shift]))
+        menu.addItem(.separator())
+        menu.addItem(item("Copy URL", #selector(BrowserWindowController.copyURL(_:)), "c", [.command, .shift]))
         return menu
     }
 
@@ -89,14 +96,15 @@ enum MainMenu {
         menu.addItem(item("Zoom In", #selector(BrowserWindowController.zoomIn(_:)), "="))
         menu.addItem(item("Zoom Out", #selector(BrowserWindowController.zoomOut(_:)), "-"))
         menu.addItem(.separator())
+        menu.addItem(item("Show Bookmarks Bar", #selector(BrowserWindowController.toggleBookmarksBar(_:)), "b", [.command, .shift]))
+        menu.addItem(.separator())
         menu.addItem(item("Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:)), "f", [.command, .control]))
         return menu
     }
 
     private static func historyMenu() -> NSMenu {
         let menu = NSMenu(title: "History")
-        menu.addItem(item("Back", #selector(BrowserWindowController.goBack(_:)), "["))
-        menu.addItem(item("Forward", #selector(BrowserWindowController.goForward(_:)), "]"))
+        menu.delegate = HistoryMenuDelegate.shared
         return menu
     }
 
@@ -115,6 +123,8 @@ enum MainMenu {
         previousAlt.isHidden = true
         previousAlt.allowsKeyEquivalentWhenHidden = true
         menu.addItem(previousAlt)
+        menu.addItem(item("Pin Tab", #selector(BrowserWindowController.togglePinTab(_:))))
+        menu.addItem(item("Duplicate Tab", #selector(BrowserWindowController.duplicateTab(_:))))
         menu.addItem(.separator())
         for number in 1...9 {
             let title = number == 9 ? "Show Last Tab" : "Show Tab \(number)"
@@ -123,5 +133,64 @@ enum MainMenu {
         menu.addItem(.separator())
         menu.addItem(item("Bring All to Front", #selector(NSApplication.arrangeInFront(_:))))
         return menu
+    }
+}
+
+/// Rebuilds the History menu each time it opens: navigation, recently closed, and recent pages.
+@MainActor
+final class HistoryMenuDelegate: NSObject, NSMenuDelegate {
+    static let shared = HistoryMenuDelegate()
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        let recent = AppServices.shared.history.recentNow(limit: 15)
+        menu.removeAllItems()
+        menu.addItem(MainMenu.item("Back", #selector(BrowserWindowController.goBack(_:)), "["))
+        menu.addItem(MainMenu.item("Forward", #selector(BrowserWindowController.goForward(_:)), "]"))
+        menu.addItem(.separator())
+
+        let closed = NSMenu(title: "Recently Closed")
+        for (index, item) in AppServices.shared.recentlyClosed.enumerated().reversed() {
+            let entry = NSMenuItem(title: item.title, action: #selector(AppDelegate.reopenClosedItem(_:)), keyEquivalent: "")
+            entry.tag = index
+            closed.addItem(entry)
+        }
+        let closedItem = NSMenuItem(title: "Recently Closed", action: nil, keyEquivalent: "")
+        closedItem.submenu = closed
+        closedItem.isEnabled = !AppServices.shared.recentlyClosed.isEmpty
+        menu.addItem(closedItem)
+
+        if !recent.isEmpty {
+            menu.addItem(.separator())
+            for entry in recent {
+                guard let url = URL(string: entry.url) else { continue }
+                let item = NSMenuItem(title: entry.title.isEmpty ? entry.url : entry.title,
+                                      action: #selector(AppDelegate.openHistoryItem(_:)), keyEquivalent: "")
+                item.representedObject = url
+                item.toolTip = entry.url
+                menu.addItem(item)
+            }
+        }
+        menu.addItem(.separator())
+        menu.addItem(MainMenu.item("Clear History…", #selector(AppDelegate.clearHistory(_:))))
+    }
+}
+
+/// Rebuilds the Bookmarks menu from the library each time it opens.
+@MainActor
+final class BookmarksMenuDelegate: NSObject, NSMenuDelegate {
+    static let shared = BookmarksMenuDelegate()
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.removeAllItems()
+        menu.addItem(MainMenu.item("Bookmark This Page", #selector(BrowserWindowController.toggleBookmark(_:)), "d"))
+        menu.addItem(.separator())
+        let library = AppServices.shared.bookmarks
+        BookmarkMenus.append(library.children(of: nil), to: menu, library: library) { url, newTab in
+            guard let controller = NSApp.keyWindow?.windowController as? BrowserWindowController else {
+                NSApp.delegate?.application?(NSApp, open: [url])
+                return
+            }
+            controller.openBookmark(url, newTab: newTab)
+        }
     }
 }

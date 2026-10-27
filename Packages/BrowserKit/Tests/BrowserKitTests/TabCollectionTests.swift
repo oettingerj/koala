@@ -64,4 +64,17 @@ import Testing
         #expect(tabs.tabs.first === child)
         #expect(child.openerID == nil)
     }
+
+    @Test func pinnedTabsStayGroupedAtFront() {
+        let tabs = TabCollection()
+        let a = tab("a"), b = tab("b"), c = tab("c")
+        [a, b, c].forEach { tabs.insert($0, select: false) }
+        tabs.setPinned(c, true)
+        tabs.setPinned(b, true)
+        #expect(tabs.tabs.map(\.title) == ["c", "b", "a"])
+        tabs.move(a, to: 0)
+        #expect(tabs.tabs.map(\.title) == ["c", "b", "a"])
+        tabs.setPinned(c, false)
+        #expect(tabs.tabs.map(\.title) == ["b", "c", "a"])
+    }
 }

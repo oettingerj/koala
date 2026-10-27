@@ -11,6 +11,7 @@ final class ToolbarView: NSView {
     private lazy var forwardButton = IconButton(symbol: "chevron.right", label: "Forward", action: #selector(BrowserWindowController.goForward(_:)))
     private lazy var reloadButton = IconButton(symbol: "arrow.clockwise", label: "Reload", action: #selector(BrowserWindowController.reloadOrStop(_:)))
     private let hairline = CALayer()
+    var showsHairline = true { didSet { hairline.isHidden = !showsHairline } }
     private let progressBar = CALayer()
     private var observation: ObservationLoop?
     private var lastProgressTabID: UUID?

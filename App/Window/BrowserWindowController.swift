@@ -7,9 +7,13 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     let tabs = TabCollection()
     private let rootView: BrowserRootView
     private var selectionObservation: ObservationLoop?
+    private var sessionObservation: ObservationLoop?
+    private var bookmarkObservation: ObservationLoop?
+    private var services: AppServices { .shared }
     var onClose: ((BrowserWindowController) -> Void)?
 
-    init(initialURL: URL? = nil) {
+    /// Opens a window with one tab at `initialURL` (blank when nil), or the tabs of `snapshot`.
+    init(initialURL: URL? = nil, snapshot: WindowSnapshot? = nil) {
         rootView = BrowserRootView(tabs: tabs)
         let window = BrowserWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1280, height: 820),
@@ -26,19 +30,91 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         window.minSize = NSSize(width: 480, height: 320)
         window.contentView = rootView
         window.tabbingMode = .disallowed
+        // AppKit would otherwise focus the first text field (the address field) on show.
+        window.initialFirstResponder = nil
+        window.autorecalculatesKeyViewLoop = false
         super.init(window: window)
         window.delegate = self
-        window.setFrameAutosaveName("NanoBrowserWindow")
+        if let frame = snapshot?.frame {
+            window.setFrame(frame, display: false)
+        } else {
+            window.setFrameAutosaveName("NanoBrowserWindow")
+        }
 
         rootView.strip.onSelect = { [weak self] tab in self?.tabs.select(tab) }
         rootView.strip.onClose = { [weak self] tab in self?.close(tab) }
+        rootView.strip.menuForTab = { [weak self] tab in self?.contextMenu(for: tab) }
         rootView.toolbar.addressField.onSubmit = { [weak self] text in self?.navigate(to: text) }
         rootView.toolbar.addressField.onCancel = { [weak self] in self?.focusPage() }
+        rootView.toolbar.addressField.onToggleBookmark = { [weak self] in self?.toggleBookmark(nil) }
+        rootView.bookmarksBar.onOpen = { [weak self] url, newTab in self?.openBookmark(url, newTab: newTab) }
+
+        if let snapshot, !snapshot.tabs.isEmpty {
+            for tabSnapshot in snapshot.tabs {
+                let tab = Tab(snapshot: tabSnapshot)
+                tab.delegate = self
+                tabs.insert(tab, select: false)
+                services.applyCachedFavicon(to: tab)
+            }
+            tabs.select(at: snapshot.selectedIndex ?? 0)
+        } else {
+            openTab(url: initialURL, select: true)
+            if initialURL == nil { focusAddressField() }
+        }
 
         selectionObservation = ObservationLoop { [weak self] in self?.showSelectedTab() }
+        sessionObservation = ObservationLoop { [weak self] in self?.observeSessionState() }
+        bookmarkObservation = ObservationLoop { [weak self] in self?.updateBookmarkStar() }
+    }
 
-        openTab(url: initialURL, select: true)
-        if initialURL == nil { focusAddressField() }
+    private func updateBookmarkStar() {
+        let url = tabs.selected?.url
+        let field = rootView.toolbar.addressField
+        field.canBookmark = url.map { $0.scheme == "http" || $0.scheme == "https" } ?? false
+        field.isBookmarked = url.flatMap { services.bookmarks.bookmark(for: $0) } != nil
+    }
+
+    func openBookmark(_ url: URL, newTab: Bool) {
+        if newTab {
+            openTab(url: url, select: false, opener: nil)
+        } else if let tab = tabs.selected {
+            tab.load(url)
+            focusPage()
+        } else {
+            openTab(url: url, select: true)
+        }
+    }
+
+    @objc func toggleBookmark(_ sender: Any?) {
+        guard let tab = tabs.selected, let url = tab.url, url.scheme == "http" || url.scheme == "https" else { return }
+        let library = services.bookmarks
+        Task {
+            if let existing = library.bookmark(for: url) {
+                try? await library.remove(existing)
+            } else {
+                try? await library.add(title: tab.displayTitle, url: url)
+            }
+        }
+    }
+
+    @objc func toggleBookmarksBar(_ sender: Any?) {
+        rootView.showsBookmarksBar.toggle()
+    }
+
+    /// Reads every field the session persists, so any change schedules a save.
+    private func observeSessionState() {
+        _ = tabs.selectedID
+        for tab in tabs.tabs { _ = (tab.url, tab.title, tab.isPinned) }
+        services.scheduleSessionSave()
+    }
+
+    var snapshot: WindowSnapshot {
+        WindowSnapshot(frame: window?.frame, tabs: tabs.tabs.map(\.snapshot), selectedIndex: tabs.selectedIndex)
+    }
+
+    /// True when closing the window would lose nothing worth reopening.
+    private var isDisposable: Bool {
+        tabs.tabs.allSatisfy { $0.url == nil }
     }
 
     @available(*, unavailable)
@@ -65,6 +141,9 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func close(_ tab: Tab) {
+        if tabs.tabs.count > 1, tab.url != nil, let index = tabs.index(of: tab) {
+            services.remember(.tab(tab.snapshot, index: index))
+        }
         tab.stop()
         tab.webView?.removeFromSuperview()
         tabs.remove(tab)
@@ -88,23 +167,87 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
 
     private func navigate(to text: String) {
         guard let url = AddressInput.resolve(text) else { return }
-        if let tab = tabs.selected {
-            tab.load(url)
-        } else {
-            openTab(url: url, select: true)
-        }
+        let tab = tabs.selected ?? openTab(url: nil, select: true)
+        tab.nextNavigationIsTyped = true
+        tab.load(url)
         focusPage()
+    }
+
+    /// Reopens a closed tab where it was.
+    func restore(_ snapshot: TabSnapshot, at index: Int) {
+        let tab = Tab(snapshot: snapshot)
+        tab.openerID = nil
+        tab.delegate = self
+        tabs.insert(tab, select: true)
+        tabs.move(tab, to: index)
+        services.applyCachedFavicon(to: tab)
     }
 
     private func focusAddressField() {
         DispatchQueue.main.async { [weak self] in self?.rootView.toolbar.addressField.focus() }
     }
 
-    private func focusPage() {
+    func focusPage() {
         if let webView = tabs.selected?.webView { window?.makeFirstResponder(webView) }
     }
 
+    // MARK: Tab context menu
+
+    private func contextMenu(for tab: Tab) -> NSMenu {
+        let menu = NSMenu()
+        menu.addItem(closureMenuItem(tab.isPinned ? "Unpin Tab" : "Pin Tab") { [weak self] in
+            self?.tabs.setPinned(tab, !tab.isPinned)
+        })
+        menu.addItem(closureMenuItem("Duplicate Tab") { [weak self] in self?.duplicate(tab) })
+        menu.addItem(closureMenuItem("Reload Tab") { tab.reload() })
+        if let url = tab.url {
+            menu.addItem(.separator())
+            menu.addItem(closureMenuItem("Copy Link") { Pasteboard.copy(url: url, title: tab.title) })
+        }
+        menu.addItem(.separator())
+        menu.addItem(closureMenuItem("Close Tab") { [weak self] in self?.close(tab) })
+        menu.addItem(closureMenuItem("Close Other Tabs") { [weak self] in
+            self?.closeTabs(where: { $0 !== tab && !$0.isPinned })
+        })
+        if let index = tabs.index(of: tab) {
+            menu.addItem(closureMenuItem("Close Tabs to the Right") { [weak self] in
+                guard let self else { return }
+                let right = Set(tabs.tabs.dropFirst(index + 1).map(\.id))
+                closeTabs(where: { right.contains($0.id) })
+            })
+        }
+        return menu
+    }
+
+    private func duplicate(_ tab: Tab) {
+        var snapshot = tab.snapshot
+        snapshot.id = UUID()
+        snapshot.isPinned = false
+        let copy = Tab(snapshot: snapshot)
+        copy.openerID = tab.id
+        copy.delegate = self
+        tabs.insert(copy, select: true)
+        services.applyCachedFavicon(to: copy)
+    }
+
+    private func closeTabs(where predicate: (Tab) -> Bool) {
+        for tab in tabs.tabs where predicate(tab) { close(tab) }
+    }
+
     // MARK: Menu actions
+
+    @objc func copyURL(_ sender: Any?) {
+        guard let tab = tabs.selected, let url = tab.url else { return }
+        Pasteboard.copy(url: url, title: tab.title)
+    }
+
+    @objc func togglePinTab(_ sender: Any?) {
+        if let tab = tabs.selected { tabs.setPinned(tab, !tab.isPinned) }
+    }
+
+    @objc func duplicateTab(_ sender: Any?) {
+        if let tab = tabs.selected { duplicate(tab) }
+    }
 
     @objc func newTab(_ sender: Any?) {
         openTab(url: nil, select: true)
@@ -146,11 +289,21 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
 
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         switch item.action {
-        case #selector(goBack(_:)): tabs.selected?.canGoBack ?? false
-        case #selector(goForward(_:)): tabs.selected?.canGoForward ?? false
-        case #selector(stopLoading(_:)): tabs.selected?.isLoading ?? false
-        case #selector(selectTabByNumber(_:)): item.tag == 9 ? !tabs.tabs.isEmpty : item.tag <= tabs.tabs.count
-        default: true
+        case #selector(goBack(_:)): return tabs.selected?.canGoBack ?? false
+        case #selector(goForward(_:)): return tabs.selected?.canGoForward ?? false
+        case #selector(stopLoading(_:)): return tabs.selected?.isLoading ?? false
+        case #selector(selectTabByNumber(_:)): return item.tag == 9 ? !tabs.tabs.isEmpty : item.tag <= tabs.tabs.count
+        case #selector(toggleBookmarksBar(_:)):
+            item.title = rootView.showsBookmarksBar ? "Hide Bookmarks Bar" : "Show Bookmarks Bar"
+            return true
+        case #selector(togglePinTab(_:)):
+            item.title = tabs.selected?.isPinned == true ? "Unpin Tab" : "Pin Tab"
+            return tabs.selected != nil
+        case #selector(toggleBookmark(_:)):
+            let bookmarked = tabs.selected?.url.flatMap { services.bookmarks.bookmark(for: $0) } != nil
+            item.title = bookmarked ? "Remove Bookmark" : "Bookmark This Page"
+            return tabs.selected?.url != nil
+        default: return true
         }
     }
 
@@ -160,8 +313,17 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     func windowWillExitFullScreen(_ notification: Notification) { rootView.isFullScreen = false }
 
     func windowWillClose(_ notification: Notification) {
+        if !isDisposable, tabs.tabs.count > 0 {
+            if tabs.tabs.count == 1, let tab = tabs.tabs.first {
+                services.remember(.tab(tab.snapshot, index: 0))
+            } else {
+                services.remember(.window(snapshot))
+            }
+        }
         for tab in tabs.tabs { tab.stop() }
         selectionObservation?.cancel()
+        sessionObservation?.cancel()
+        bookmarkObservation?.cancel()
         onClose?(self)
     }
 }
@@ -180,6 +342,21 @@ extension BrowserWindowController: TabDelegate {
     }
 
     func tabDidRequestClose(_ tab: Tab) { close(tab) }
+
+    func tabDidCommitNavigation(_ tab: Tab) {
+        services.applyCachedFavicon(to: tab)
+        guard let url = tab.url else { return }
+        let typed = tab.nextNavigationIsTyped
+        let title = tab.title
+        Task { try? await services.history.recordVisit(url: url, title: title, typed: typed) }
+    }
+
+    func tabDidFinishNavigation(_ tab: Tab) {
+        services.refreshFavicon(for: tab)
+        guard let url = tab.url else { return }
+        let title = tab.title
+        Task { try? await services.history.updateTitle(url: url, title: title) }
+    }
 }
 
 /// Lets the window claim key-equivalents before the web view swallows them.
@@ -189,6 +366,16 @@ final class BrowserWindow: NSWindow {}
 final class BrowserRootView: NSView {
     let strip: TabStripView
     let toolbar: ToolbarView
+    let bookmarksBar = BookmarksBarView(library: AppServices.shared.bookmarks)
+
+    var showsBookmarksBar = UserDefaults.standard.object(forKey: "ShowBookmarksBar") as? Bool ?? true {
+        didSet {
+            UserDefaults.standard.set(showsBookmarksBar, forKey: "ShowBookmarksBar")
+            bookmarksBar.isHidden = !showsBookmarksBar
+            toolbar.showsHairline = !showsBookmarksBar
+            needsLayout = true
+        }
+    }
     private let content = NSView()
     private weak var current: WKWebView?
 
@@ -199,7 +386,9 @@ final class BrowserRootView: NSView {
         toolbar = ToolbarView(tabs: tabs)
         super.init(frame: .zero)
         content.wantsLayer = true
-        [content, strip, toolbar].forEach(addSubview)
+        [content, strip, toolbar, bookmarksBar].forEach(addSubview)
+        bookmarksBar.isHidden = !showsBookmarksBar
+        toolbar.showsHairline = !showsBookmarksBar
     }
 
     @available(*, unavailable)
@@ -212,7 +401,12 @@ final class BrowserRootView: NSView {
         let height = bounds.height
         strip.frame = NSRect(x: 0, y: height - Theme.stripHeight, width: bounds.width, height: Theme.stripHeight)
         toolbar.frame = NSRect(x: 0, y: strip.frame.minY - Theme.toolbarHeight, width: bounds.width, height: Theme.toolbarHeight)
-        content.frame = NSRect(x: 0, y: 0, width: bounds.width, height: toolbar.frame.minY)
+        var contentTop = toolbar.frame.minY
+        if showsBookmarksBar {
+            bookmarksBar.frame = NSRect(x: 0, y: contentTop - BookmarksBarView.height, width: bounds.width, height: BookmarksBarView.height)
+            contentTop = bookmarksBar.frame.minY
+        }
+        content.frame = NSRect(x: 0, y: 0, width: bounds.width, height: contentTop)
         current?.frame = content.bounds
     }
 

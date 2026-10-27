@@ -79,9 +79,22 @@ public final class TabCollection {
         return index
     }
 
+    public var pinnedCount: Int { tabs.prefix { $0.isPinned }.count }
+
+    /// Pinned tabs live in a group at the front; pinning moves a tab to the end of that group.
+    public func setPinned(_ tab: Tab, _ pinned: Bool) {
+        guard tab.isPinned != pinned, let source = index(of: tab) else { return }
+        tabs.remove(at: source)
+        tab.isPinned = pinned
+        tab.openerID = nil
+        tabs.insert(tab, at: pinnedCount)
+    }
+
     public func move(_ tab: Tab, to destination: Int) {
         guard let source = index(of: tab) else { return }
-        let clamped = max(0, min(destination, tabs.count - 1))
+        // Pinned and unpinned tabs never interleave.
+        let range = tab.isPinned ? 0...max(0, pinnedCount - 1) : pinnedCount...max(pinnedCount, tabs.count - 1)
+        let clamped = min(max(destination, range.lowerBound), range.upperBound)
         guard clamped != source else { return }
         tabs.remove(at: source)
         tabs.insert(tab, at: clamped)

@@ -21,6 +21,7 @@ final class TabStripView: NSView {
 
     var onSelect: ((Tab) -> Void)?
     var onClose: ((Tab) -> Void)?
+    var menuForTab: ((Tab) -> NSMenu?)?
 
     init(tabs: TabCollection) {
         self.tabs = tabs
@@ -85,28 +86,52 @@ final class TabStripView: NSView {
         return NSRect(x: leading, y: 0, width: max(0, trailing - leading), height: bounds.height)
     }
 
+    private var pinnedCount: Int { order.prefix { $0.tab.isPinned }.count }
+
+    /// Width of the pinned group plus its trailing gap; pinned tabs never scroll.
+    private var pinnedWidth: CGFloat {
+        pinnedCount == 0 ? 0 : CGFloat(pinnedCount) * (TabItemView.pinnedWidth + Theme.tabSpacing) + 4
+    }
+
+    /// Area for unpinned tabs, after the pinned group.
+    private var scrollArea: NSRect {
+        var area = tabsArea
+        area.origin.x += pinnedWidth
+        area.size.width = max(0, area.width - pinnedWidth)
+        return area
+    }
+
     private var tabWidth: CGFloat {
-        guard !order.isEmpty else { return Theme.tabMaxWidth }
-        let fit = (tabsArea.width - Theme.tabSpacing * CGFloat(order.count - 1)) / CGFloat(order.count)
+        let count = order.count - pinnedCount
+        guard count > 0 else { return Theme.tabMaxWidth }
+        let fit = (scrollArea.width - Theme.tabSpacing * CGFloat(count - 1)) / CGFloat(count)
         return min(Theme.tabMaxWidth, max(Theme.tabMinWidth, fit.rounded(.down)))
     }
 
     private var contentWidth: CGFloat {
-        CGFloat(order.count) * tabWidth + Theme.tabSpacing * CGFloat(max(0, order.count - 1))
+        let count = order.count - pinnedCount
+        return CGFloat(count) * tabWidth + Theme.tabSpacing * CGFloat(max(0, count - 1))
     }
 
-    private var maxScroll: CGFloat { max(0, contentWidth - tabsArea.width) }
+    private var maxScroll: CGFloat { max(0, contentWidth - scrollArea.width) }
 
     override func layout() {
         super.layout()
         scrollOffset = min(max(0, scrollOffset), maxScroll)
-        let area = tabsArea
+        let area = scrollArea
         let width = tabWidth
+        let pinned = pinnedCount
         let selectedIndex = order.firstIndex { $0.isSelected }
         let hoveredIndex = order.firstIndex { $0.isHovered }
 
-        for (index, item) in order.enumerated() {
-            var x = area.minX + CGFloat(index) * (width + Theme.tabSpacing) - scrollOffset
+        for (index, item) in order.enumerated() where index < pinned {
+            let x = tabsArea.minX + CGFloat(index) * (TabItemView.pinnedWidth + Theme.tabSpacing)
+            item.frame = NSRect(x: x, y: 0, width: TabItemView.pinnedWidth, height: TabItemView.bodyHeight)
+            item.showsSeparator = false
+        }
+        for (index, item) in order.enumerated() where index >= pinned {
+            let position = index - pinned
+            var x = area.minX + CGFloat(position) * (width + Theme.tabSpacing) - scrollOffset
             if let drag, drag.item === item, let window {
                 let mouseX = convert(window.mouseLocationOutsideOfEventStream, from: nil).x
                 x = min(max(area.minX, mouseX - drag.grabOffset), area.maxX - width)
@@ -122,7 +147,7 @@ final class TabStripView: NSView {
         newTabButton.frame = NSRect(x: buttonX, y: (TabItemView.bodyHeight - Theme.iconButtonSize) / 2 + 1,
                                     width: Theme.iconButtonSize, height: Theme.iconButtonSize)
         let visible = layoutGuideWords(area: area)
-        clipTabs(to: visible)
+        clipTabs(to: visible, skipping: pinned)
     }
 
     private static let guideWidth: CGFloat = 132
@@ -132,15 +157,16 @@ final class TabStripView: NSView {
     /// left for tabs once the guides take their edges.
     private func layoutGuideWords(area: NSRect) -> NSRect {
         var visible = area
-        if order.contains(where: { $0.frame.minX < area.minX - 1 }) {
+        let scrolling = order.dropFirst(pinnedCount)
+        if scrolling.contains(where: { $0.frame.minX < area.minX - 1 }) {
             visible.origin.x += Self.guideWidth
             visible.size.width -= Self.guideWidth
         }
-        if order.contains(where: { $0.frame.maxX > area.maxX + 1 }) {
+        if scrolling.contains(where: { $0.frame.maxX > area.maxX + 1 }) {
             visible.size.width -= Self.guideWidth
         }
-        let hiddenLeading = order.filter { $0.frame.midX < visible.minX }
-        let hiddenTrailing = order.filter { $0.frame.midX > visible.maxX }
+        let hiddenLeading = scrolling.filter { $0.frame.midX < visible.minX }
+        let hiddenTrailing = scrolling.filter { $0.frame.midX > visible.maxX }
         let y = TabItemView.bodyHeight / 2 - 7
         configureGuide(leadingGuide, hidden: hiddenLeading.reversed(), alignment: .left,
                        frame: NSRect(x: area.minX + 4, y: y, width: Self.guideWidth - 12, height: 14))
@@ -162,21 +188,21 @@ final class TabStripView: NSView {
 
     /// Tabs cut by an edge are hidden rather than clipped, so the strip never shows a sliver.
     /// The dragged tab is exempt so it can be pulled past the edge to scroll.
-    private func clipTabs(to area: NSRect) {
-        for item in order where drag?.item !== item {
+    private func clipTabs(to area: NSRect, skipping pinned: Int) {
+        for item in order.dropFirst(pinned) where drag?.item !== item {
             item.isHidden = item.frame.minX < area.minX - 1 || item.frame.maxX > area.maxX + 1
         }
     }
 
     private func scrollSelectedIntoView() {
-        guard let index = order.firstIndex(where: \.isSelected) else { return }
+        guard let index = order.firstIndex(where: \.isSelected), index >= pinnedCount else { return }
         let width = tabWidth
-        let start = CGFloat(index) * (width + Theme.tabSpacing)
+        let start = CGFloat(index - pinnedCount) * (width + Theme.tabSpacing)
         let edgeReserve = maxScroll > 0 ? Self.guideWidth : 0
         if start - edgeReserve < scrollOffset {
             scrollOffset = start - edgeReserve
-        } else if start + width + edgeReserve > scrollOffset + tabsArea.width {
-            scrollOffset = start + width + edgeReserve - tabsArea.width
+        } else if start + width + edgeReserve > scrollOffset + scrollArea.width {
+            scrollOffset = start + width + edgeReserve - scrollArea.width
         }
     }
 
@@ -209,10 +235,15 @@ extension TabStripView: TabItemViewDelegate {
 
     func tabItemDidDrag(_ item: TabItemView, event: NSEvent) {
         guard let drag, drag.item === item, let from = order.firstIndex(where: { $0 === item }) else { return }
-        let area = tabsArea
         let mouseX = convert(event.locationInWindow, from: nil).x
-        let center = mouseX - drag.grabOffset + tabWidth / 2 + scrollOffset - area.minX
-        let target = min(max(0, Int(center / (tabWidth + Theme.tabSpacing))), order.count - 1)
+        let target: Int
+        if item.tab.isPinned {
+            let center = mouseX - drag.grabOffset + TabItemView.pinnedWidth / 2 - tabsArea.minX
+            target = Int(center / (TabItemView.pinnedWidth + Theme.tabSpacing))
+        } else {
+            let center = mouseX - drag.grabOffset + tabWidth / 2 + scrollOffset - scrollArea.minX
+            target = pinnedCount + Int(center / (tabWidth + Theme.tabSpacing))
+        }
         item.layer?.zPosition = 1
         if target != from {
             tabs.move(item.tab, to: target)
@@ -231,6 +262,8 @@ extension TabStripView: TabItemViewDelegate {
             needsLayout = true
         }
     }
+
+    func tabItemMenu(_ item: TabItemView) -> NSMenu? { menuForTab?(item.tab) }
 
     func tabItemDidRequestClose(_ item: TabItemView) {
         drag = nil

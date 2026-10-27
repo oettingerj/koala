@@ -8,6 +8,12 @@ final class AddressField: NSView {
     private let border = CALayer()
     private(set) var isEditing = false
 
+    private lazy var starButton = IconButton(symbol: "star", label: "Bookmark This Page", pointSize: 12,
+                                             action: #selector(starPressed), target: self)
+    var isBookmarked = false { didSet { updateStar() } }
+    var canBookmark = false { didSet { starButton.isHidden = !canBookmark || isEditing } }
+    var onToggleBookmark: (() -> Void)?
+
     var onSubmit: ((String) -> Void)?
     var onCancel: (() -> Void)?
 
@@ -38,6 +44,19 @@ final class AddressField: NSView {
         field.onFocus = { [weak self] in self?.beginEditing() }
         field.setAccessibilityLabel("Address and search")
         addSubview(field)
+        starButton.isHidden = true
+        addSubview(starButton)
+        updateStar()
+    }
+
+    @objc private func starPressed() { onToggleBookmark?() }
+
+    private func updateStar() {
+        starButton.image = NSImage(systemSymbolName: isBookmarked ? "star.fill" : "star",
+                                   accessibilityDescription: isBookmarked ? "Remove Bookmark" : "Bookmark This Page")?
+            .withSymbolConfiguration(.init(pointSize: 12, weight: .medium))
+        starButton.toolTip = isBookmarked ? "Remove Bookmark (⌘D)" : "Bookmark This Page (⌘D)"
+        starButton.contentTintColor = isBookmarked ? Theme.accent : Theme.textTertiary
     }
 
     @available(*, unavailable)
@@ -56,7 +75,10 @@ final class AddressField: NSView {
         super.layout()
         border.frame = bounds
         let height: CGFloat = 18
-        field.frame = NSRect(x: 10, y: (bounds.height - height) / 2, width: bounds.width - 20, height: height)
+        let starSize: CGFloat = 24
+        starButton.frame = NSRect(x: bounds.width - starSize - 2, y: (bounds.height - starSize) / 2, width: starSize, height: starSize)
+        let trailing: CGFloat = starButton.isHidden ? 10 : starSize + 4
+        field.frame = NSRect(x: 10, y: (bounds.height - height) / 2, width: bounds.width - 10 - trailing, height: height)
     }
 
     func show(_ url: URL?) {
@@ -71,6 +93,8 @@ final class AddressField: NSView {
 
     private func beginEditing() {
         isEditing = true
+        starButton.isHidden = true
+        needsLayout = true
         field.stringValue = url?.absoluteString ?? ""
         field.textColor = Theme.textPrimary
         needsDisplay = true
@@ -79,6 +103,8 @@ final class AddressField: NSView {
 
     private func endEditing() {
         isEditing = false
+        starButton.isHidden = !canBookmark
+        needsLayout = true
         needsDisplay = true
         field.attributedStringValue = Self.restingString(for: url)
     }
