@@ -10,7 +10,7 @@ Native macOS app (AppKit + SwiftUI). Impeccable ships no macOS platform referenc
 
 ## Stack
 
-Swift 6 · AppKit (window, tab strip, toolbar, web view hosting, menus) + SwiftUI (command bar, popovers, panels, settings) · WebKit (`WKWebView`, `WKWebExtension`) · macOS 26+ · XcodeGen project · GRDB for SQLite/FTS5. Engine chosen by the user after weighing Blink/CEF: WebKit for native API, footprint, and battery.
+Swift 6 · AppKit (window, tab strip, toolbar, web view hosting, menus) + SwiftUI (command bar, popovers, panels, settings) · WebKit (`WKWebView`, `WKWebExtension`) · macOS 26+ · XcodeGen project · GRDB for SQLite/FTS5. Not sandboxed (hardened runtime only), like Chrome: extensions' native messaging hosts can't run inside another app's sandbox. Engine chosen by the user after weighing Blink/CEF: WebKit for native API, footprint, and battery.
 
 ## Users
 
@@ -37,12 +37,12 @@ v1 scope:
 - Command bar (Cmd+T): tabs, commands, keyword search (`gh`, `mdn`, `npm`, `crates`, `pypi`, `go`, `so`, `docs`), GitHub, bookmarks, history, web suggestions.
 - Peek (Shift+click link opens floating preview; promote to tab without reload). Split view (two pages in one tab).
 - History, bookmarks, import from Chrome / Brave / Arc / Safari. Session restore, recently closed.
-- Downloads manager. Web extensions via `WKWebExtension`.
+- Downloads manager. Web extensions via `WKWebExtension`: Chrome Web Store installs, a compatibility script that stands in for Chrome APIs WebKit lacks, and Chrome's native messaging hosts.
 - GitHub (OAuth device flow, token in Keychain): PR/issue state and CI status in tabs, toolbar context chip, review queue, permalinks, open in local editor.
 - Devtools: Web Inspector (public API only: `isInspectable`, opened from the context menu), native dev panel (console, network timing, storage, vitals), page tools (force light/dark, hard reload, disable JS, view source, JSON viewer, responsive widths, full-page screenshot).
 - Copy as Markdown.
 
-Explicitly out of v1: password manager, spaces/profiles, tab auto-archive, automatic localhost dev mode, private WebKit SPI (one exception: `_setAllowsPictureInPictureMediaPlayback:`, since macOS WKWebView has no public switch for Picture in Picture), Chrome-only extensions.
+Explicitly out of v1: password manager, spaces/profiles, tab auto-archive, automatic localhost dev mode, private WebKit SPI (one exception: `_setAllowsPictureInPictureMediaPlayback:`, since macOS WKWebView has no public switch for Picture in Picture), implementing Chrome-only extension APIs (they get inert stand-ins).
 
 Terminology: "tab strip", "toolbar", "address field", "command bar", "Peek", "split view", "dev panel", "context chip", "review queue".
 

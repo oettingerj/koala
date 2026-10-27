@@ -21,6 +21,21 @@ public enum WebViewFactory {
         return config
     }()
 
+    /// The configuration a web extension's own pages need, for URLs inside that extension. Set by the app.
+    public static var extensionConfiguration: ((URL) -> WKWebViewConfiguration?)?
+
+    /// The extension a URL belongs to (the host of its `webkit-extension:` URL), or nil for the web.
+    /// WebKit only loads an extension's pages in web views cut from that extension's configuration.
+    public static func extensionHost(of url: URL?) -> String? {
+        guard let url, url.scheme == "webkit-extension" else { return nil }
+        return url.host()
+    }
+
+    /// A web view that can show `url`: extension pages get their extension's configuration.
+    public static func makeWebView(for url: URL?) -> WKWebView {
+        makeWebView(configuration: url.flatMap { extensionConfiguration?($0) })
+    }
+
     /// `configuration` must be the one WebKit hands to `createWebViewWith` when opening a popup;
     /// otherwise the shared configuration is used.
     public static func makeWebView(configuration: WKWebViewConfiguration? = nil) -> WKWebView {

@@ -115,7 +115,7 @@ final class GitHubService {
 
     // MARK: Local clones
 
-    /// Remembers the folder that holds clones (security-scoped, so it survives relaunch in the sandbox).
+    /// Remembers the folder that holds clones. Security-scoped, which also keeps bookmarks saved while sandboxed working.
     func setCodeRoot(_ url: URL) {
         guard let bookmark = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) else { return }
         UserDefaults.standard.set(bookmark, forKey: "CodeRootBookmark")

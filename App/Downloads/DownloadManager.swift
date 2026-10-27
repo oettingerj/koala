@@ -32,10 +32,8 @@ final class DownloadManager: NSObject {
     private(set) var items: [Item] = []
     var activeCount: Int { items.filter { $0.state == .running }.count }
 
-    /// The user's real Downloads folder (the sandbox entitlement grants access to it).
     static var folder: URL {
-        let home = getpwuid(getuid()).flatMap { String(validatingCString: $0.pointee.pw_dir) } ?? NSHomeDirectory()
-        return URL(fileURLWithPath: home).appendingPathComponent("Downloads", isDirectory: true)
+        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Downloads", isDirectory: true)
     }
 
     func track(_ download: WKDownload) {

@@ -66,7 +66,8 @@ struct SettingsView: View {
             KeywordSettings().tabItem { Label("Search Keywords", systemImage: "magnifyingglass") }
             ExtensionSettings().tabItem { Label("Extensions", systemImage: "puzzlepiece.extension") }
         }
-        .frame(width: 560)
+        // Grouped forms scroll and report no height of their own, so the window needs one.
+        .frame(width: 560, height: 460)
         .tint(Color(nsColor: Theme.accent))
     }
 }
@@ -177,7 +178,6 @@ private struct KeywordSettings: View {
                 TableColumn("Name") { $search in TextField("", text: $search.name) }.width(130)
                 TableColumn("URL") { $search in TextField("", text: $search.template).font(.system(.caption, design: .monospaced)) }
             }
-            .frame(height: 260)
             HStack {
                 Button { searches.append(KeywordSearch(keyword: "new", name: "New Search", template: "https://example.com/?q=%s")) } label: {
                     Image(systemName: "plus")
@@ -199,57 +199,132 @@ private struct KeywordSettings: View {
 private struct ExtensionSettings: View {
     @Bindable private var host = ExtensionsHost.shared
     @State private var storeLink = ""
-    @State private var isInstalling = false
+    @State private var removing: InstalledExtension?
+
+    private var storeID: String? { ExtensionPackage.webStoreID(from: storeLink) }
 
     var body: some View {
         Form {
             Section {
                 if host.installed.isEmpty {
-                    Text("No extensions yet. Nano runs Safari-compatible web extensions, including most Manifest V3 Chrome extensions.")
-                        .font(.callout).foregroundStyle(.secondary)
-                }
-                ForEach(host.installed) { item in
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(item.name)
-                            Text(item.version).font(.caption.monospaced()).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Toggle("Enabled", isOn: Binding(get: { item.isEnabled }, set: { host.setEnabled($0, for: item) }))
-                            .labelsHidden().toggleStyle(.switch).controlSize(.small)
-                        Button("Remove", role: .destructive) { host.remove(item) }.controlSize(.small)
+                    VStack(spacing: 4) {
+                        Image(systemName: "puzzlepiece.extension").font(.system(size: 22)).foregroundStyle(.tertiary)
+                            .padding(.bottom, 4)
+                        Text("No Extensions").font(.headline)
+                        Text("Install one from the Chrome Web Store, or add one from a folder, ZIP, or CRX.")
+                            .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
                     }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                } else {
+                    ForEach(host.installed) { item in ExtensionRow(item: item) { removing = item } }
                 }
+            } footer: {
+                Text("Nano runs Safari-compatible web extensions, including most Manifest V3 Chrome extensions.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Section("Add") {
                 HStack {
-                    TextField("Chrome Web Store link or extension ID", text: $storeLink)
-                    Button("Install") {
-                        isInstalling = true
-                        Task {
-                            await host.installFromWebStore(storeLink)
-                            isInstalling = false
-                            if host.lastError == nil { storeLink = "" }
-                        }
+                    TextField("Chrome Web Store link", text: $storeLink, prompt: Text("Paste a Chrome Web Store link or extension ID"))
+                        .labelsHidden()
+                        .onSubmit(installFromStore)
+                    Button(action: installFromStore) {
+                        // The label keeps its width while the spinner shows.
+                        Text("Install").opacity(host.isInstalling ? 0 : 1)
+                            .overlay { if host.isInstalling { ProgressView().controlSize(.small) } }
                     }
-                    .disabled(storeLink.isEmpty || isInstalling)
+                    .disabled(storeID == nil || host.isInstalling)
                 }
-                Button("Add from Folder, ZIP, or CRX…") {
-                    let panel = NSOpenPanel()
-                    panel.canChooseDirectories = true
-                    panel.canChooseFiles = true
-                    panel.allowedContentTypes = [.zip, .folder, .data]
-                    panel.prompt = "Add"
-                    if panel.runModal() == .OK, let url = panel.url {
-                        Task { await host.install(from: url) }
-                    }
+                if !storeLink.isEmpty, storeID == nil {
+                    Text("Paste the link to an extension’s page on chromewebstore.google.com, or its 32-letter ID.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
-                if isInstalling { ProgressView().controlSize(.small) }
                 if let error = host.lastError {
                     Text(error).font(.caption).foregroundStyle(Color(nsColor: Theme.fail))
+                }
+                HStack {
+                    Button("Browse Chrome Web Store") {
+                        (NSApp.delegate as? AppDelegate)?.open(URL(string: "https://chromewebstore.google.com")!)
+                    }
+                    Spacer()
+                    Button("Add from Folder, ZIP, or CRX…", action: chooseBundle)
+                        .disabled(host.isInstalling)
                 }
             }
         }
         .formStyle(.grouped)
+        .confirmationDialog("Remove “\(removing?.name ?? "")”?",
+                            isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }),
+                            presenting: removing) { item in
+            Button("Remove", role: .destructive) { host.remove(item) }
+        } message: { _ in
+            Text("Nano deletes its files. You can add it again later.")
+        }
+    }
+
+    private func installFromStore() {
+        guard storeID != nil, !host.isInstalling else { return }
+        Task {
+            if await host.installFromWebStore(storeLink) { storeLink = "" }
+        }
+    }
+
+    private func chooseBundle() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = true
+        panel.allowedContentTypes = [.zip, .folder, .data]
+        panel.prompt = "Add"
+        if panel.runModal() == .OK, let url = panel.url {
+            Task { await host.install(from: url) }
+        }
+    }
+}
+
+private struct ExtensionRow: View {
+    let item: InstalledExtension
+    let onRemove: () -> Void
+    @Bindable private var host = ExtensionsHost.shared
+
+    var body: some View {
+        // Icon, description, and options come from the loaded extension; disabled ones show the name only.
+        let context = host.context(for: item)
+        let failure = host.loadFailures[item.id]
+        HStack(spacing: 10) {
+            Group {
+                if let icon = context?.webExtension.icon(for: CGSize(width: 24, height: 24)) {
+                    Image(nsImage: icon).resizable()
+                } else {
+                    Image(systemName: "puzzlepiece.extension").font(.system(size: 16)).foregroundStyle(.tertiary)
+                }
+            }
+            .frame(width: 24, height: 24)
+            .opacity(item.isEnabled ? 1 : 0.5)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(item.name).foregroundStyle(item.isEnabled ? .primary : .secondary)
+                    Text(item.version).font(.caption.monospaced()).foregroundStyle(.secondary)
+                }
+                if let failure {
+                    Text("Didn’t load: \(failure)").font(.caption).foregroundStyle(Color(nsColor: Theme.fail)).lineLimit(2)
+                } else if let description = context?.webExtension.displayDescription, !description.isEmpty {
+                    Text(description).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                }
+            }
+            Spacer()
+            Toggle("Enabled", isOn: Binding(get: { item.isEnabled }, set: { host.setEnabled($0, for: item) }))
+                .labelsHidden().toggleStyle(.switch).controlSize(.small)
+            Menu {
+                if let options = context?.optionsPageURL {
+                    Button("Options…") { (NSApp.delegate as? AppDelegate)?.open(options) }
+                    Divider()
+                }
+                Button("Remove…", role: .destructive, action: onRemove)
+            } label: {
+                Image(systemName: "ellipsis.circle")
+            }
+            .menuStyle(.button).buttonStyle(.borderless).menuIndicator(.hidden).fixedSize()
+            .help("More")
+        }
     }
 }

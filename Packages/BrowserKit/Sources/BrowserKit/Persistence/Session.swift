@@ -79,11 +79,7 @@ public final class SessionStore: Sendable {
     }
 
     public static func defaultStore() throws -> SessionStore {
-        let directory = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
-                                                    appropriateFor: nil, create: true)
-            .appendingPathComponent("Nano", isDirectory: true)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        return SessionStore(fileURL: directory.appendingPathComponent("session.json"))
+        SessionStore(fileURL: try AppSupport.directory().appendingPathComponent("session.json"))
     }
 
     public func load() -> Session? {

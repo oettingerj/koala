@@ -46,16 +46,10 @@ targets:
     entitlements:
       path: App/Nano.entitlements
       properties:
-        com.apple.security.app-sandbox: true
-        com.apple.security.network.client: true
-        com.apple.security.files.user-selected.read-write: true
-        com.apple.security.files.downloads.read-write: true
-        com.apple.security.print: true
+        # Not sandboxed: like Chrome, Nano launches extensions' native messaging hosts, and a
+        # sandboxed app's child processes inherit its sandbox. The hardened runtime still applies.
         com.apple.security.device.camera: true
         com.apple.security.device.audio-input: true
-        # Picture in Picture windows belong to the system PiP agent; the sandbox blocks it otherwise.
-        com.apple.security.temporary-exception.mach-lookup.global-name:
-          - com.apple.PIPAgent
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.joshoettinger.nano

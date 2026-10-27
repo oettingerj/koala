@@ -1,8 +1,9 @@
+import CryptoKit
 import Foundation
 
 /// Chrome Web Store packages and Nano's record of installed extensions.
 public enum ExtensionPackage {
-    public enum Failure: Error, Equatable { case notCRX, truncated, unsupportedVersion(UInt32) }
+    public enum Failure: Error, Equatable { case notCRX, truncated, unsupportedVersion(UInt32), unpackFailed(Int32) }
 
     /// The ZIP archive inside a CRX (versions 2 and 3). WebKit loads the ZIP directly.
     public static func zipData(fromCRX data: Data) throws -> Data {
@@ -32,6 +33,34 @@ public enum ExtensionPackage {
         return candidates.map(String.init).last { $0.count == 32 && $0.allSatisfy { ("a"..."p").contains($0) } }
     }
 
+    /// Chrome derives an extension's ID from its public key: the first 128 bits of its SHA-256,
+    /// one letter a–p per hex digit.
+    public static func chromeID(fromKey base64Key: String) -> String? {
+        guard let key = Data(base64Encoded: base64Key.filter { !$0.isWhitespace }) else { return nil }
+        let letters = SHA256.hash(data: key).prefix(16).flatMap { [$0 >> 4, $0 & 0xF] }
+        return String(letters.map { Character(UnicodeScalar(UInt8(ascii: "a") + $0)) })
+    }
+
+    /// The ID Chrome would give the extension in `bundle`: from the manifest's `key`, else from the
+    /// item ID the Chrome Web Store records in `_metadata/verified_contents.json`. Native messaging
+    /// hosts allow extensions by this ID.
+    public static func chromeID(ofBundleAt bundle: URL) -> String? {
+        if let data = try? Data(contentsOf: bundle.appendingPathComponent("manifest.json")),
+           let manifest = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let key = manifest["key"] as? String {
+            return chromeID(fromKey: key)
+        }
+        guard let data = try? Data(contentsOf: bundle.appendingPathComponent("_metadata/verified_contents.json")),
+              let entries = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
+              var payload = (entries.first?["signed_content"] as? [String: Any])?["payload"] as? String else { return nil }
+        payload = payload.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+        payload += String(repeating: "=", count: (4 - payload.count % 4) % 4)
+        guard let decoded = Data(base64Encoded: payload),
+              let contents = try? JSONSerialization.jsonObject(with: decoded) as? [String: Any],
+              let id = contents["item_id"] as? String else { return nil }
+        return webStoreID(from: id)
+    }
+
     public static func webStoreDownloadURL(id: String) -> URL? {
         URL(string: "https://clients2.google.com/service/update2/crx?response=redirect&prodversion=140.0&acceptformat=crx2,crx3&x=id%3D\(id)%26uc")
     }
@@ -41,18 +70,22 @@ public struct InstalledExtension: Codable, Equatable, Identifiable, Sendable {
     public var id: String
     public var name: String
     public var version: String
-    /// File name inside the extensions folder: a directory or a .zip.
+    /// File name inside the extensions folder: a directory (a .zip from before bundles were unpacked).
     public var bundleName: String
     public var isEnabled: Bool
     public var installedAt: Date
+    /// The ID the extension has in Chrome, when known. Native messaging hosts allow extensions by it.
+    public var chromeID: String?
 
-    public init(id: String, name: String, version: String, bundleName: String, isEnabled: Bool = true, installedAt: Date = Date()) {
+    public init(id: String, name: String, version: String, bundleName: String, isEnabled: Bool = true,
+                installedAt: Date = Date(), chromeID: String? = nil) {
         self.id = id
         self.name = name
         self.version = version
         self.bundleName = bundleName
         self.isEnabled = isEnabled
         self.installedAt = installedAt
+        self.chromeID = chromeID
     }
 }
 
@@ -64,11 +97,7 @@ public struct ExtensionStore: Sendable {
     public init(directory: URL) { self.directory = directory }
 
     public static func defaultStore() throws -> ExtensionStore {
-        let directory = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
-                                                    appropriateFor: nil, create: true)
-            .appendingPathComponent("Nano/Extensions", isDirectory: true)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        return ExtensionStore(directory: directory)
+        ExtensionStore(directory: try AppSupport.directory("Extensions"))
     }
 
     public func load() -> [InstalledExtension] {
@@ -84,24 +113,59 @@ public struct ExtensionStore: Sendable {
         directory.appendingPathComponent(item.bundleName)
     }
 
-    /// Copies a folder or archive into the store under a fresh name. CRX files are unwrapped.
-    public func importBundle(from source: URL) throws -> String {
-        let id = UUID().uuidString
+    /// Copies a folder, or unpacks a ZIP or CRX, into the store under a fresh name.
+    public func importBundle(from source: URL) async throws -> String {
         if source.hasDirectoryPath {
-            let name = id
+            let name = UUID().uuidString
             try FileManager.default.copyItem(at: source, to: directory.appendingPathComponent(name))
             return name
         }
-        let data = try ExtensionPackage.zipData(fromCRX: try Data(contentsOf: source))
-        let name = id + ".zip"
-        try data.write(to: directory.appendingPathComponent(name), options: .atomic)
+        return try await importArchive(try Data(contentsOf: source))
+    }
+
+    /// Unpacks a ZIP or CRX into the store under a fresh name.
+    public func importArchive(_ data: Data) async throws -> String {
+        let archive = directory.appendingPathComponent(".\(UUID().uuidString).zip")
+        try ExtensionPackage.zipData(fromCRX: data).write(to: archive, options: .atomic)
+        defer { try? FileManager.default.removeItem(at: archive) }
+        return try await unpack(archiveAt: archive)
+    }
+
+    /// Bundles are folders so Nano can add its compatibility script. bsdtar reads ZIPs and refuses
+    /// entries with absolute or `..` paths, so nothing lands outside the new folder.
+    private func unpack(archiveAt archive: URL) async throws -> String {
+        let name = UUID().uuidString
+        let destination = directory.appendingPathComponent(name, isDirectory: true)
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: false)
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/tar")
+        process.arguments = ["-xf", archive.path, "-C", destination.path]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        let status: Int32 = try await withCheckedThrowingContinuation { continuation in
+            process.terminationHandler = { continuation.resume(returning: $0.terminationStatus) }
+            do { try process.run() } catch { continuation.resume(throwing: error) }
+        }
+        guard status == 0 else {
+            try? FileManager.default.removeItem(at: destination)
+            throw ExtensionPackage.Failure.unpackFailed(status)
+        }
         return name
     }
 
-    public func importArchive(_ data: Data) throws -> String {
-        let name = UUID().uuidString + ".zip"
-        try ExtensionPackage.zipData(fromCRX: data).write(to: directory.appendingPathComponent(name), options: .atomic)
-        return name
+    /// Readies a bundle to load: unpacks a ZIP left by an older version, refreshes the compatibility
+    /// script, and fills in the Chrome ID. Returns the item as it should be saved.
+    public func prepare(_ item: InstalledExtension) async throws -> InstalledExtension {
+        var item = item
+        if item.bundleName.hasSuffix(".zip") {
+            let name = try await unpack(archiveAt: bundleURL(for: item))
+            removeBundle(named: item.bundleName)
+            item.bundleName = name
+        }
+        let bundle = bundleURL(for: item)
+        try ExtensionCompatibility.apply(toBundleAt: bundle)
+        if item.chromeID == nil { item.chromeID = ExtensionPackage.chromeID(ofBundleAt: bundle) }
+        return item
     }
 
     public func removeBundle(named name: String) {

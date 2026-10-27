@@ -11,12 +11,9 @@ public final class AppDatabase: Sendable {
         try Self.migrator.migrate(writer)
     }
 
-    /// The on-disk database in Application Support (inside the sandbox container).
+    /// The on-disk database in Nano's Application Support folder.
     public static func openDefault() throws -> AppDatabase {
-        let directory = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
-                                                    appropriateFor: nil, create: true)
-            .appendingPathComponent("Nano", isDirectory: true)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let directory = try AppSupport.directory()
         var config = Configuration()
         config.qos = .userInitiated
         let pool = try DatabasePool(path: directory.appendingPathComponent("nano.sqlite").path, configuration: config)

@@ -60,7 +60,11 @@ public final class Tab: NSObject, Identifiable {
 
     @ObservationIgnored public weak var delegate: TabDelegate?
     @ObservationIgnored public weak var uiHost: TabUIHost?
-    @ObservationIgnored public private(set) var webView: WKWebView?
+    /// Observed so the window re-shows the tab when moving between the web and extension pages swaps it.
+    public private(set) var webView: WKWebView?
+    /// The extension whose configuration the web view was cut from (nil for the web), or unknown
+    /// for a web view WebKit created for a popup.
+    @ObservationIgnored private var webViewExtension: String?? = .some(nil)
     @ObservationIgnored private var observations: [NSKeyValueObservation] = []
     @ObservationIgnored private var errorNavigation: WKNavigation?
     /// Back/forward state from a restored session, applied when the web view is created.
@@ -112,6 +116,11 @@ public final class Tab: NSObject, Identifiable {
     public func sleep() {
         guard let webView else { return }
         restoredState = (webView.interactionState as? Data) ?? restoredState
+        detachWebView()
+    }
+
+    private func detachWebView() {
+        guard let webView else { return }
         webView.stopLoading()
         webView.removeFromSuperview()
         webView.navigationDelegate = nil
@@ -165,6 +174,7 @@ public final class Tab: NSObject, Identifiable {
         self.openerID = openerID
         super.init()
         attach(webView)
+        webViewExtension = nil
         // KVO reports changes only; a web view adopted mid-load (Peek) already has state.
         url = webView.url
         title = webView.title ?? ""
@@ -183,8 +193,9 @@ public final class Tab: NSObject, Identifiable {
     @discardableResult
     public func materialize() -> WKWebView {
         if let webView { return webView }
-        let webView = WebViewFactory.makeWebView()
+        let webView = WebViewFactory.makeWebView(for: url)
         attach(webView)
+        webViewExtension = .some(WebViewFactory.extensionHost(of: url))
         if let restoredState {
             webView.interactionState = restoredState
             self.restoredState = nil
@@ -196,11 +207,20 @@ public final class Tab: NSObject, Identifiable {
 
     public func load(_ url: URL) {
         self.url = url
-        if let webView {
+        if let webView, !needsNewWebView(for: url) {
             webView.load(URLRequest(url: url))
         } else {
+            // Moving between the web and an extension's pages needs a web view with the other
+            // configuration; back/forward history stays with the old one.
+            restoredState = nil
+            detachWebView()
             materialize()
         }
+    }
+
+    private func needsNewWebView(for url: URL) -> Bool {
+        guard case .some(let current) = webViewExtension else { return false }
+        return WebViewFactory.extensionHost(of: url) != current
     }
 
     /// Shows generated HTML (view source, tool pages) under `baseURL`.
@@ -248,6 +268,10 @@ public final class Tab: NSObject, Identifiable {
 extension Tab: WKNavigationDelegate {
     public func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
                         preferences: WKWebpagePreferences) async -> (WKNavigationActionPolicy, WKWebpagePreferences) {
+        if action.targetFrame?.isMainFrame == true, let url = action.request.url, needsNewWebView(for: url) {
+            load(url)
+            return (.cancel, preferences)
+        }
         let flags = action.modifierFlags.intersection([.command, .shift, .option, .control])
         if action.navigationType == .linkActivated, flags == .shift, let url = action.request.url,
            url.scheme == "http" || url.scheme == "https" {

@@ -304,8 +304,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         }
     }
 
-    /// `folder` is relative to the real home folder, not the sandbox container. The sandbox
-    /// grants access to what the person picks; `read` runs off the main thread.
+    /// `folder` is relative to the home folder; `read` runs off the main thread.
     private func chooseImport(message: String, in folder: String, folders: Bool,
                               read: @escaping @Sendable (URL) throws -> ImportedData) {
         guard let window else { return }
@@ -314,8 +313,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         panel.prompt = "Import"
         panel.canChooseDirectories = folders
         panel.canChooseFiles = !folders
-        panel.directoryURL = URL(fileURLWithPath: NSHomeDirectoryForUser(NSUserName()) ?? NSHomeDirectory())
-            .appendingPathComponent(folder)
+        panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(folder)
         panel.beginSheetModal(for: window) { [weak self] response in
             guard response == .OK, let url = panel.url else { return }
             Task { @MainActor in
@@ -604,6 +602,9 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
 
     private weak var shownTab: Tab?
     private weak var shownSplit: Tab?
+    /// A tab swaps its web view when it moves between the web and an extension's pages.
+    private weak var shownWebView: WKWebView?
+    private weak var shownSplitWebView: WKWebView?
 
     private func showSelectedTab() {
         guard let tab = tabs.selected else { return }
@@ -624,16 +625,21 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         rootView.focusesSplit = tabs.focusesSplit
         rootView.devPanelModel.tab = tabs.focused
         rootView.pageLayoutChanged()
-        guard shownTab !== tab || shownSplit !== partner else { return }
-        // A playing video follows the user out of a tab it leaves view in, unless the tab was closed.
-        for hidden in [shownTab, shownSplit].compactMap({ $0 }) where hidden !== tab && hidden !== partner
-            && tabs.tabs.contains(where: { $0 === hidden || $0.splitTab === hidden }) {
-            hidden.enterPictureInPictureIfPlaying()
+        let switchedTabs = shownTab !== tab || shownSplit !== partner
+        guard switchedTabs || shownWebView !== webView || shownSplitWebView !== partnerView else { return }
+        if switchedTabs {
+            // A playing video follows the user out of a tab it leaves view in, unless the tab was closed.
+            for hidden in [shownTab, shownSplit].compactMap({ $0 }) where hidden !== tab && hidden !== partner
+                && tabs.tabs.contains(where: { $0 === hidden || $0.splitTab === hidden }) {
+                hidden.enterPictureInPictureIfPlaying()
+            }
+            tab.exitAutomaticPictureInPicture()
+            partner?.exitAutomaticPictureInPicture()
         }
-        tab.exitAutomaticPictureInPicture()
-        partner?.exitAutomaticPictureInPicture()
         shownTab = tab
         shownSplit = partner
+        shownWebView = webView
+        shownSplitWebView = partnerView
         Perf.measure("tab.switch") {
             rootView.show(webView, for: tab, split: partnerView.map { ($0, partner!) })
             rootView.layoutSubtreeIfNeeded()

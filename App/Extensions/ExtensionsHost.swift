@@ -16,7 +16,11 @@ final class ExtensionsHost: NSObject {
     private(set) var contexts: [(id: String, context: WKWebExtensionContext)] = []
     /// Bumped when an action's icon, badge, or enabled state changes, so toolbars redraw.
     private(set) var actionsVersion = 0
+    /// The last install failure, shown under Settings' Add section.
     private(set) var lastError: String?
+    /// Why an enabled extension didn't load, by installed-extension id.
+    private(set) var loadFailures: [String: String] = [:]
+    private(set) var isInstalling = false
     /// Enabled extensions have loaded; pages may load.
     private(set) var isReady = false
 
@@ -35,12 +39,25 @@ final class ExtensionsHost: NSObject {
         controller.delegate = self
         // Must be set before any web view is created; every tab's configuration is a copy.
         WebViewFactory.configuration.webExtensionController = controller
+        WebViewFactory.extensionConfiguration = { [controller] url in controller.extensionContext(for: url)?.webViewConfiguration }
     }
 
     /// Loads every enabled extension. Pages must not load before this returns, or content
     /// blockers miss the first page.
     func start() async {
-        installed = store?.load() ?? []
+        guard let store else { return isReady = true }
+        let saved = store.load()
+        var items: [InstalledExtension] = []
+        for item in saved {
+            do {
+                items.append(try await store.prepare(item))
+            } catch {
+                items.append(item)
+                log.error("“\(item.name, privacy: .public)” couldn’t be prepared: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        installed = items
+        if items != saved { try? store.save(items) }
         for item in installed where item.isEnabled {
             await load(item)
         }
@@ -50,50 +67,70 @@ final class ExtensionsHost: NSObject {
     // MARK: Install and manage
 
     func install(from url: URL) async {
-        guard let store else { return }
+        guard let store, beginInstall() else { return }
+        defer { isInstalling = false }
         do {
-            let name = try store.importBundle(from: url)
-            try await finishInstall(bundleName: name)
+            let name = try await store.importBundle(from: url)
+            try await finishInstall(bundleName: name, chromeID: nil)
         } catch {
             fail("Couldn’t install that extension: \(error.localizedDescription)")
         }
     }
 
-    /// Installs from a Chrome Web Store page URL or extension ID.
-    func installFromWebStore(_ text: String) async {
+    /// Installs from a Chrome Web Store page URL or extension ID. Returns whether it installed.
+    @discardableResult
+    func installFromWebStore(_ text: String) async -> Bool {
         guard let store, let id = ExtensionPackage.webStoreID(from: text), let url = ExtensionPackage.webStoreDownloadURL(id: id) else {
-            return fail("That isn’t a Chrome Web Store extension link.")
+            fail("That isn’t a Chrome Web Store extension link.")
+            return false
         }
+        guard beginInstall() else { return false }
+        defer { isInstalling = false }
         do {
             let (data, response) = try await URLSession.shared.data(from: url)
-            guard (response as? HTTPURLResponse)?.statusCode == 200 else { return fail("The Chrome Web Store didn’t return the extension.") }
-            let name = try store.importArchive(data)
-            try await finishInstall(bundleName: name)
+            guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+                fail("The Chrome Web Store didn’t return the extension.")
+                return false
+            }
+            let name = try await store.importArchive(data)
+            return try await finishInstall(bundleName: name, chromeID: id)
         } catch {
             fail("Couldn’t download that extension: \(error.localizedDescription)")
+            return false
         }
     }
 
-    private func finishInstall(bundleName: String) async throws {
-        guard let store else { return }
-        let bundle = store.directory.appendingPathComponent(bundleName)
+    /// One install at a time; a new attempt clears the last one's error.
+    private func beginInstall() -> Bool {
+        guard !isInstalling else { return false }
+        isInstalling = true
+        lastError = nil
+        return true
+    }
+
+    /// `chromeID` is known for Web Store installs; otherwise `prepare` reads it from the bundle.
+    @discardableResult
+    private func finishInstall(bundleName: String, chromeID: String?) async throws -> Bool {
+        guard let store else { return false }
+        var item = InstalledExtension(id: UUID().uuidString, name: "", version: "", bundleName: bundleName, chromeID: chromeID)
         let webExtension: WKWebExtension
         do {
-            webExtension = try await WKWebExtension(resourceBaseURL: bundle)
+            item = try await store.prepare(item)
+            webExtension = try await WKWebExtension(resourceBaseURL: store.bundleURL(for: item))
         } catch {
             store.removeBundle(named: bundleName)
             throw error
         }
         guard await confirmInstall(webExtension) else {
-            store.removeBundle(named: bundleName)
-            return
+            store.removeBundle(named: item.bundleName)
+            return false
         }
-        let item = InstalledExtension(id: UUID().uuidString, name: webExtension.displayName ?? "Extension",
-                                      version: webExtension.version ?? "", bundleName: bundleName)
+        item.name = webExtension.displayName ?? "Extension"
+        item.version = webExtension.version ?? ""
         installed.append(item)
         try store.save(installed)
         await load(item, extension: webExtension)
-        lastError = nil
+        return true
     }
 
     /// Shows what the extension asks for before anything runs.
@@ -126,15 +163,19 @@ final class ExtensionsHost: NSObject {
             }
             let context = WKWebExtensionContext(for: webExtension)
             context.uniqueIdentifier = item.id
+            // A fixed address keeps the extension's pages (and what they store) the same across launches.
+            context.baseURL = URL(string: "webkit-extension://\(item.id.lowercased())/")!
             context.isInspectable = true
             // The user approved the requested permissions and sites when installing.
             for permission in webExtension.requestedPermissions { context.setPermissionStatus(.grantedExplicitly, for: permission) }
             for pattern in webExtension.allRequestedMatchPatterns { context.setPermissionStatus(.grantedExplicitly, for: pattern) }
             try controller.load(context)
             contexts.append((item.id, context))
+            loadFailures[item.id] = nil
             announceOpenWindowsAndTabs(to: context)
         } catch {
-            fail("“\(item.name)” didn’t load: \(error.localizedDescription)")
+            loadFailures[item.id] = error.localizedDescription
+            log.error("“\(item.name, privacy: .public)” didn’t load: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -157,6 +198,7 @@ final class ExtensionsHost: NSObject {
     }
 
     private func unload(_ item: InstalledExtension) {
+        loadFailures[item.id] = nil
         guard let entry = contexts.first(where: { $0.id == item.id }) else { return }
         try? controller.unload(entry.context)
         contexts.removeAll { $0.id == item.id }
@@ -203,6 +245,23 @@ final class ExtensionsHost: NSObject {
 
     /// Popups anchor to the toolbar button of the extension in the key window.
     @ObservationIgnored var anchorForAction: ((WKWebExtensionContext) -> NSView?)?
+
+    // MARK: Native messaging
+
+    /// Open connections to native hosts. Releasing a port disconnects it, so it lives here too.
+    @ObservationIgnored fileprivate var nativePorts: [ObjectIdentifier: (port: WKWebExtension.MessagePort, connection: NativeMessagingConnection)] = [:]
+
+    /// Launches the host `name` for an extension, if the host's manifest in Chrome's folders allows it.
+    fileprivate func connectNativeHost(_ name: String?, for context: WKWebExtensionContext) throws -> NativeMessagingConnection {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        guard let name, let host = NativeMessaging.hostManifest(named: name, in: NativeMessaging.chromeHostFolders(home: home)) else {
+            throw NativeMessaging.Failure.hostNotFound
+        }
+        guard let chromeID = installed.first(where: { $0.id == context.uniqueIdentifier })?.chromeID, host.allows(chromeID: chromeID) else {
+            throw NativeMessaging.Failure.forbidden
+        }
+        return try NativeMessagingConnection(host: host, chromeID: chromeID)
+    }
 }
 
 extension ExtensionsHost: WKWebExtensionControllerDelegate {
@@ -262,6 +321,49 @@ extension ExtensionsHost: WKWebExtensionControllerDelegate {
         alert.addButton(withTitle: "Allow")
         alert.addButton(withTitle: "Don’t Allow")
         return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    func webExtensionController(_ controller: WKWebExtensionController, connectUsing port: WKWebExtension.MessagePort,
+                                for extensionContext: WKWebExtensionContext) async throws {
+        let connection = try connectNativeHost(port.applicationIdentifier, for: extensionContext)
+        let key = ObjectIdentifier(port)
+        nativePorts[key] = (port, connection)
+        connection.onMessage = { [weak port] message in port?.sendMessage(message, completionHandler: nil) }
+        connection.onClose = { [weak self, weak port] error in
+            port?.disconnect(throwing: error ?? NativeMessaging.Failure.hostExited)
+            self?.nativePorts[key] = nil
+        }
+        port.messageHandler = { [weak connection] message, _ in
+            if let message { connection?.send(message) }
+        }
+        port.disconnectHandler = { [weak self] _ in
+            self?.nativePorts[key]?.connection.close()
+            self?.nativePorts[key] = nil
+        }
+    }
+
+    /// `runtime.sendNativeMessage`: start the host, send one message, return its first reply.
+    func webExtensionController(_ controller: WKWebExtensionController, sendMessage message: Any, toApplicationWithIdentifier applicationIdentifier: String?,
+                                for extensionContext: WKWebExtensionContext, replyHandler: @escaping (Any?, (any Error)?) -> Void) {
+        let connection: NativeMessagingConnection
+        do {
+            connection = try connectNativeHost(applicationIdentifier, for: extensionContext)
+        } catch {
+            return replyHandler(nil, error)
+        }
+        // Each handler clears both, which also releases the connection they capture.
+        connection.onMessage = { reply in
+            connection.onMessage = nil
+            connection.onClose = nil
+            connection.close()
+            replyHandler(reply, nil)
+        }
+        connection.onClose = { error in
+            connection.onMessage = nil
+            connection.onClose = nil
+            replyHandler(nil, error ?? NativeMessaging.Failure.hostExited)
+        }
+        connection.send(message)
     }
 
     func webExtensionController(_ controller: WKWebExtensionController, didUpdate action: WKWebExtension.Action, forExtensionContext context: WKWebExtensionContext) {

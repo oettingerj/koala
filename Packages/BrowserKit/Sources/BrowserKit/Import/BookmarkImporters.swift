@@ -1,8 +1,8 @@
 import Foundation
 import GRDB
 
-/// Reads bookmarks and history exported by other browsers. Files are chosen by the user
-/// (the sandbox grants access to what they pick), so parsers never touch other paths.
+/// Reads bookmarks and history exported by other browsers. Files are chosen by the user,
+/// so parsers never touch other paths.
 public enum BookmarkImporters {
     public enum Failure: Error, Equatable { case unrecognized }
 

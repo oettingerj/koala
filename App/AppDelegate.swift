@@ -5,8 +5,12 @@ import os
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var windows: [BrowserWindowController] = []
+    /// False when launch stopped before the old sandbox data came over; nothing may be saved then.
+    private var didLaunch = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        guard DataMigration.copyFromSandboxContainer() else { return NSApp.terminate(nil) }
+        didLaunch = true
         NSApp.mainMenu = MainMenu.build()
         #if DEBUG
         DebugCommands.install()
@@ -45,6 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        guard didLaunch else { return }
         AppServices.shared.saveSession(sync: true)
     }
 
@@ -81,13 +86,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool { true }
 
-    /// Links opened from other apps land in a new tab of the frontmost window.
+    /// Links opened from other apps, and from Settings, land in a new tab of the frontmost window.
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls { open(url) }
         NSApp.activate()
     }
 
-    private func open(_ url: URL) {
+    func open(_ url: URL) {
         if let controller = frontmostController {
             controller.open(url)
             controller.window?.makeKeyAndOrderFront(nil)
