@@ -9,6 +9,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     private var selectionObservation: ObservationLoop?
     private var sessionObservation: ObservationLoop?
     private var bookmarkObservation: ObservationLoop?
+    private var mediaDecisions: [String: Bool] = [:]
     private lazy var commandBar: CommandBar = {
         let bar = CommandBar(engine: services.suggestions)
         bar.onActivate = { [weak self] row, _ in self?.activate(row, inNewTab: true) }
@@ -71,7 +72,9 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
             for tabSnapshot in snapshot.tabs {
                 let tab = Tab(snapshot: tabSnapshot)
                 tab.delegate = self
+                tab.uiHost = self
                 tab.splitTab?.delegate = self
+                tab.splitTab?.uiHost = self
                 tabs.insert(tab, select: false)
                 services.applyCachedFavicon(to: tab)
             }
@@ -88,6 +91,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         rootView.peek.onOpenInTab = { [weak self] webView in self?.openPeekInTab(webView) }
         rootView.peek.onOpenInSplit = { [weak self] webView in self?.openPeekInSplit(webView) }
         rootView.onFocusPane = { [weak self] secondary in self?.tabs.focusesSplit = secondary }
+        rootView.findBar.target = { [weak self] in self?.tabs.focused?.webView }
     }
 
     // MARK: GitHub
@@ -118,8 +122,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         let view = ReviewQueuePopover(items: github.queue, isSignedIn: github.isSignedIn,
                                       open: { [weak self] url in self?.popover?.close(); self?.openTab(url: url, select: true) },
                                       signIn: { [weak self] in self?.popover?.close(); self?.signInToGitHub(nil) })
-        let anchor = (sender as? NSView) ?? rootView.toolbar
-        showPopover(GitHubHosting.queuePopover(view), from: anchor)
+        showPopover(GitHubHosting.queuePopover(view), from: rootView.toolbar.queueButton)
     }
 
     @objc func signInToGitHub(_ sender: Any?) {
@@ -207,6 +210,96 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         }
     }
 
+    // MARK: Downloads, find, zoom, import
+
+    @objc func showDownloads(_ sender: Any?) {
+        let view = DownloadsPopover(manager: .shared) { [weak self] item in
+            DownloadManager.shared.retry(item, in: self?.tabs.focused?.webView)
+        }
+        let button = rootView.toolbar.downloadsButton
+        showPopover(DownloadsHosting.popover(view), from: button.isHidden ? rootView.toolbar.addressField : button)
+    }
+
+    @objc func printPage(_ sender: Any?) {
+        guard let webView = tabs.focused?.webView, let window else { return }
+        let operation = webView.printOperation(with: .shared)
+        operation.view?.frame = webView.bounds
+        operation.runModal(for: window, delegate: nil, didRun: nil, contextInfo: nil)
+    }
+
+    @objc func showFindBar(_ sender: Any?) {
+        rootView.findBar.show()
+    }
+
+    @objc func findNext(_ sender: Any?) { rootView.findBar.find(backwards: false) }
+    @objc func findPrevious(_ sender: Any?) { rootView.findBar.find(backwards: true) }
+
+    @objc func importBookmarks(_ sender: Any?) {
+        guard let window else { return }
+        let panel = NSOpenPanel()
+        panel.message = "Choose a bookmarks file: Chrome’s “Bookmarks”, Arc’s “StorableSidebar.json”, or an exported bookmarks HTML file (Safari: File › Export › Bookmarks)."
+        panel.prompt = "Import"
+        panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support")
+        panel.beginSheetModal(for: window) { [weak self] response in
+            guard response == .OK, let url = panel.url else { return }
+            Task { @MainActor in
+                do {
+                    let items = try BookmarkImporters.bookmarks(from: try Data(contentsOf: url))
+                    try await AppServices.shared.bookmarks.importTree(items)
+                    self?.report("Imported \(Self.count(items)) bookmarks.")
+                } catch {
+                    self?.report("Nano couldn’t read that file as bookmarks.", failed: true)
+                }
+            }
+        }
+    }
+
+    @objc func importChromeHistory(_ sender: Any?) {
+        guard let window else { return }
+        let panel = NSOpenPanel()
+        panel.message = "Choose Chrome’s History file (Library › Application Support › Google › Chrome › Default › History)."
+        panel.prompt = "Import"
+        panel.directoryURL = URL(fileURLWithPath: NSHomeDirectoryForUser(NSUserName()) ?? NSHomeDirectory())
+            .appendingPathComponent("Library/Application Support/Google/Chrome/Default")
+        panel.beginSheetModal(for: window) { [weak self] response in
+            guard response == .OK, let url = panel.url else { return }
+            Task { @MainActor in
+                do {
+                    let entries = try await Task.detached { try ChromeHistoryImporter.entries(fromDatabaseAt: url) }.value
+                    try await AppServices.shared.history.importEntries(entries)
+                    await AppServices.shared.suggestions.reloadHostIndex()
+                    self?.report("Imported \(entries.count) pages from Chrome history.")
+                } catch {
+                    self?.report("Nano couldn’t read that file as Chrome history.", failed: true)
+                }
+            }
+        }
+    }
+
+    private static func count(_ items: [ImportedBookmark]) -> Int {
+        items.reduce(0) { $0 + ($1.url == nil ? count($1.children) : 1) }
+    }
+
+    private func report(_ message: String, failed: Bool = false) {
+        guard let window else { return }
+        let alert = NSAlert()
+        alert.messageText = message
+        alert.alertStyle = failed ? .warning : .informational
+        alert.beginSheetModal(for: window)
+    }
+
+    /// Zoom is remembered per site.
+    private static var siteZoom: [String: Double] {
+        get { UserDefaults.standard.dictionary(forKey: "SiteZoom") as? [String: Double] ?? [:] }
+        set { UserDefaults.standard.set(newValue, forKey: "SiteZoom") }
+    }
+
+    private func applySiteZoom(to tab: Tab) {
+        guard let host = DisplayURL(tab.url)?.host, let webView = tab.webView else { return }
+        let zoom = CGFloat(Self.siteZoom[host] ?? 1)
+        if webView.pageZoom != zoom { webView.pageZoom = zoom }
+    }
+
     // MARK: Split view and Peek
 
     /// "Split with…": the command bar picks the second page (an open tab or a new page).
@@ -231,6 +324,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         case .open(let url):
             let partner = Tab(url: url)
             partner.delegate = self
+            partner.uiHost = self
             tabs.split(tab, with: partner)
         case .switchToTab(let id):
             guard let partner = tabs.tabs.first(where: { $0.id == id }), partner !== tab else { return NSSound.beep() }
@@ -268,6 +362,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     func openPeekInTab(_ webView: WKWebView) {
         let tab = Tab(adopting: webView, openerID: tabs.selected?.id)
         tab.delegate = self
+        tab.uiHost = self
         tabs.insert(tab, select: true)
         services.applyCachedFavicon(to: tab)
     }
@@ -276,6 +371,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         guard let tab = tabs.selected else { return }
         let partner = Tab(adopting: webView, openerID: nil)
         partner.delegate = self
+        partner.uiHost = self
         if tab.splitTab != nil { tabs.unsplit(tab) }
         tabs.split(tab, with: partner)
     }
@@ -410,6 +506,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     func openTab(url: URL?, select: Bool, opener: Tab? = nil) -> Tab {
         let tab = Tab(url: url, openerID: opener?.id)
         tab.delegate = self
+        tab.uiHost = self
         tabs.insert(tab, select: select)
         return tab
     }
@@ -476,6 +573,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         let tab = Tab(snapshot: snapshot)
         tab.openerID = nil
         tab.delegate = self
+        tab.uiHost = self
         tabs.insert(tab, select: true)
         tabs.move(tab, to: index)
         services.applyCachedFavicon(to: tab)
@@ -524,6 +622,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         let copy = Tab(snapshot: snapshot)
         copy.openerID = tab.id
         copy.delegate = self
+        copy.uiHost = self
         tabs.insert(copy, select: true)
         services.applyCachedFavicon(to: copy)
     }
@@ -628,8 +727,11 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     @objc func actualSize(_ sender: Any?) { adjustZoom { _ in 1 } }
 
     private func adjustZoom(_ transform: (CGFloat) -> CGFloat) {
-        guard let webView = tabs.focused?.webView else { return }
+        guard let tab = tabs.focused, let webView = tab.webView else { return }
         webView.pageZoom = (transform(webView.pageZoom) * 10).rounded() / 10
+        if let host = DisplayURL(tab.url)?.host {
+            Self.siteZoom[host] = webView.pageZoom == 1 ? nil : Double(webView.pageZoom)
+        }
     }
 
     @objc func selectNextTab(_ sender: Any?) { tabs.selectNext() }
@@ -656,6 +758,8 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
             return false
         case #selector(signInToGitHub(_:)): return !github.isSignedIn
         case #selector(signOutOfGitHub(_:)): return github.isSignedIn
+        case #selector(findNext(_:)), #selector(findPrevious(_:)):
+            return !rootView.findBar.query.isEmpty
         case #selector(separateSplit(_:)), #selector(closeSplitPane(_:)):
             return tabs.selected?.splitTab != nil
         case #selector(splitWith(_:)):
@@ -698,11 +802,92 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     }
 }
 
+extension BrowserWindowController: TabUIHost {
+    private func sheet(_ alert: NSAlert) async -> NSApplication.ModalResponse {
+        guard let window else { return .cancel }
+        return await withCheckedContinuation { continuation in
+            alert.beginSheetModal(for: window) { continuation.resume(returning: $0) }
+        }
+    }
+
+    private func alert(_ message: String, origin: String) -> NSAlert {
+        let alert = NSAlert()
+        alert.messageText = origin.isEmpty ? "This page says" : "\(origin) says"
+        alert.informativeText = String(message.prefix(2000))
+        return alert
+    }
+
+    func tab(_ tab: Tab, alert message: String, from origin: String) async {
+        let alert = alert(message, origin: origin)
+        alert.addButton(withTitle: "OK")
+        _ = await sheet(alert)
+    }
+
+    func tab(_ tab: Tab, confirm message: String, from origin: String) async -> Bool {
+        let alert = alert(message, origin: origin)
+        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: "Cancel")
+        return await sheet(alert) == .alertFirstButtonReturn
+    }
+
+    func tab(_ tab: Tab, prompt message: String, defaultText: String?, from origin: String) async -> String? {
+        let alert = alert(message, origin: origin)
+        let field = NSTextField(string: defaultText ?? "")
+        field.frame = NSRect(x: 0, y: 0, width: 280, height: 22)
+        alert.accessoryView = field
+        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: "Cancel")
+        alert.window.initialFirstResponder = field
+        return await sheet(alert) == .alertFirstButtonReturn ? field.stringValue : nil
+    }
+
+    func tab(_ tab: Tab, chooseFiles parameters: WKOpenPanelParameters) async -> [URL]? {
+        guard let window else { return nil }
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = parameters.allowsMultipleSelection
+        panel.canChooseDirectories = parameters.allowsDirectories
+        panel.canChooseFiles = true
+        let response = await withCheckedContinuation { continuation in
+            panel.beginSheetModal(for: window) { continuation.resume(returning: $0) }
+        }
+        return response == .OK ? panel.urls : nil
+    }
+
+    func tab(_ tab: Tab, allowMediaCapture type: WKMediaCaptureType, from origin: String) async -> Bool {
+        let key = "\(origin)|\(type.rawValue)"
+        if let decision = mediaDecisions[key] { return decision }
+        let what = switch type {
+        case .camera: "your camera"
+        case .microphone: "your microphone"
+        case .cameraAndMicrophone: "your camera and microphone"
+        @unknown default: "a media device"
+        }
+        let alert = NSAlert()
+        alert.messageText = "Allow \(origin) to use \(what)?"
+        alert.informativeText = "Nano remembers your choice for this site until you quit."
+        alert.addButton(withTitle: "Allow")
+        alert.addButton(withTitle: "Don’t Allow")
+        let allowed = await sheet(alert) == .alertFirstButtonReturn
+        mediaDecisions[key] = allowed
+        return allowed
+    }
+
+    func tab(_ tab: Tab, didStart download: WKDownload) {
+        DownloadManager.shared.track(download)
+        rootView.toolbar.flashDownloads()
+        // A tab opened only to fetch a file has nothing to show once the download starts.
+        if !tab.canGoBack, tab.title.isEmpty, tabs.tabs.count > 1, tabs.tabs.contains(where: { $0 === tab }) {
+            close(tab)
+        }
+    }
+}
+
 extension BrowserWindowController: TabDelegate {
     func tab(_ tab: Tab, createWebViewWith configuration: WKWebViewConfiguration, for action: WKNavigationAction) -> WKWebView? {
         let webView = WebViewFactory.makeWebView(configuration: configuration)
         let child = Tab(adopting: webView, openerID: tab.id)
         child.delegate = self
+        child.uiHost = self
         tabs.insert(child, select: !action.modifierFlags.contains(.command))
         return webView
     }
@@ -726,6 +911,7 @@ extension BrowserWindowController: TabDelegate {
 
     func tabDidCommitNavigation(_ tab: Tab) {
         services.applyCachedFavicon(to: tab)
+        applySiteZoom(to: tab)
         guard let url = tab.url else { return }
         if let host = DisplayURL(url)?.host { services.suggestions.noteVisit(host: host) }
         if GitHubURL(url)?.number != nil { github.refreshSoon() }
@@ -755,6 +941,7 @@ final class BrowserRootView: NSView {
     let toolbar: ToolbarView
     let bookmarksBar = BookmarksBarView(library: AppServices.shared.bookmarks)
     let devPanelModel = DevPanelModel()
+    let findBar = FindBar()
     private lazy var devPanel: NSView = DevPanel.host(model: devPanelModel)
     private let devPanelHandle = DragHandle()
     private let content = NSView()
@@ -787,7 +974,8 @@ final class BrowserRootView: NSView {
         toolbar = ToolbarView(tabs: tabs)
         super.init(frame: .zero)
         content.wantsLayer = true
-        [content, strip, toolbar, bookmarksBar, devPanel, devPanelHandle].forEach(addSubview)
+        [content, strip, toolbar, bookmarksBar, findBar, devPanel, devPanelHandle].forEach(addSubview)
+        findBar.onVisibilityChange = { [weak self] in self?.needsLayout = true }
         splitDivider.isHidden = true
         bookmarksBar.isHidden = !showsBookmarksBar
         toolbar.showsHairline = !showsBookmarksBar
@@ -821,6 +1009,10 @@ final class BrowserRootView: NSView {
         if showsBookmarksBar {
             bookmarksBar.frame = NSRect(x: 0, y: contentTop - BookmarksBarView.height, width: bounds.width, height: BookmarksBarView.height)
             contentTop = bookmarksBar.frame.minY
+        }
+        if !findBar.isHidden {
+            findBar.frame = NSRect(x: 0, y: contentTop - FindBar.height, width: bounds.width, height: FindBar.height)
+            contentTop = findBar.frame.minY
         }
         var contentBottom: CGFloat = 0
         if showsDevPanel {

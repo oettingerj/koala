@@ -2,6 +2,18 @@ import AppKit
 import Observation
 import WebKit
 
+/// Window-level UI a page can ask for: JavaScript dialogs, permission prompts, file pickers,
+/// and downloads. Implemented by the window that shows the tab.
+@MainActor
+public protocol TabUIHost: AnyObject {
+    func tab(_ tab: Tab, alert message: String, from origin: String) async
+    func tab(_ tab: Tab, confirm message: String, from origin: String) async -> Bool
+    func tab(_ tab: Tab, prompt message: String, defaultText: String?, from origin: String) async -> String?
+    func tab(_ tab: Tab, chooseFiles parameters: WKOpenPanelParameters) async -> [URL]?
+    func tab(_ tab: Tab, allowMediaCapture type: WKMediaCaptureType, from origin: String) async -> Bool
+    func tab(_ tab: Tab, didStart download: WKDownload)
+}
+
 @MainActor
 public protocol TabDelegate: AnyObject {
     /// A page asked for a new window (`target=_blank`, `window.open`). Return the web view
@@ -47,6 +59,7 @@ public final class Tab: NSObject, Identifiable {
     public private(set) var isJSONDocument = false
 
     @ObservationIgnored public weak var delegate: TabDelegate?
+    @ObservationIgnored public weak var uiHost: TabUIHost?
     @ObservationIgnored public private(set) var webView: WKWebView?
     @ObservationIgnored private var observations: [NSKeyValueObservation] = []
     @ObservationIgnored private var errorNavigation: WKNavigation?
@@ -194,7 +207,16 @@ extension Tab: WKNavigationDelegate {
             return (.cancel, preferences)
         }
         preferences.allowsContentJavaScript = javaScriptEnabled
+        if action.shouldPerformDownload { return (.download, preferences) }
         return (.allow, preferences)
+    }
+
+    public func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) {
+        uiHost?.tab(self, didStart: download)
+    }
+
+    public func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {
+        uiHost?.tab(self, didStart: download)
     }
 
     public func webView(_ webView: WKWebView, decidePolicyFor response: WKNavigationResponse) async -> WKNavigationResponsePolicy {
@@ -203,6 +225,9 @@ extension Tab: WKNavigationDelegate {
             let mime = response.response.mimeType ?? ""
             isJSONDocument = mime == "application/json" || mime.hasSuffix("+json")
         }
+        // Attachments and types WebKit cannot render are downloads.
+        let disposition = (response.response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Disposition") ?? ""
+        if disposition.lowercased().hasPrefix("attachment") || !response.canShowMIMEType { return .download }
         return .allow
     }
 
@@ -236,5 +261,36 @@ extension Tab: WKUIDelegate {
 
     public func webViewDidClose(_ webView: WKWebView) {
         delegate?.tabDidRequestClose(self)
+    }
+
+    private func origin(_ frame: WKFrameInfo) -> String {
+        let origin = frame.securityOrigin
+        return origin.port == 0 ? origin.host : "\(origin.host):\(origin.port)"
+    }
+
+    public func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String,
+                        initiatedByFrame frame: WKFrameInfo) async {
+        await uiHost?.tab(self, alert: message, from: origin(frame))
+    }
+
+    public func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String,
+                        initiatedByFrame frame: WKFrameInfo) async -> Bool {
+        await uiHost?.tab(self, confirm: message, from: origin(frame)) ?? false
+    }
+
+    public func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String,
+                        defaultText: String?, initiatedByFrame frame: WKFrameInfo) async -> String? {
+        await uiHost?.tab(self, prompt: prompt, defaultText: defaultText, from: origin(frame))
+    }
+
+    public func webView(_ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters,
+                        initiatedByFrame frame: WKFrameInfo) async -> [URL]? {
+        await uiHost?.tab(self, chooseFiles: parameters)
+    }
+
+    public func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin,
+                        initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType) async -> WKPermissionDecision {
+        let name = origin.port == 0 ? origin.host : "\(origin.host):\(origin.port)"
+        return await uiHost?.tab(self, allowMediaCapture: type, from: name) == true ? .grant : .deny
     }
 }

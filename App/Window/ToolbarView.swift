@@ -14,7 +14,10 @@ final class ToolbarView: NSView {
                                             pointSize: 12, action: #selector(BrowserWindowController.toggleDevPanel(_:)))
     private let errorBadge = NSTextField(labelWithString: "")
     let githubChip = GitHubChip()
-    private lazy var queueButton = IconButton(symbol: "tray", label: "Review Queue", pointSize: 12,
+    private(set) lazy var downloadsButton = IconButton(symbol: "arrow.down.circle", label: "Downloads", pointSize: 13,
+                                                  action: #selector(BrowserWindowController.showDownloads(_:)))
+    private let downloadsBadge = NSTextField(labelWithString: "")
+    private(set) lazy var queueButton = IconButton(symbol: "tray", label: "Review Queue", pointSize: 12,
                                               action: #selector(BrowserWindowController.showReviewQueue(_:)))
     private let queueBadge = NSTextField(labelWithString: "")
     private let hairline = CALayer()
@@ -37,7 +40,11 @@ final class ToolbarView: NSView {
         githubChip.target = nil
         githubChip.action = #selector(BrowserWindowController.showGitHubContext(_:))
         githubChip.isHidden = true
-        [backButton, forwardButton, reloadButton, addressField, githubChip, queueButton, queueBadge, devButton, errorBadge].forEach(addSubview)
+        downloadsBadge.font = .monospacedDigitSystemFont(ofSize: 9, weight: .semibold)
+        downloadsBadge.textColor = Theme.accent
+        downloadsButton.isHidden = true
+        [backButton, forwardButton, reloadButton, addressField, githubChip, downloadsButton, downloadsBadge,
+         queueButton, queueBadge, devButton, errorBadge].forEach(addSubview)
         setAccessibilityElement(true)
         setAccessibilityRole(.toolbar)
         observation = ObservationLoop { [weak self] in self?.sync() }
@@ -73,6 +80,13 @@ final class ToolbarView: NSView {
         queueButton.frame = NSRect(x: trailing, y: y, width: Theme.iconButtonSize, height: Theme.iconButtonSize)
         queueBadge.sizeToFit()
         queueBadge.frame.origin = NSPoint(x: queueButton.frame.maxX - 9, y: queueButton.frame.maxY - 11)
+        if !downloadsButton.isHidden {
+            trailing -= Theme.iconButtonSize + 2
+            downloadsButton.frame = NSRect(x: trailing, y: y, width: Theme.iconButtonSize, height: Theme.iconButtonSize)
+            downloadsBadge.sizeToFit()
+            downloadsBadge.frame.origin = NSPoint(x: downloadsButton.frame.maxX - 9, y: downloadsButton.frame.maxY - 11)
+        }
+        downloadsBadge.isHidden = downloadsButton.isHidden
         if !githubChip.isHidden {
             let width = min(githubChip.intrinsicContentSize.width, 280)
             trailing -= width + 6
@@ -85,6 +99,19 @@ final class ToolbarView: NSView {
         hairline.frame = NSRect(x: 0, y: 0, width: bounds.width, height: 1 / (window?.backingScaleFactor ?? 2))
         CATransaction.commit()
         layoutProgress(animated: false)
+    }
+
+    /// A brief pulse so a new download is noticed without a popup.
+    func flashDownloads() {
+        needsLayout = true
+        layoutSubtreeIfNeeded()
+        guard !Theme.reduceMotion, let layer = downloadsButton.layer else { return }
+        let pulse = CABasicAnimation(keyPath: "transform.scale")
+        pulse.fromValue = 1.25
+        pulse.toValue = 1
+        pulse.duration = 0.25
+        pulse.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        layer.add(pulse, forKey: "pulse")
     }
 
     private func sync() {
@@ -100,6 +127,9 @@ final class ToolbarView: NSView {
         let github = GitHubURL(tab?.url)
         githubChip.isHidden = github == nil
         if let github { githubChip.show(github, status: GitHubService.shared.status(for: tab?.url)) }
+        let downloads = DownloadManager.shared
+        downloadsButton.isHidden = downloads.items.isEmpty
+        downloadsBadge.stringValue = downloads.activeCount == 0 ? "" : "\(downloads.activeCount)"
         let queued = GitHubService.shared.queue.count
         queueBadge.stringValue = queued == 0 ? "" : "\(queued)"
         queueButton.toolTip = queued == 0 ? "Review Queue" : "Review Queue · \(queued) waiting"

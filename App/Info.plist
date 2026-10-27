@@ -52,6 +52,10 @@
 	<true/>
 	<key>LSMinimumSystemVersion</key>
 	<string>26.0</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Websites you allow can use your camera, for example for video calls.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Websites you allow can use your microphone, for example for calls and recordings.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>NSSupportsAutomaticTermination</key>

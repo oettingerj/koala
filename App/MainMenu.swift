@@ -73,6 +73,11 @@ enum MainMenu {
         menu.addItem(item("Reopen Closed Tab", #selector(AppDelegate.reopenClosed(_:)), "t", [.command, .shift]))
         menu.addItem(.separator())
         menu.addItem(item("Copy URL", #selector(BrowserWindowController.copyURL(_:)), "c", [.command, .shift]))
+        menu.addItem(.separator())
+        menu.addItem(item("Import Bookmarks…", #selector(BrowserWindowController.importBookmarks(_:))))
+        menu.addItem(item("Import Chrome History…", #selector(BrowserWindowController.importChromeHistory(_:))))
+        menu.addItem(.separator())
+        menu.addItem(item("Print…", #selector(BrowserWindowController.printPage(_:)), "p"))
         menu.addItem(item("Copy Link as Markdown", #selector(BrowserWindowController.copyMarkdownLink(_:)), "c", [.command, .shift, .option]))
         return menu
     }
@@ -87,6 +92,10 @@ enum MainMenu {
         menu.addItem(item("Paste", #selector(NSText.paste(_:)), "v"))
         menu.addItem(item("Paste and Match Style", #selector(NSTextView.pasteAsPlainText(_:)), "v", [.command, .option, .shift]))
         menu.addItem(item("Select All", #selector(NSText.selectAll(_:)), "a"))
+        menu.addItem(.separator())
+        menu.addItem(item("Find…", #selector(BrowserWindowController.showFindBar(_:)), "f"))
+        menu.addItem(item("Find Next", #selector(BrowserWindowController.findNext(_:)), "g"))
+        menu.addItem(item("Find Previous", #selector(BrowserWindowController.findPrevious(_:)), "g", [.command, .shift]))
         return menu
     }
 
@@ -164,6 +173,8 @@ enum MainMenu {
             let title = number == 9 ? "Show Last Tab" : "Show Tab \(number)"
             menu.addItem(item(title, #selector(BrowserWindowController.selectTabByNumber(_:)), "\(number)", tag: number))
         }
+        menu.addItem(.separator())
+        menu.addItem(item("Downloads", #selector(BrowserWindowController.showDownloads(_:)), "l", [.command, .option]))
         menu.addItem(.separator())
         menu.addItem(item("Bring All to Front", #selector(NSApplication.arrangeInFront(_:))))
         return menu
