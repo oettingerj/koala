@@ -1,7 +1,7 @@
 import AppKit
 
 /// Borderless SF Symbol button with Nano's hover and pressed fills.
-final class IconButton: NSButton {
+class IconButton: NSButton {
     private var isHovered = false { didSet { updateFill() } }
     private var tracking: NSTrackingArea?
 

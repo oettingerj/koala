@@ -36,6 +36,8 @@ enum DebugCommands {
         case "peek":
             let controller = window?.windowController as? BrowserWindowController
             if let url = URL(string: argument), let tab = controller?.tabs.selected { controller?.tab(tab, peek: url) }
+        case "install-extension":
+            Task { await ExtensionsHost.shared.installFromWebStore(argument) }
         case "resize":
             let size = argument.split(separator: "x").compactMap { Double($0) }
             if size.count == 2 { window?.setContentSize(NSSize(width: size[0], height: size[1])) }

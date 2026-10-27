@@ -17,6 +17,7 @@ final class ToolbarView: NSView {
     private(set) lazy var downloadsButton = IconButton(symbol: "arrow.down.circle", label: "Downloads", pointSize: 13,
                                                   action: #selector(BrowserWindowController.showDownloads(_:)))
     private let downloadsBadge = NSTextField(labelWithString: "")
+    private(set) var extensionButtons: [ExtensionButton] = []
     private(set) lazy var queueButton = IconButton(symbol: "tray", label: "Review Queue", pointSize: 12,
                                               action: #selector(BrowserWindowController.showReviewQueue(_:)))
     private let queueBadge = NSTextField(labelWithString: "")
@@ -80,6 +81,10 @@ final class ToolbarView: NSView {
         queueButton.frame = NSRect(x: trailing, y: y, width: Theme.iconButtonSize, height: Theme.iconButtonSize)
         queueBadge.sizeToFit()
         queueBadge.frame.origin = NSPoint(x: queueButton.frame.maxX - 9, y: queueButton.frame.maxY - 11)
+        for button in extensionButtons.reversed() {
+            trailing -= Theme.iconButtonSize + 2
+            button.frame = NSRect(x: trailing, y: y, width: Theme.iconButtonSize, height: Theme.iconButtonSize)
+        }
         if !downloadsButton.isHidden {
             trailing -= Theme.iconButtonSize + 2
             downloadsButton.frame = NSRect(x: trailing, y: y, width: Theme.iconButtonSize, height: Theme.iconButtonSize)
@@ -99,6 +104,18 @@ final class ToolbarView: NSView {
         hairline.frame = NSRect(x: 0, y: 0, width: bounds.width, height: 1 / (window?.backingScaleFactor ?? 2))
         CATransaction.commit()
         layoutProgress(animated: false)
+    }
+
+    private func syncExtensionButtons(for tab: Tab?) {
+        let host = ExtensionsHost.shared
+        _ = host.actionsVersion
+        let ids = host.contexts.map(\.id)
+        if extensionButtons.map(\.extensionID) != ids {
+            extensionButtons.forEach { $0.removeFromSuperview() }
+            extensionButtons = ids.map(ExtensionButton.init)
+            extensionButtons.forEach { addSubview($0) }
+        }
+        extensionButtons.forEach { $0.update(for: tab) }
     }
 
     /// A brief pulse so a new download is noticed without a popup.
@@ -127,6 +144,7 @@ final class ToolbarView: NSView {
         let github = GitHubURL(tab?.url)
         githubChip.isHidden = github == nil
         if let github { githubChip.show(github, status: GitHubService.shared.status(for: tab?.url)) }
+        syncExtensionButtons(for: tab)
         let downloads = DownloadManager.shared
         downloadsButton.isHidden = downloads.items.isEmpty
         downloadsBadge.stringValue = downloads.activeCount == 0 ? "" : "\(downloads.activeCount)"

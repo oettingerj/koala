@@ -1,9 +1,12 @@
 import AppKit
 import BrowserKit
+import os
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var windows: [BrowserWindowController] = []
+    /// Links opened before launch finished (extensions still loading).
+    private var pendingURLs: [URL] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = MainMenu.build()
@@ -12,6 +15,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #endif
         let services = AppServices.shared
         Preferences.apply()
+        // Extensions attach to the shared web view configuration, so they load before any page.
+        ExtensionsHost.shared.anchorForAction = { context in
+            let controller = (NSApp.keyWindow?.windowController as? BrowserWindowController)
+                ?? NSApp.orderedWindows.lazy.compactMap { $0.windowController as? BrowserWindowController }.first
+            let id = ExtensionsHost.shared.contexts.first { $0.context === context }?.id
+            return controller?.extensionButton(for: id) ?? controller?.window?.contentView
+        }
         _ = GitHubService.shared
         services.windowSnapshots = { [weak self] in
             // Front-to-back order so the frontmost window restores on top.
@@ -19,13 +29,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let rest = (self?.windows ?? []).filter { controller in !ordered.contains { $0 === controller } }
             return (ordered + rest).reversed().map(\.snapshot)
         }
-        if windows.isEmpty {
+        Task {
+            let start = ContinuousClock.now
+            await ExtensionsHost.shared.start()
+            Logger(subsystem: "com.joshoettinger.nano", category: "launch")
+                .info("Extensions ready in \(ContinuousClock.now - start, privacy: .public)")
+            guard windows.isEmpty else { return }
             let restored = services.loadSession()?.windows.filter { !$0.tabs.isEmpty } ?? []
             if restored.isEmpty {
                 newWindow(nil)
             } else {
                 for snapshot in restored { openWindow(snapshot: snapshot) }
             }
+            for url in pendingURLs { open(url) }
+            pendingURLs = []
         }
     }
 
@@ -60,7 +77,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if !flag { newWindow(nil) }
+        if !flag, ExtensionsHost.shared.isReady { newWindow(nil) }
         return true
     }
 
@@ -68,13 +85,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Links opened from other apps land in a new tab of the frontmost window.
     func application(_ application: NSApplication, open urls: [URL]) {
-        for url in urls {
-            if let controller = frontmostController {
-                controller.open(url)
-                controller.window?.makeKeyAndOrderFront(nil)
-            } else {
-                openWindow(url: url)
-            }
+        guard ExtensionsHost.shared.isReady else {
+            pendingURLs.append(contentsOf: urls)
+            return
+        }
+        for url in urls { open(url) }
+        NSApp.activate()
+    }
+
+    private func open(_ url: URL) {
+        if let controller = frontmostController {
+            controller.open(url)
+            controller.window?.makeKeyAndOrderFront(nil)
+        } else {
+            openWindow(url: url)
         }
         NSApp.activate()
     }
@@ -116,7 +140,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let controller = frontmostController { controller.open(url) } else { openWindow(url: url) }
     }
 
-    private func openWindow(url: URL? = nil, snapshot: WindowSnapshot? = nil) {
+    /// A window with these pages, for extensions' windows.create.
+    func openWindow(urls: [URL]) -> BrowserWindowController {
+        let tabs = urls.map { TabSnapshot(id: UUID(), url: $0, title: "", isPinned: false, openerID: nil, interactionState: nil) }
+        return openWindow(snapshot: tabs.isEmpty ? nil : WindowSnapshot(frame: nil, tabs: tabs, selectedIndex: 0))
+    }
+
+    @discardableResult
+    private func openWindow(url: URL? = nil, snapshot: WindowSnapshot? = nil) -> BrowserWindowController {
         let controller = BrowserWindowController(initialURL: url, snapshot: snapshot)
         controller.onClose = { [weak self] closed in self?.windows.removeAll { $0 === closed } }
         if snapshot?.frame == nil, let previous = NSApp.keyWindow, previous.windowController is BrowserWindowController {
@@ -125,5 +156,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windows.append(controller)
         controller.showWindow(nil)
         if snapshot != nil || url != nil { controller.focusPage() }
+        ExtensionsHost.shared.didOpen(controller)
+        return controller
     }
 }

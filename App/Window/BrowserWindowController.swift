@@ -10,6 +10,22 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     private var sessionObservation: ObservationLoop?
     private var bookmarkObservation: ObservationLoop?
     private var mediaDecisions: [String: Bool] = [:]
+    private var extensionObservation: ObservationLoop?
+    private var reportedTabs: [UUID: Tab] = [:]
+    private weak var reportedActive: Tab?
+
+    /// Tells loaded extensions which tabs opened, closed, or became active.
+    private func reportTabChangesToExtensions() {
+        let host = ExtensionsHost.shared
+        let current = Dictionary(uniqueKeysWithValues: tabs.tabs.map { ($0.id, $0) })
+        for (id, tab) in current where reportedTabs[id] == nil { host.didOpen(tab) }
+        for (id, tab) in reportedTabs where current[id] == nil { host.didClose(tab, windowIsClosing: false) }
+        reportedTabs = current
+        if let selected = tabs.selected, selected !== reportedActive {
+            host.didActivate(selected, previous: reportedActive)
+            reportedActive = selected
+        }
+    }
     private lazy var commandBar: CommandBar = {
         let bar = CommandBar(engine: services.suggestions)
         bar.onActivate = { [weak self] row, _ in self?.activate(row, inNewTab: true) }
@@ -87,6 +103,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         selectionObservation = ObservationLoop { [weak self] in self?.showSelectedTab() }
         sessionObservation = ObservationLoop { [weak self] in self?.observeSessionState() }
         bookmarkObservation = ObservationLoop { [weak self] in self?.updateBookmarkStar() }
+        extensionObservation = ObservationLoop { [weak self] in self?.reportTabChangesToExtensions() }
         rootView.devPanelModel.perform = { [weak self] action in self?.perform(action) }
         rootView.peek.onOpenInTab = { [weak self] webView in self?.openPeekInTab(webView) }
         rootView.peek.onOpenInSplit = { [weak self] webView in self?.openPeekInSplit(webView) }
@@ -211,6 +228,10 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     }
 
     // MARK: Downloads, find, zoom, import
+
+    func extensionButton(for id: String?) -> NSView? {
+        rootView.toolbar.extensionButtons.first { $0.extensionID == id }
+    }
 
     @objc func showDownloads(_ sender: Any?) {
         let view = DownloadsPopover(manager: .shared) { [weak self] item in
@@ -784,6 +805,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     // MARK: Window
 
     func windowWillEnterFullScreen(_ notification: Notification) { rootView.isFullScreen = true }
+    func windowDidBecomeKey(_ notification: Notification) { ExtensionsHost.shared.didFocus(self) }
     func windowWillExitFullScreen(_ notification: Notification) { rootView.isFullScreen = false }
 
     func windowWillClose(_ notification: Notification) {
@@ -794,7 +816,12 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
                 services.remember(.window(snapshot))
             }
         }
-        for tab in tabs.tabs { tab.stop() }
+        for tab in tabs.tabs {
+            tab.stop()
+            ExtensionsHost.shared.didClose(tab, windowIsClosing: true)
+        }
+        ExtensionsHost.shared.didClose(self)
+        extensionObservation?.cancel()
         selectionObservation?.cancel()
         sessionObservation?.cancel()
         bookmarkObservation?.cancel()
@@ -915,6 +942,7 @@ extension BrowserWindowController: TabDelegate {
         guard let url = tab.url else { return }
         if let host = DisplayURL(url)?.host { services.suggestions.noteVisit(host: host) }
         if GitHubURL(url)?.number != nil { github.refreshSoon() }
+        ExtensionsHost.shared.didChange([.URL, .loading], for: tab)
         let typed = tab.nextNavigationIsTyped
         let title = tab.title
         Task { try? await services.history.recordVisit(url: url, title: title, typed: typed) }
@@ -922,6 +950,7 @@ extension BrowserWindowController: TabDelegate {
 
     func tabDidFinishNavigation(_ tab: Tab) {
         services.refreshFavicon(for: tab)
+        ExtensionsHost.shared.didChange([.title, .loading], for: tab)
         if tab.isJSONDocument {
             tab.webView?.evaluateJavaScript(PageTools.jsonViewer, in: nil, in: DevToolsScripts.world) { _ in }
         }

@@ -64,6 +64,7 @@ struct SettingsView: View {
             GeneralSettings().tabItem { Label("General", systemImage: "gearshape") }
             GitHubSettings().tabItem { Label("GitHub", systemImage: "arrow.triangle.pull") }
             KeywordSettings().tabItem { Label("Search Keywords", systemImage: "magnifyingglass") }
+            ExtensionSettings().tabItem { Label("Extensions", systemImage: "puzzlepiece.extension") }
         }
         .frame(width: 560)
         .tint(Color(nsColor: Theme.accent))
@@ -192,5 +193,63 @@ private struct KeywordSettings: View {
             // Keep only well-formed entries: a single-word keyword and a template with %s.
             Preferences.keywordSearches = value.filter { !$0.keyword.isEmpty && !$0.keyword.contains(" ") && $0.template.contains("%s") }
         }
+    }
+}
+
+private struct ExtensionSettings: View {
+    @Bindable private var host = ExtensionsHost.shared
+    @State private var storeLink = ""
+    @State private var isInstalling = false
+
+    var body: some View {
+        Form {
+            Section {
+                if host.installed.isEmpty {
+                    Text("No extensions yet. Nano runs Safari-compatible web extensions, including most Manifest V3 Chrome extensions.")
+                        .font(.callout).foregroundStyle(.secondary)
+                }
+                ForEach(host.installed) { item in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.name)
+                            Text(item.version).font(.caption.monospaced()).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Toggle("Enabled", isOn: Binding(get: { item.isEnabled }, set: { host.setEnabled($0, for: item) }))
+                            .labelsHidden().toggleStyle(.switch).controlSize(.small)
+                        Button("Remove", role: .destructive) { host.remove(item) }.controlSize(.small)
+                    }
+                }
+            }
+            Section("Add") {
+                HStack {
+                    TextField("Chrome Web Store link or extension ID", text: $storeLink)
+                    Button("Install") {
+                        isInstalling = true
+                        Task {
+                            await host.installFromWebStore(storeLink)
+                            isInstalling = false
+                            if host.lastError == nil { storeLink = "" }
+                        }
+                    }
+                    .disabled(storeLink.isEmpty || isInstalling)
+                }
+                Button("Add from Folder, ZIP, or CRX…") {
+                    let panel = NSOpenPanel()
+                    panel.canChooseDirectories = true
+                    panel.canChooseFiles = true
+                    panel.allowedContentTypes = [.zip, .folder, .data]
+                    panel.prompt = "Add"
+                    if panel.runModal() == .OK, let url = panel.url {
+                        Task { await host.install(from: url) }
+                    }
+                }
+                if isInstalling { ProgressView().controlSize(.small) }
+                if let error = host.lastError {
+                    Text(error).font(.caption).foregroundStyle(Color(nsColor: Theme.fail))
+                }
+            }
+        }
+        .formStyle(.grouped)
     }
 }
