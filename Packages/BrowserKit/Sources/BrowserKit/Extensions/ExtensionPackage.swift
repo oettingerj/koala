@@ -71,14 +71,17 @@ public struct InstalledExtension: Codable, Equatable, Identifiable, Sendable {
     public var name: String
     public var version: String
     /// File name inside the extensions folder: a directory (a .zip from before bundles were unpacked).
+    /// Empty for Safari extensions, whose files stay in their app.
     public var bundleName: String
     public var isEnabled: Bool
     public var installedAt: Date
     /// The ID the extension has in Chrome, when known. Native messaging hosts allow extensions by it.
     public var chromeID: String?
+    /// The bundle identifier of the Safari app extension this loads from, for extensions that come with an app.
+    public var safariID: String?
 
     public init(id: String, name: String, version: String, bundleName: String, isEnabled: Bool = true,
-                installedAt: Date = Date(), chromeID: String? = nil) {
+                installedAt: Date = Date(), chromeID: String? = nil, safariID: String? = nil) {
         self.id = id
         self.name = name
         self.version = version
@@ -86,6 +89,7 @@ public struct InstalledExtension: Codable, Equatable, Identifiable, Sendable {
         self.isEnabled = isEnabled
         self.installedAt = installedAt
         self.chromeID = chromeID
+        self.safariID = safariID
     }
 }
 
@@ -156,6 +160,8 @@ public struct ExtensionStore: Sendable {
     /// Readies a bundle to load: unpacks a ZIP left by an older version, refreshes the compatibility
     /// script, and fills in the Chrome ID. Returns the item as it should be saved.
     public func prepare(_ item: InstalledExtension) async throws -> InstalledExtension {
+        // Safari extensions are signed parts of their app; Nano never changes them.
+        guard item.safariID == nil else { return item }
         var item = item
         if item.bundleName.hasSuffix(".zip") {
             let name = try await unpack(archiveAt: bundleURL(for: item))
@@ -170,7 +176,7 @@ public struct ExtensionStore: Sendable {
 
     public func removeBundle(named name: String) {
         // Only ever delete inside the store.
-        guard !name.contains("/"), !name.hasPrefix(".") else { return }
+        guard !name.isEmpty, !name.contains("/"), !name.hasPrefix(".") else { return }
         try? FileManager.default.removeItem(at: directory.appendingPathComponent(name))
     }
 }

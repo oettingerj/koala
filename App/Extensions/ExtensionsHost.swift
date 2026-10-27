@@ -23,6 +23,8 @@ final class ExtensionsHost: NSObject {
     private(set) var isInstalling = false
     /// Enabled extensions have loaded; pages may load.
     private(set) var isReady = false
+    /// Safari extensions in installed apps, added or not.
+    private(set) var safariExtensions: [SafariExtensions.Found] = []
 
     @ObservationIgnored let controller: WKWebExtensionController
     @ObservationIgnored private let store: ExtensionStore?
@@ -45,6 +47,7 @@ final class ExtensionsHost: NSObject {
     /// Loads every enabled extension. Pages must not load before this returns, or content
     /// blockers miss the first page.
     func start() async {
+        refreshSafariExtensions()
         guard let store else { return isReady = true }
         let saved = store.load()
         var items: [InstalledExtension] = []
@@ -97,6 +100,28 @@ final class ExtensionsHost: NSObject {
         } catch {
             fail("Couldn’t download that extension: \(error.localizedDescription)")
             return false
+        }
+    }
+
+    func refreshSafariExtensions() {
+        safariExtensions = SafariExtensions.find(in: SafariExtensions.appFolders(home: FileManager.default.homeDirectoryForCurrentUser))
+    }
+
+    /// Adds a Safari extension from its app. Its files stay in the app, so removing it deletes nothing.
+    func addSafariExtension(_ found: SafariExtensions.Found) async {
+        guard let store, !found.usesNativeMessaging, !installed.contains(where: { $0.safariID == found.id }), beginInstall() else { return }
+        defer { isInstalling = false }
+        do {
+            guard let bundle = Bundle(url: found.url) else { throw SafariExtensionMissing() }
+            let webExtension = try await WKWebExtension(appExtensionBundle: bundle)
+            guard await confirmInstall(webExtension) else { return }
+            let item = InstalledExtension(id: UUID().uuidString, name: webExtension.displayName ?? found.appName,
+                                          version: webExtension.version ?? "", bundleName: "", safariID: found.id)
+            installed.append(item)
+            try store.save(installed)
+            await load(item, extension: webExtension)
+        } catch {
+            fail("Couldn’t add that extension: \(error.localizedDescription)")
         }
     }
 
@@ -158,6 +183,11 @@ final class ExtensionsHost: NSObject {
             let webExtension: WKWebExtension
             if let provided {
                 webExtension = provided
+            } else if let safariID = item.safariID {
+                guard let found = safariExtensions.first(where: { $0.id == safariID }), let bundle = Bundle(url: found.url) else {
+                    throw SafariExtensionMissing()
+                }
+                webExtension = try await WKWebExtension(appExtensionBundle: bundle)
             } else {
                 webExtension = try await WKWebExtension(resourceBaseURL: store.bundleURL(for: item))
             }
@@ -267,6 +297,11 @@ final class ExtensionsHost: NSObject {
         log.info("Launching native host \(name, privacy: .public) for \(chromeID, privacy: .public)")
         return try NativeMessagingConnection(host: host, chromeID: chromeID)
     }
+}
+
+/// A Safari extension whose app was deleted or moved out of the Applications folders.
+private struct SafariExtensionMissing: LocalizedError {
+    var errorDescription: String? { "Its app isn’t in the Applications folder." }
 }
 
 extension ExtensionsHost: WKWebExtensionControllerDelegate {

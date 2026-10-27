@@ -202,6 +202,9 @@ private struct ExtensionSettings: View {
     @State private var removing: InstalledExtension?
 
     private var storeID: String? { ExtensionPackage.webStoreID(from: storeLink) }
+    private var safariToAdd: [SafariExtensions.Found] {
+        host.safariExtensions.filter { found in !host.installed.contains { $0.safariID == found.id } }
+    }
 
     var body: some View {
         Form {
@@ -222,6 +225,29 @@ private struct ExtensionSettings: View {
             } footer: {
                 Text("Nano runs Safari-compatible web extensions, including most Manifest V3 Chrome extensions.")
                     .font(.caption).foregroundStyle(.secondary)
+            }
+            if !safariToAdd.isEmpty {
+                Section {
+                    ForEach(safariToAdd) { found in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(found.appName)
+                                if found.usesNativeMessaging {
+                                    Text("Needs to talk to its app, which Nano can’t do yet.")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                            Spacer()
+                            Button("Add") { Task { await host.addSafariExtension(found) } }
+                                .disabled(found.usesNativeMessaging || host.isInstalling)
+                        }
+                    }
+                } header: {
+                    Text("Safari Extensions")
+                } footer: {
+                    Text("Extensions that come with apps you’ve installed. They load from the app and update with it.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
             Section("Add") {
                 HStack {
@@ -253,12 +279,13 @@ private struct ExtensionSettings: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear { host.refreshSafariExtensions() }
         .confirmationDialog("Remove “\(removing?.name ?? "")”?",
                             isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }),
                             presenting: removing) { item in
             Button("Remove", role: .destructive) { host.remove(item) }
-        } message: { _ in
-            Text("Nano deletes its files. You can add it again later.")
+        } message: { item in
+            Text(item.safariID == nil ? "Nano deletes its files. You can add it again later." : "Its app stays installed. You can add it again later.")
         }
     }
 
