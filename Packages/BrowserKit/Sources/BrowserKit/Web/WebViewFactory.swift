@@ -18,8 +18,27 @@ public enum WebViewFactory {
         }
         config.applicationNameForUserAgent = "Version/26.0 Safari/605.1.15"
         DevToolsScripts.install(on: config.userContentController, handler: DevToolsRouter.shared)
+        config.userContentController.addUserScript(WKUserScript(source: scrollbarStyle, injectionTime: .atDocumentStart,
+                                                                forMainFrameOnly: false, in: .defaultClient))
         return config
     }()
+
+    /// Light, thin scrollbars that darken on hover. In a cascade layer so any scrollbar styles the
+    /// page sets win; a constructed stylesheet because strict CSP blocks `<style>` elements.
+    static let scrollbarStyle = """
+    (() => {
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync(`@layer nano-default {
+        ::-webkit-scrollbar { width: 10px; height: 10px; background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgb(128 128 128 / 0.3); background-clip: padding-box;
+          border: 2px solid transparent; border-radius: 5px; }
+        ::-webkit-scrollbar-thumb:hover { background-color: rgb(128 128 128 / 0.55); }
+        ::-webkit-scrollbar-thumb:active { background-color: rgb(128 128 128 / 0.7); }
+        ::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+      }`);
+      document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+    })();
+    """
 
     /// The configuration a web extension's own pages need, for URLs inside that extension. Set by the app.
     public static var extensionConfiguration: ((URL) -> WKWebViewConfiguration?)?
