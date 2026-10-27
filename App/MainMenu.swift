@@ -61,6 +61,7 @@ enum MainMenu {
     private static func fileMenu() -> NSMenu {
         let menu = NSMenu(title: "File")
         menu.addItem(item("New Tab", #selector(BrowserWindowController.newTab(_:)), "t"))
+        menu.addItem(item("New Blank Tab", #selector(BrowserWindowController.newBlankTab(_:)), "t", [.command, .option]))
         menu.addItem(item("New Window", #selector(AppDelegate.newWindow(_:)), "n"))
         menu.addItem(.separator())
         menu.addItem(item("Open Location…", #selector(BrowserWindowController.openLocation(_:)), "l"))
@@ -70,6 +71,7 @@ enum MainMenu {
         menu.addItem(item("Reopen Closed Tab", #selector(AppDelegate.reopenClosed(_:)), "t", [.command, .shift]))
         menu.addItem(.separator())
         menu.addItem(item("Copy URL", #selector(BrowserWindowController.copyURL(_:)), "c", [.command, .shift]))
+        menu.addItem(item("Copy Link as Markdown", #selector(BrowserWindowController.copyMarkdownLink(_:)), "c", [.command, .shift, .option]))
         return menu
     }
 

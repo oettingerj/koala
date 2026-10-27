@@ -9,6 +9,16 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     private var selectionObservation: ObservationLoop?
     private var sessionObservation: ObservationLoop?
     private var bookmarkObservation: ObservationLoop?
+    private lazy var commandBar: CommandBar = {
+        let bar = CommandBar(engine: services.suggestions)
+        bar.onActivate = { [weak self] row, _ in self?.activate(row, inNewTab: true) }
+        return bar
+    }()
+    private lazy var addressDropdown: AddressDropdown = {
+        let dropdown = AddressDropdown(engine: services.suggestions)
+        dropdown.onActivate = { [weak self] row, newTab in self?.activate(row, inNewTab: newTab) }
+        return dropdown
+    }()
     private var services: AppServices { .shared }
     var onClose: ((BrowserWindowController) -> Void)?
 
@@ -47,6 +57,14 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         rootView.toolbar.addressField.onSubmit = { [weak self] text in self?.navigate(to: text) }
         rootView.toolbar.addressField.onCancel = { [weak self] in self?.focusPage() }
         rootView.toolbar.addressField.onToggleBookmark = { [weak self] in self?.toggleBookmark(nil) }
+        let field = rootView.toolbar.addressField
+        field.onTextChange = { [weak self, weak field] text in
+            guard let self, let field else { return }
+            addressDropdown.update(query: text, anchor: field)
+        }
+        field.onMoveSelection = { [weak self] step in self?.addressDropdown.moveSelection(by: step) ?? false }
+        field.onSubmitSelection = { [weak self] newTab in self?.addressDropdown.activateSelected(newTab: newTab) ?? false }
+        field.onEndEditing = { [weak self] in self?.addressDropdown.hide() }
         rootView.bookmarksBar.onOpen = { [weak self] url, newTab in self?.openBookmark(url, newTab: newTab) }
 
         if let snapshot, !snapshot.tabs.isEmpty {
@@ -249,9 +267,53 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         if let tab = tabs.selected { duplicate(tab) }
     }
 
+    /// ⌘T opens the command bar; picking a page opens it in a new tab.
     @objc func newTab(_ sender: Any?) {
+        guard let window else { return }
+        if commandBar.isVisible { return commandBar.hide() }
+        services.commands = MenuCommands.collect()
+        commandBar.show(over: window, chromeHeight: rootView.chromeHeight)
+    }
+
+    /// A blank tab, for when a page should start empty (also the strip's + button with ⌥).
+    @objc func newBlankTab(_ sender: Any?) {
         openTab(url: nil, select: true)
         focusAddressField()
+    }
+
+    func activate(_ row: Suggestion, inNewTab: Bool) {
+        switch row.action {
+        case .open(let url):
+            let typed = row.kind == .navigate || row.kind == .search || row.kind == .keyword
+            if inNewTab, !(tabs.selected.map { $0.url == nil && !$0.canGoBack } ?? false) {
+                let tab = openTab(url: nil, select: true)
+                tab.nextNavigationIsTyped = typed
+                tab.load(url)
+            } else {
+                let tab = tabs.selected ?? openTab(url: nil, select: true)
+                tab.nextNavigationIsTyped = typed
+                tab.load(url)
+            }
+            focusPage()
+        case .switchToTab(let id):
+            for controller in NSApp.orderedWindows.compactMap({ $0.windowController as? BrowserWindowController }) {
+                guard let tab = controller.tabs.tabs.first(where: { $0.id == id }) else { continue }
+                controller.tabs.select(tab)
+                controller.window?.makeKeyAndOrderFront(nil)
+                controller.focusPage()
+                return
+            }
+        case .command(let selector):
+            NSApp.sendAction(NSSelectorFromString(selector), to: nil, from: self)
+        }
+    }
+
+    @objc func copyMarkdownLink(_ sender: Any?) {
+        guard let tab = tabs.selected, let url = tab.url else { return }
+        let title = tab.displayTitle.replacingOccurrences(of: "]", with: "\\]").replacingOccurrences(of: "[", with: "\\[")
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString("[\(title)](\(url.absoluteString))", forType: .string)
     }
 
     @objc func closeTab(_ sender: Any?) {
@@ -346,6 +408,7 @@ extension BrowserWindowController: TabDelegate {
     func tabDidCommitNavigation(_ tab: Tab) {
         services.applyCachedFavicon(to: tab)
         guard let url = tab.url else { return }
+        if let host = DisplayURL(url)?.host { services.suggestions.noteVisit(host: host) }
         let typed = tab.nextNavigationIsTyped
         let title = tab.title
         Task { try? await services.history.recordVisit(url: url, title: title, typed: typed) }
@@ -409,6 +472,9 @@ final class BrowserRootView: NSView {
         content.frame = NSRect(x: 0, y: 0, width: bounds.width, height: contentTop)
         current?.frame = content.bounds
     }
+
+    /// Height of everything above the page.
+    var chromeHeight: CGFloat { bounds.height - content.frame.maxY }
 
     func show(_ webView: WKWebView) {
         guard current !== webView else { return }

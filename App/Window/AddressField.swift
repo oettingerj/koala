@@ -15,6 +15,11 @@ final class AddressField: NSView {
     var onToggleBookmark: (() -> Void)?
 
     var onSubmit: ((String) -> Void)?
+    /// Typing, ↑/↓, and ↩ are offered to the suggestions dropdown first.
+    var onTextChange: ((String) -> Void)?
+    var onMoveSelection: ((Int) -> Bool)?
+    var onSubmitSelection: ((_ newTab: Bool) -> Bool)?
+    var onEndEditing: (() -> Void)?
     var onCancel: (() -> Void)?
 
     private var url: URL?
@@ -130,9 +135,15 @@ extension AddressField: NSTextFieldDelegate {
         switch selector {
         case #selector(NSResponder.insertNewline(_:)):
             let text = field.stringValue
+            let newTab = NSApp.currentEvent?.modifierFlags.contains(.command) ?? false
+            let handled = onSubmitSelection?(newTab) == true
             window?.makeFirstResponder(nil)
-            onSubmit?(text)
+            if !handled { onSubmit?(text) }
             return true
+        case #selector(NSResponder.moveUp(_:)):
+            return onMoveSelection?(-1) ?? false
+        case #selector(NSResponder.moveDown(_:)):
+            return onMoveSelection?(1) ?? false
         case #selector(NSResponder.cancelOperation(_:)):
             window?.makeFirstResponder(nil)
             onCancel?()
@@ -142,8 +153,13 @@ extension AddressField: NSTextFieldDelegate {
         }
     }
 
+    func controlTextDidChange(_ obj: Notification) {
+        onTextChange?(field.stringValue)
+    }
+
     func controlTextDidEndEditing(_ obj: Notification) {
         endEditing()
+        onEndEditing?()
     }
 }
 

@@ -14,6 +14,9 @@ final class AppServices {
     @ObservationIgnored let favicons: FaviconStore
     @ObservationIgnored let bookmarks: BookmarkLibrary
     @ObservationIgnored let sessionStore: SessionStore?
+    @ObservationIgnored let suggestions: SuggestionEngine
+    /// Menu commands snapshot, refreshed whenever a command bar opens.
+    @ObservationIgnored var commands: [SuggestionEngine.CommandInfo] = []
 
     /// Most recent last. Backs ⇧⌘T and History › Recently Closed.
     private(set) var recentlyClosed: [ClosedItem] = []
@@ -37,6 +40,14 @@ final class AppServices {
         favicons = FaviconStore(database: database)
         bookmarks = BookmarkLibrary(database: database)
         sessionStore = try? SessionStore.defaultStore()
+        suggestions = SuggestionEngine(bookmarks: bookmarks, history: history, database: database)
+        suggestions.tabs = {
+            NSApp.orderedWindows.compactMap { $0.windowController as? BrowserWindowController }
+                .flatMap { $0.tabs.tabs }
+                .map { SuggestionEngine.TabInfo(id: $0.id, title: $0.displayTitle, url: $0.url) }
+        }
+        suggestions.commands = { [unowned self] in commands }
+        Task { await suggestions.reloadHostIndex() }
     }
 
     // MARK: Session
