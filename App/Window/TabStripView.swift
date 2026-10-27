@@ -10,8 +10,8 @@ final class TabStripView: NSView {
     private var observation: ObservationLoop?
 
     private lazy var newTabButton = IconButton(symbol: "plus", label: "New Tab", action: #selector(BrowserWindowController.newTab(_:)))
-    private let leadingGuide = NSTextField(labelWithString: "")
-    private let trailingGuide = NSTextField(labelWithString: "")
+    private let leadingGuide = GuideButton(edge: .leading)
+    private let trailingGuide = GuideButton(edge: .trailing)
 
     /// Horizontal scroll offset when tabs overflow at minimum width.
     private var scrollOffset: CGFloat = 0
@@ -29,12 +29,9 @@ final class TabStripView: NSView {
         wantsLayer = true
         addSubview(newTabButton)
         for guide in [leadingGuide, trailingGuide] {
-            guide.font = .systemFont(ofSize: 11)
-            guide.textColor = Theme.textTertiary
-            guide.lineBreakMode = .byTruncatingTail
             guide.isHidden = true
-            guide.drawsBackground = true
-            guide.backgroundColor = Theme.stripGround
+            guide.target = self
+            guide.action = #selector(revealGuidedTab(_:))
             addSubview(guide)
         }
         setAccessibilityElement(true)
@@ -148,6 +145,22 @@ final class TabStripView: NSView {
                                     width: Theme.iconButtonSize, height: Theme.iconButtonSize)
         let visible = layoutGuideWords(area: area)
         clipTabs(to: visible, skipping: pinned)
+        closeLeadingGap(after: visible, skipping: pinned)
+    }
+
+    /// At the end of the scroll range the tabs align to the trailing edge, which can leave a
+    /// gap after the leading guide once a cut tab is hidden. Slide the visible tabs left to the
+    /// guide so any slack sits past the last tab instead.
+    private func closeLeadingGap(after visible: NSRect, skipping pinned: Int) {
+        guard !leadingGuide.isHidden, drag == nil,
+              let first = order.dropFirst(pinned).first(where: { !$0.isHidden }) else { return }
+        let gap = first.frame.minX - visible.minX
+        guard gap > 0.5 else { return }
+        for item in order.dropFirst(pinned) where !item.isHidden {
+            item.frame.origin.x -= gap
+        }
+        let lastMaxX = order.last(where: { !$0.isHidden })?.frame.maxX ?? newTabButton.frame.minX
+        newTabButton.frame.origin.x = min(lastMaxX + 6, bounds.width - Theme.iconButtonSize - 8)
     }
 
     private static let guideWidth: CGFloat = 132
@@ -167,23 +180,38 @@ final class TabStripView: NSView {
         }
         let hiddenLeading = scrolling.filter { $0.frame.midX < visible.minX }
         let hiddenTrailing = scrolling.filter { $0.frame.midX > visible.maxX }
-        let y = TabItemView.bodyHeight / 2 - 7
-        configureGuide(leadingGuide, hidden: hiddenLeading.reversed(), alignment: .left,
-                       frame: NSRect(x: area.minX + 4, y: y, width: Self.guideWidth - 12, height: 14))
-        configureGuide(trailingGuide, hidden: hiddenTrailing, alignment: .right,
-                       frame: NSRect(x: area.maxX - Self.guideWidth + 8, y: y, width: Self.guideWidth - 12, height: 14))
+        // Each guide hugs the visible tabs; any slack sits at the strip's outer edge.
+        let maxWidth = Self.guideWidth - 8
+        configureGuide(leadingGuide, hidden: hiddenLeading.reversed(), maxWidth: maxWidth) { width in
+            NSRect(x: visible.minX - 4 - width, y: (TabItemView.bodyHeight - 22) / 2, width: width, height: 22)
+        }
+        configureGuide(trailingGuide, hidden: hiddenTrailing, maxWidth: maxWidth) { width in
+            NSRect(x: visible.maxX + 4, y: (TabItemView.bodyHeight - 22) / 2, width: width, height: 22)
+        }
         return visible
     }
 
-    private func configureGuide(_ guide: NSTextField, hidden: [TabItemView], alignment: NSTextAlignment, frame: NSRect) {
+    private func configureGuide(_ guide: GuideButton, hidden: [TabItemView], maxWidth: CGFloat, frame: (CGFloat) -> NSRect) {
         guard let nearest = hidden.first else { guide.isHidden = true; return }
         guide.isHidden = false
-        guide.alignment = alignment
-        let arrow = alignment == .left ? "‹" : "›"
-        let text = hidden.count == 1 ? nearest.tab.displayTitle : "\(hidden.count) · \(nearest.tab.displayTitle)"
-        guide.stringValue = alignment == .left ? "\(arrow) \(text)" : "\(text) \(arrow)"
-        guide.toolTip = "\(hidden.count) more tabs"
-        guide.frame = frame
+        guide.show(count: hidden.count, nearest: nearest.tab)
+        guide.frame = frame(min(maxWidth, guide.intrinsicContentSize.width))
+    }
+
+    /// Clicking a guide scrolls the tab it names into view.
+    @objc private func revealGuidedTab(_ sender: GuideButton) {
+        guard let tab = sender.nearestTab, let index = order.firstIndex(where: { $0.tab === tab }), index >= pinnedCount else { return }
+        let step = tabWidth + Theme.tabSpacing
+        let position = CGFloat(index - pinnedCount)
+        let fits = max(1, ((scrollArea.width - 2 * Self.guideWidth + Theme.tabSpacing) / step).rounded(.down))
+        let first = sender.edge == .leading ? position : position - fits + 1
+        scrollOffset = first <= 0 ? 0 : min(maxScroll, first * step - Self.guideWidth)
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = Theme.reduceMotion ? 0 : Theme.panelDuration
+            context.allowsImplicitAnimation = true
+            needsLayout = true
+            layoutSubtreeIfNeeded()
+        }
     }
 
     /// Tabs cut by an edge are hidden rather than clipped, so the strip never shows a sliver.
@@ -281,5 +309,48 @@ extension TabStripView: TabItemViewDelegate {
     func tabItemDidRequestClose(_ item: TabItemView) {
         drag = nil
         onClose?(item.tab)
+    }
+}
+
+/// An overflow edge: a drawn chevron, how many tabs are hidden that way (mono), and the
+/// nearest one's title. Clicking reveals that tab.
+final class GuideButton: NSButton {
+    enum Edge { case leading, trailing }
+    let edge: Edge
+    private(set) weak var nearestTab: Tab?
+
+    init(edge: Edge) {
+        self.edge = edge
+        super.init(frame: .zero)
+        isBordered = false
+        bezelStyle = .regularSquare
+        imagePosition = edge == .leading ? .imageLeading : .imageTrailing
+        imageHugsTitle = true
+        image = NSImage(systemSymbolName: edge == .leading ? "chevron.left" : "chevron.right", accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: 9, weight: .semibold))
+        contentTintColor = Theme.textTertiary
+        lineBreakMode = .byTruncatingTail
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    override var mouseDownCanMoveWindow: Bool { false }
+
+    func show(count: Int, nearest: Tab) {
+        nearestTab = nearest
+        let title = NSMutableAttributedString()
+        if count > 1 {
+            title.append(NSAttributedString(string: "\(count) ", attributes: [
+                .font: NSFont.monospacedSystemFont(ofSize: 10, weight: .medium), .foregroundColor: Theme.textTertiary,
+            ]))
+        }
+        title.append(NSAttributedString(string: nearest.displayTitle, attributes: [
+            .font: NSFont.systemFont(ofSize: 11), .foregroundColor: Theme.textSecondary,
+        ]))
+        attributedTitle = title
+        let direction = edge == .leading ? "left" : "right"
+        toolTip = count == 1 ? "Show \(nearest.displayTitle)" : "\(count) more tabs to the \(direction). Show \(nearest.displayTitle)"
+        setAccessibilityLabel(toolTip)
     }
 }

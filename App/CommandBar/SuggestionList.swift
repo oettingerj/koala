@@ -40,9 +40,16 @@ struct SuggestionRow: View {
                     .font(.system(size: 13, weight: isSelected ? .medium : .regular))
                     .foregroundStyle(Color(nsColor: Theme.textPrimary))
                     .lineLimit(1)
-                if let subtitle = subtitleText {
+                if let url = subtitleURL {
+                    // Same reading as the address field: host first, path quieter.
+                    (Text(url.host).foregroundStyle(Color(nsColor: Theme.textSecondary))
+                        + Text(url.remainder).foregroundStyle(Color(nsColor: Theme.textTertiary)))
+                        .font(.system(size: 11, design: .monospaced))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                } else if let subtitle = subtitleText {
                     Text(subtitle)
-                        .font(isURL ? .system(size: 11, design: .monospaced) : .system(size: 11))
+                        .font(.system(size: 11))
                         .foregroundStyle(Color(nsColor: Theme.textTertiary))
                         .lineLimit(1)
                         .truncationMode(.middle)
@@ -65,13 +72,24 @@ struct SuggestionRow: View {
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
-    private var isURL: Bool { [.history, .bookmark, .tab].contains(row.kind) }
+    private var isURL: Bool { [.history, .bookmark, .tab, .github].contains(row.kind) }
 
     private var subtitleText: String? {
         switch row.kind {
         case .navigate, .search, .web, .command: nil
-        default: row.subtitle
+        // URL rows show their URL only through `subtitleURL`, never as a raw string.
+        case _ where isURL && row.subtitle.flatMap(URL.init(string:))?.scheme?.hasPrefix("http") == true: nil
+        default: row.subtitle == row.title ? nil : row.subtitle
         }
+    }
+
+    /// URL subtitles drop the scheme and "www."; nil when the title already is the URL.
+    private var subtitleURL: DisplayURL? {
+        guard isURL, let subtitle = row.subtitle, let url = URL(string: subtitle), url.scheme?.hasPrefix("http") == true,
+              let display = DisplayURL(url) else { return nil }
+        let short = display.host + display.remainder
+        if row.title == subtitle || row.title == short { return nil }
+        return display
     }
 
     private var trailing: String? {

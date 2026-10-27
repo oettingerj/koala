@@ -38,4 +38,16 @@ import Testing
         #expect(record.vitals.lcp == 840)
         #expect(record.vitals.ttfb == nil)
     }
+
+    @Test func classifiesDelivery() {
+        let record = DevToolsRecord()
+        record.receive(metrics: ["resources": [
+            ["name": "a", "size": 0, "encoded": 500],
+            ["name": "b", "size": 300, "encoded": 4000],
+            ["name": "c", "size": 2048, "encoded": 1900],
+            ["name": "d", "size": 300, "encoded": 0],
+        ]])
+        #expect(record.resources.map(\.delivery) == [.cached, .revalidated, .network, .revalidated])
+        #expect(record.resources.map(\.bytesTransferred) == [0, 0, 2048, 0])
+    }
 }

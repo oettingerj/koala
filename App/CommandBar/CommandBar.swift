@@ -196,6 +196,8 @@ final class CommandBarContainer: NSView {
 enum MenuCommands {
     private static let excluded: Set<String> = [
         "openHistoryItem:", "reopenClosedItem:", "run", "newTab:", "openLocation:", "submenuAction:",
+        // The Window menu's list of open windows; tabs already appear as "Switch to Tab".
+        "makeKeyAndOrderFront:",
     ]
 
     static func collect() -> [SuggestionEngine.CommandInfo] {

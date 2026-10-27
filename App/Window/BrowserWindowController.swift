@@ -1006,7 +1006,8 @@ final class BrowserRootView: NSView {
     private weak var current: WKWebView?
     private weak var currentTab: Tab?
 
-    var showsBookmarksBar = UserDefaults.standard.object(forKey: "ShowBookmarksBar") as? Bool ?? true {
+    /// Off by default: the page gets the space; ⇧⌘B or View › Show Bookmarks Bar turns it on.
+    var showsBookmarksBar = UserDefaults.standard.object(forKey: "ShowBookmarksBar") as? Bool ?? false {
         didSet {
             UserDefaults.standard.set(showsBookmarksBar, forKey: "ShowBookmarksBar")
             bookmarksBar.isHidden = !showsBookmarksBar

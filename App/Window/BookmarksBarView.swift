@@ -129,6 +129,7 @@ final class BookmarksBarView: NSView {
 /// A bookmark on the bar: favicon (or folder glyph) and title.
 final class BookmarkButton: NSButton {
     let bookmark: Bookmark
+    private var favicon: NSImage?
     private var isHovered = false { didSet { updateFill() } }
     private var tracking: NSTrackingArea?
 
@@ -154,7 +155,8 @@ final class BookmarkButton: NSButton {
                 guard let data = await AppServices.shared.favicons.cached(host: host),
                       let icon = AppServices.image(data) else { return }
                 icon.size = NSSize(width: 14, height: 14)
-                self?.image = icon
+                self?.favicon = icon
+                self?.applyIcon()
             }
         }
     }
@@ -166,6 +168,17 @@ final class BookmarkButton: NSButton {
         var size = super.intrinsicContentSize
         size.width += 12
         return size
+    }
+
+    private func applyIcon() {
+        guard let favicon else { return }
+        image = FaviconContrast.displayImage(favicon, for: effectiveAppearance)
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        applyIcon()
+        updateFill()
     }
 
     private static func placeholder(folder: Bool) -> NSImage? {

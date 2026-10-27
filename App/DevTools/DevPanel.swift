@@ -84,7 +84,6 @@ struct DevPanel: View {
             }
         }
         .background(Color(nsColor: Theme.chromeSurface))
-        .tint(Color(nsColor: Theme.accent))
         .onChange(of: model.section) { _, section in if section == .storage { model.refreshStorage() } }
     }
 
@@ -139,13 +138,19 @@ private struct ConsoleView: View {
             HStack(spacing: 8) {
                 FilterField(text: $filter, prompt: "Filter messages")
                 ForEach([ConsoleEntry.Level.error, .warn, .info, .log], id: \.self) { level in
-                    Toggle(level.rawValue.capitalized, isOn: Binding(
-                        get: { levels.contains(level) },
-                        set: { on in if on { levels.insert(level) } else { levels.remove(level) } }))
-                        .toggleStyle(.button).controlSize(.small)
+                    LevelChip(level: level, glyph: glyph(level), color: color(level),
+                              count: record.console.filter { $0.level == level }.count,
+                              isOn: Binding(get: { levels.contains(level) },
+                                            set: { on in if on { levels.insert(level) } else { levels.remove(level) } }))
                 }
-                Button("Clear") { record.clearConsole() }.controlSize(.small)
                 Spacer()
+                Button { record.clearConsole() } label: {
+                    Image(systemName: "trash").font(.system(size: 11)).foregroundStyle(Color(nsColor: Theme.textSecondary))
+                        .frame(width: 24, height: 22).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Clear Console (⌘K)")
+                .keyboardShortcut("k", modifiers: .command)
             }
             .padding(8)
             ScrollViewReader { proxy in
@@ -165,15 +170,27 @@ private struct ConsoleView: View {
                         }
                     }
                     .id(entry.id)
+                    .listRowInsets(EdgeInsets(top: 3, leading: 10, bottom: 3, trailing: 10))
+                    .listRowBackground(rowTint(entry.level))
                     .listRowSeparatorTint(Color(nsColor: Theme.hairline))
                 }
                 .listStyle(.plain)
+                .environment(\.defaultMinListRowHeight, 20)
                 .scrollContentBackground(.hidden)
                 .onChange(of: record.console.last?.id) { _, id in if let id { proxy.scrollTo(id, anchor: .bottom) } }
                 .overlay {
                     if entries.isEmpty { EmptyNote("No console messages") }
                 }
             }
+        }
+    }
+
+    /// Errors and warnings read at a glance down the list: a faint wash of their state color.
+    private func rowTint(_ level: ConsoleEntry.Level) -> Color {
+        switch level {
+        case .error: Color(nsColor: Theme.fail).opacity(0.07)
+        case .warn: Color(nsColor: Theme.pending).opacity(0.07)
+        default: .clear
         }
     }
 
@@ -207,49 +224,154 @@ private struct NetworkView: View {
 
     var body: some View {
         let rows = entries
-        // One shared time scale: a bar's length is exactly its duration.
+        // One shared time scale: a bar's length is exactly its duration, and the ruler uses it too.
         let end = max(1, rows.map { $0.start + $0.duration }.max() ?? 1)
+        let step = Self.tickStep(for: end)
+        let showsStatus = rows.contains { $0.status != 0 }
         VStack(spacing: 0) {
             HStack(spacing: 12) {
                 FilterField(text: $filter, prompt: "Filter URLs")
-                Text("\(rows.count) requests · \(bytes(rows.reduce(0) { $0 + $1.transferSize })) · \(ms(end))")
-                    .font(.system(size: 11).monospacedDigit())
+                Text("\(rows.count) requests · \(bytes(rows.reduce(0) { $0 + $1.bytesTransferred })) transferred · \(ms(end))")
+                    .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(Color(nsColor: Theme.textTertiary))
                 Spacer()
             }
             .padding(8)
+            columns(name: Text("Name"), status: Text("Status"), type: Text("Type"), size: Text("Size"), time: Text("Time"),
+                    showsStatus: showsStatus) {
+                Ruler(end: end, step: step, labeled: true)
+            }
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(Color(nsColor: Theme.textTertiary))
+            .padding(.horizontal, 10)
+            .frame(height: 22)
+            Rectangle().fill(Color(nsColor: Theme.hairline)).frame(height: 1)
             List(rows) { entry in
-                HStack(spacing: 10) {
-                    Text(label(entry.url)).font(.system(size: 12, design: .monospaced)).lineLimit(1).truncationMode(.middle)
-                        .frame(width: 280, alignment: .leading).help(entry.url)
-                    Text(entry.status == 0 ? "–" : "\(entry.status)")
-                        .foregroundStyle(entry.status >= 400 ? Color(nsColor: Theme.fail) : Color(nsColor: Theme.textSecondary))
-                        .frame(width: 32, alignment: .trailing)
-                    Text(entry.type).foregroundStyle(Color(nsColor: Theme.textTertiary)).frame(width: 70, alignment: .leading)
-                    Text(entry.transferSize == 0 ? "cached" : bytes(entry.transferSize))
-                        .foregroundStyle(Color(nsColor: Theme.textTertiary)).frame(width: 64, alignment: .trailing)
-                    Text(ms(entry.duration)).frame(width: 60, alignment: .trailing)
-                    GeometryReader { geo in
-                        Rectangle()
-                            .fill(Color(nsColor: entry.status >= 400 ? Theme.fail : Theme.neutral(6)))
-                            .frame(width: max(1, geo.size.width * entry.duration / end), height: 6)
-                            .offset(x: geo.size.width * entry.start / end, y: (geo.size.height - 6) / 2)
+                columns(name: Text(label(entry.url)).foregroundStyle(Color(nsColor: Theme.textPrimary)),
+                        status: Text(entry.status == 0 ? "" : "\(entry.status)")
+                            .foregroundStyle(entry.status >= 400 ? Color(nsColor: Theme.fail) : Color(nsColor: Theme.textSecondary)),
+                        type: Text(entry.type).foregroundStyle(Color(nsColor: Theme.textTertiary)),
+                        size: sizeLabel(entry),
+                        time: Text(ms(entry.duration)).foregroundStyle(Color(nsColor: Theme.textSecondary)),
+                        showsStatus: showsStatus) {
+                    ZStack(alignment: .leading) {
+                        Ruler(end: end, step: step, labeled: false)
+                        GeometryReader { geo in
+                            Rectangle()
+                                .fill(Color(nsColor: entry.status >= 400 ? Theme.fail : Theme.neutral(6)))
+                                .frame(width: max(1, geo.size.width * entry.duration / end), height: 6)
+                                .offset(x: geo.size.width * entry.start / end, y: (geo.size.height - 6) / 2)
+                        }
                     }
                 }
-                .font(.system(size: 11).monospacedDigit())
-                .frame(height: 18)
+                .font(.system(size: 11, design: .monospaced))
+                .help(entry.url)
+                .listRowInsets(EdgeInsets(top: 1, leading: 10, bottom: 1, trailing: 10))
                 .listRowSeparatorTint(Color(nsColor: Theme.hairline))
             }
             .listStyle(.plain)
+            .environment(\.defaultMinListRowHeight, 20)
             .scrollContentBackground(.hidden)
             .overlay { if rows.isEmpty { EmptyNote("Reload the page to record its requests") } }
         }
+    }
+
+    /// One layout for the header and every row, so columns always line up.
+    private func columns<Waterfall: View>(name: some View, status: some View, type: some View, size: some View, time: some View,
+                                          showsStatus: Bool, @ViewBuilder waterfall: () -> Waterfall) -> some View {
+        HStack(spacing: 10) {
+            name.lineLimit(1).truncationMode(.middle).frame(width: 280, alignment: .leading)
+            if showsStatus { status.frame(width: 40, alignment: .trailing) }
+            type.lineLimit(1).frame(width: 64, alignment: .leading)
+            size.frame(width: 76, alignment: .trailing)
+            time.frame(width: 60, alignment: .trailing)
+            waterfall().frame(maxWidth: .infinity)
+        }
+        .frame(height: 18)
+    }
+
+    /// Bytes only ever appear as bytes; how the response arrived is said in words.
+    private func sizeLabel(_ entry: ResourceEntry) -> Text {
+        let quiet = Color(nsColor: Theme.textTertiary)
+        switch entry.delivery {
+        case .cached:
+            return Text("cached").foregroundStyle(quiet)
+        case .revalidated where entry.encodedSize > 0:
+            return Text(bytes(entry.encodedSize)).foregroundStyle(Color(nsColor: Theme.textSecondary))
+                + Text(" · 304").foregroundStyle(quiet)
+        case .revalidated:
+            return Text("revalidated").foregroundStyle(quiet)
+        case .network:
+            return Text(bytes(entry.transferSize)).foregroundStyle(Color(nsColor: Theme.textSecondary))
+        }
+    }
+
+    /// A round tick interval giving four to eight gridlines across `end` milliseconds.
+    static func tickStep(for end: Double) -> Double {
+        let raw = end / 6
+        let magnitude = pow(10, floor(log10(max(raw, 1))))
+        for multiple in [1.0, 2, 5, 10] where magnitude * multiple >= raw { return magnitude * multiple }
+        return magnitude * 10
     }
 
     private func label(_ url: String) -> String {
         guard let components = URL(string: url) else { return url }
         let path = components.path.isEmpty ? "/" : components.path
         return (components.host() ?? "") + path
+    }
+}
+
+/// Hairline gridlines at every `step` ms on the waterfall's shared scale, labeled in the header.
+private struct Ruler: View {
+    let end: Double
+    let step: Double
+    let labeled: Bool
+
+    var body: some View {
+        GeometryReader { geo in
+            let ticks = Array(stride(from: step, through: end, by: step))
+            ZStack(alignment: .topLeading) {
+                ForEach(ticks, id: \.self) { tick in
+                    let x = geo.size.width * tick / end
+                    if labeled {
+                        Text(ms(tick)).font(.system(size: 10, design: .monospaced))
+                            .fixedSize()
+                            .position(x: min(x, geo.size.width - 18), y: geo.size.height / 2)
+                    } else {
+                        Rectangle().fill(Color(nsColor: Theme.hairline)).frame(width: 1, height: geo.size.height).offset(x: x)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct LevelChip: View {
+    let level: ConsoleEntry.Level
+    let glyph: String
+    let color: Color
+    let count: Int
+    @Binding var isOn: Bool
+
+    var body: some View {
+        Button { isOn.toggle() } label: {
+            HStack(spacing: 4) {
+                Image(systemName: glyph).font(.system(size: 9)).foregroundStyle(isOn ? color : Color(nsColor: Theme.textTertiary))
+                Text(level.rawValue.capitalized)
+                if count > 0 { Text("\(count)").font(.system(size: 10, design: .monospaced)) }
+            }
+            .font(.system(size: 11, weight: isOn ? .medium : .regular))
+            .foregroundStyle(Color(nsColor: isOn ? Theme.textPrimary : Theme.textTertiary))
+            .padding(.horizontal, 8)
+            .frame(height: 22)
+            .background(RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .fill(isOn ? Color(nsColor: Theme.hoverFill) : .clear))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(level.rawValue.capitalized) messages")
+        .accessibilityValue(isOn ? "shown" : "hidden")
+        .help(isOn ? "Hide \(level.rawValue) messages" : "Show \(level.rawValue) messages")
     }
 }
 
@@ -385,6 +507,7 @@ private struct PageView: View {
             .controlSize(.small)
         }
         .font(.system(size: 12))
+        .tint(Color(nsColor: Theme.accent))
     }
 }
 

@@ -31,7 +31,22 @@ public struct ResourceEntry: Identifiable, Equatable, Sendable {
     public let start: Double
     public let duration: Double
     public let transferSize: Int
+    /// Compressed body size; for revalidated responses this is the real payload size.
+    public let encodedSize: Int
     public let status: Int
+
+    /// How the response was delivered, as Resource Timing reports it.
+    public enum Delivery: Sendable, Equatable { case network, cached, revalidated }
+
+    public var delivery: Delivery {
+        if transferSize == 0 { return .cached }
+        // The Fetch spec reports a fixed 300 bytes for responses revalidated from cache (304).
+        if transferSize == 300 { return .revalidated }
+        return .network
+    }
+
+    /// Bytes that crossed the network for this request (headers only when revalidated).
+    public var bytesTransferred: Int { delivery == .network ? transferSize : 0 }
 
     static func decode(_ value: Any, id: Int) -> ResourceEntry? {
         guard let dict = value as? [String: Any], let url = dict["name"] as? String else { return nil }
@@ -42,7 +57,8 @@ public struct ResourceEntry: Identifiable, Equatable, Sendable {
         return ResourceEntry(id: id, url: String(url.prefix(2000)),
                              type: String((dict["type"] as? String ?? "other").prefix(32)),
                              start: number("start"), duration: number("duration"),
-                             transferSize: Int(number("size")), status: Int(number("status")))
+                             transferSize: Int(number("size")), encodedSize: Int(number("encoded")),
+                             status: Int(number("status")))
     }
 }
 

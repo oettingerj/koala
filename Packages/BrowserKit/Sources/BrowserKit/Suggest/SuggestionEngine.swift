@@ -183,6 +183,12 @@ public final class SuggestionEngine {
         return knownHosts.first { $0.host.hasPrefix(p) && $0.weight >= 2 }?.host
     }
 
+    static func withoutFragment(_ url: URL) -> String {
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        components?.fragment = nil
+        return components?.string ?? url.absoluteString
+    }
+
     /// Best score across fields, ignoring loose subsequence matches that read as noise in a list.
     private func best(_ scores: Double?...) -> Double? {
         scores.compactMap { $0 }.filter { $0 >= Self.minimumScore }.max()
@@ -204,10 +210,12 @@ public final class SuggestionEngine {
 
     private func historyResults(for text: String) async -> [Suggestion] {
         guard let history, let entries = try? await history.search(text, limit: 6) else { return [] }
-        let openURLs = Set(tabs().compactMap { $0.url?.absoluteString })
+        // Pages differing only by fragment (#L5-L9) are one page in a list of suggestions.
+        var seen = Set(tabs().compactMap { $0.url.map(Self.withoutFragment) })
         return entries.compactMap { entry in
-            guard !openURLs.contains(entry.url), let url = URL(string: entry.url) else { return nil }
-            return Suggestion(id: "url:\(entry.url)", kind: .history, title: entry.title.isEmpty ? entry.url : entry.title,
+            guard let url = URL(string: entry.url), seen.insert(Self.withoutFragment(url)).inserted else { return nil }
+            let fallback = DisplayURL(url).map { $0.host + $0.remainder } ?? entry.url
+            return Suggestion(id: "url:\(entry.url)", kind: .history, title: entry.title.isEmpty ? fallback : entry.title,
                               subtitle: entry.url, action: .open(url), score: 0, iconHost: entry.host)
         }
     }

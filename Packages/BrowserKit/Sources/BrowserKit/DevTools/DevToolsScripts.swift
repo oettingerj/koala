@@ -45,7 +45,7 @@ public enum DevToolsScripts {
       const add = e => queue.push({
         name: String(e.name).slice(0, 2000), type: e.initiatorType || 'other',
         start: e.startTime, duration: e.duration,
-        size: e.transferSize || 0, status: e.responseStatus || 0
+        size: e.transferSize || 0, encoded: e.encodedBodySize || 0, status: e.responseStatus || 0
       });
       try {
         new PerformanceObserver(l => { l.getEntries().forEach(add); schedule(); })

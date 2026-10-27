@@ -32,9 +32,9 @@ public enum ErrorPage {
         <html><head><meta charset="utf-8"><title>\(escape(headline))</title>
         <meta name="color-scheme" content="light dark">
         <style>
-          :root { --bg: #FAFAFA; --fg: #18181B; --muted: #6C6C75; --rule: #DEDEE1; --accent: #0E8F80; }
+          :root { --bg: #FAFAFA; --fg: #18181B; --muted: #6C6C75; --rule: #DEDEE1; --accent: #0B7A6D; --on-accent: #FFFFFF; }
           @media (prefers-color-scheme: dark) {
-            :root { --bg: #1E1E21; --fg: #F4F4F5; --muted: #8A8A93; --rule: #303035; --accent: #2CC3AE; }
+            :root { --bg: #1E1E21; --fg: #F4F4F5; --muted: #8A8A93; --rule: #303035; --accent: #2CC3AE; --on-accent: #0B1F1C; }
           }
           html { background: var(--bg); color: var(--fg); font: 13px/1.5 -apple-system, system-ui, sans-serif; }
           body { margin: 0; min-height: 100vh; display: grid; place-items: center; }
@@ -44,7 +44,7 @@ public enum ErrorPage {
           code { font: 12px/1.5 ui-monospace, SFMono-Regular, monospace; color: var(--muted); word-break: break-all; }
           .url { display: block; margin: 16px 0 20px; padding-top: 12px; border-top: 1px solid var(--rule); }
           a.retry { display: inline-block; padding: 5px 12px; border-radius: 6px; background: var(--accent);
-                    color: #fff; text-decoration: none; font-weight: 500; }
+                    color: var(--on-accent); text-decoration: none; font-weight: 500; }
           a.retry:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
           ::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
         </style></head>

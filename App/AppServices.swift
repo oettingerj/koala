@@ -125,8 +125,29 @@ final class AppServices {
         }
     }
 
+    /// SVG favicons with a `prefers-color-scheme: dark` block render as broken outlines in
+    /// AppKit's SVG renderer (docs.rs becomes a hollow ring). Dropping the block keeps the
+    /// light shape; FaviconContrast tints dark glyphs for dark chrome.
+    static func lightOnlySVG(_ data: Data) -> Data? {
+        guard data.count < 512 * 1024, var text = String(data: data, encoding: .utf8),
+              text.contains("<svg"), text.contains("prefers-color-scheme") else { return nil }
+        while let start = text.range(of: "@media (prefers-color-scheme: dark)")
+                ?? text.range(of: "@media(prefers-color-scheme:dark)") {
+            guard let open = text[start.upperBound...].firstIndex(of: "{") else { break }
+            var depth = 0
+            var end = open
+            for index in text[open...].indices {
+                if text[index] == "{" { depth += 1 }
+                if text[index] == "}" { depth -= 1; if depth == 0 { end = index; break } }
+            }
+            guard depth == 0 else { break }
+            text.removeSubrange(start.lowerBound...end)
+        }
+        return text.data(using: .utf8)
+    }
+
     static func image(_ data: Data) -> NSImage? {
-        guard let image = NSImage(data: data) else { return nil }
+        guard let image = NSImage(data: lightOnlySVG(data) ?? data) else { return nil }
         image.size = NSSize(width: 16, height: 16)
         return image
     }

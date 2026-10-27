@@ -91,7 +91,9 @@ final class TabItemView: NSView {
         toolTip = title
         // GitHub pull requests and issues show their live state in place of the favicon.
         let status = GitHubService.shared.status(for: tab.url)
-        iconView.image = status.flatMap { GitHubStyle.image($0.state) } ?? tab.favicon ?? Self.placeholderIcon
+        iconView.image = status.flatMap { GitHubStyle.image($0.state) }
+            ?? tab.favicon.map { FaviconContrast.displayImage($0, for: effectiveAppearance) } ?? Self.placeholderIcon
+        iconView.contentTintColor = Theme.textSecondary
         checks = status?.checks ?? .none
         var label = title
         if let status { label += ", " + GitHubStyle.glyph(status.state).label.lowercased() }
@@ -171,6 +173,7 @@ final class TabItemView: NSView {
 
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
+        apply()
         updateColors()
     }
 
