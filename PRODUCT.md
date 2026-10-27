@@ -42,7 +42,7 @@ v1 scope:
 - Devtools: Web Inspector (public API only: `isInspectable`, opened from the context menu), native dev panel (console, network timing, storage, vitals), page tools (force light/dark, hard reload, disable JS, view source, JSON viewer, responsive widths, full-page screenshot).
 - Copy as Markdown.
 
-Explicitly out of v1: password manager, spaces/profiles, tab auto-archive, automatic localhost dev mode, private WebKit SPI, Chrome-only extensions.
+Explicitly out of v1: password manager, spaces/profiles, tab auto-archive, automatic localhost dev mode, private WebKit SPI (one exception: `_setAllowsPictureInPictureMediaPlayback:`, since macOS WKWebView has no public switch for Picture in Picture), Chrome-only extensions.
 
 Terminology: "tab strip", "toolbar", "address field", "command bar", "Peek", "split view", "dev panel", "context chip", "review queue".
 

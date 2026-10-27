@@ -10,6 +10,12 @@ public enum WebViewFactory {
         config.preferences.isTextInteractionEnabled = true
         config.allowsAirPlayForMediaPlayback = true
         config.mediaTypesRequiringUserActionForPlayback = .all
+        // macOS WKWebView has Picture in Picture off, and only this private setter turns it on.
+        // The one WebKit SPI Nano uses; without it PiP requests fail and nothing else changes.
+        let allowPictureInPicture = NSSelectorFromString("_setAllowsPictureInPictureMediaPlayback:")
+        if config.preferences.responds(to: allowPictureInPicture) {
+            config.preferences.setValue(true, forKey: "allowsPictureInPictureMediaPlayback")
+        }
         config.applicationNameForUserAgent = "Version/26.0 Safari/605.1.15"
         DevToolsScripts.install(on: config.userContentController, handler: DevToolsRouter.shared)
         return config

@@ -118,8 +118,43 @@ public final class Tab: NSObject, Identifiable {
         webView.uiDelegate = nil
         observations = []
         self.webView = nil
+        automaticPictureInPicture = nil
         isLoading = false
         progress = 0
+    }
+
+    /// Picture in Picture this tab started on its own as it left view; nil when none.
+    @ObservationIgnored private var automaticPictureInPicture: Task<Bool, Never>?
+
+    /// Picks the largest playing, audible video. Muted previews and background loops stay put.
+    private static let enterPictureInPicture = """
+        if (!document.pictureInPictureEnabled || document.pictureInPictureElement) return false;
+        const video = [...document.querySelectorAll('video')]
+          .filter(v => !v.paused && !v.ended && !v.muted && v.volume > 0 && v.readyState >= 2 && !v.disablePictureInPicture)
+          .sort((a, b) => b.clientWidth * b.clientHeight - a.clientWidth * a.clientHeight)[0];
+        if (!video) return false;
+        await video.requestPictureInPicture();
+        return true;
+        """
+
+    /// Moves a playing video into Picture in Picture as the tab leaves view. Script calls from the
+    /// app count as a user gesture, which `requestPictureInPicture` needs.
+    public func enterPictureInPictureIfPlaying() {
+        guard let webView, automaticPictureInPicture == nil else { return }
+        automaticPictureInPicture = Task {
+            (try? await webView.callAsyncJavaScript(Self.enterPictureInPicture, contentWorld: DevToolsScripts.world)) as? Bool ?? false
+        }
+    }
+
+    /// Brings back inline a video `enterPictureInPictureIfPlaying` moved out; leaves PiP the user started.
+    public func exitAutomaticPictureInPicture() {
+        guard let webView, let entering = automaticPictureInPicture else { return }
+        automaticPictureInPicture = nil
+        Task {
+            guard await entering.value else { return }
+            _ = try? await webView.callAsyncJavaScript("if (document.pictureInPictureElement) await document.exitPictureInPicture();",
+                                                       contentWorld: DevToolsScripts.world)
+        }
     }
 
     /// Wraps a web view WebKit already created for a popup.

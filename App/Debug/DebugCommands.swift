@@ -1,9 +1,11 @@
 #if DEBUG
 import AppKit
+import os
 
 /// Debug-only: lets review scripts drive window states without UI scripting permissions.
 /// Post `com.joshoettinger.nano.debug` with an object like "appearance dark",
-/// "action newTab:", "open https://example.com", or "resize 1280x820".
+/// "action newTab:", "open https://example.com", "resize 1280x820", or "js return document.title"
+/// (runs in the focused tab; the result goes to the log under category "debug").
 @MainActor
 enum DebugCommands {
     static func install() {
@@ -38,6 +40,18 @@ enum DebugCommands {
             if let url = URL(string: argument), let tab = controller?.tabs.selected { controller?.tab(tab, peek: url) }
         case "install-extension":
             Task { await ExtensionsHost.shared.installFromWebStore(argument) }
+        case "js":
+            let controller = window?.windowController as? BrowserWindowController
+            guard let webView = controller?.tabs.focused?.webView else { return }
+            Task {
+                let log = Logger(subsystem: "com.joshoettinger.nano", category: "debug")
+                do {
+                    let result = try await webView.callAsyncJavaScript(argument, contentWorld: .page)
+                    log.info("js \(String(describing: result), privacy: .public)")
+                } catch {
+                    log.info("js error \(error.localizedDescription, privacy: .public)")
+                }
+            }
         case "resize":
             let size = argument.split(separator: "x").compactMap { Double($0) }
             if size.count == 2 { window?.setContentSize(NSSize(width: size[0], height: size[1])) }

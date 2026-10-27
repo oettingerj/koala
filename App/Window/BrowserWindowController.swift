@@ -602,8 +602,8 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         if tabs.tabs.isEmpty { window?.close() }
     }
 
-    private var shownTabID: UUID?
-    private var shownSplitID: UUID?
+    private weak var shownTab: Tab?
+    private weak var shownSplit: Tab?
 
     private func showSelectedTab() {
         guard let tab = tabs.selected else { return }
@@ -624,9 +624,16 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         rootView.focusesSplit = tabs.focusesSplit
         rootView.devPanelModel.tab = tabs.focused
         rootView.pageLayoutChanged()
-        guard shownTabID != tab.id || shownSplitID != partner?.id else { return }
-        shownTabID = tab.id
-        shownSplitID = partner?.id
+        guard shownTab !== tab || shownSplit !== partner else { return }
+        // A playing video follows the user out of a tab it leaves view in, unless the tab was closed.
+        for hidden in [shownTab, shownSplit].compactMap({ $0 }) where hidden !== tab && hidden !== partner
+            && tabs.tabs.contains(where: { $0 === hidden || $0.splitTab === hidden }) {
+            hidden.enterPictureInPictureIfPlaying()
+        }
+        tab.exitAutomaticPictureInPicture()
+        partner?.exitAutomaticPictureInPicture()
+        shownTab = tab
+        shownSplit = partner
         Perf.measure("tab.switch") {
             rootView.show(webView, for: tab, split: partnerView.map { ($0, partner!) })
             rootView.layoutSubtreeIfNeeded()
