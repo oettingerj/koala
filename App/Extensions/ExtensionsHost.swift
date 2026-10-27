@@ -165,8 +165,9 @@ final class ExtensionsHost: NSObject {
         var lines: [String] = []
         let permissions = webExtension.requestedPermissions.map(\.rawValue).filter { !added.contains($0) }.sorted()
         if !permissions.isEmpty { lines.append("Permissions: " + permissions.joined(separator: ", ")) }
-        let hosts = webExtension.allRequestedMatchPatterns.map(\.string).sorted()
-        if hosts.contains("<all_urls>") || hosts.contains("*://*/*") {
+        let patterns = webExtension.allRequestedMatchPatterns.map(Self.hostPermission)
+        let hosts = patterns.map(\.string).sorted()
+        if patterns.contains(where: { $0.matchesAllURLs || $0.matchesAllHosts }) {
             lines.append("It can read and change every website you visit.")
         } else if !hosts.isEmpty {
             lines.append("Websites: " + hosts.prefix(6).joined(separator: ", ") + (hosts.count > 6 ? "…" : ""))
@@ -175,6 +176,14 @@ final class ExtensionsHost: NSObject {
         alert.addButton(withTitle: "Add Extension")
         alert.addButton(withTitle: "Cancel")
         return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    /// Chrome ignores the path of a host permission; WebKit matches it, so Okta's `https://*/` would cover
+    /// only each site's root page and every other page would ask for access again.
+    private static func hostPermission(_ pattern: WKWebExtension.MatchPattern) -> WKWebExtension.MatchPattern {
+        guard !pattern.matchesAllURLs, pattern.path != "/*", let scheme = pattern.scheme, let host = pattern.host,
+              let anyPath = try? WKWebExtension.MatchPattern(scheme: scheme, host: host, path: "/*") else { return pattern }
+        return anyPath
     }
 
     private func load(_ item: InstalledExtension, extension provided: WKWebExtension? = nil) async {
@@ -198,7 +207,7 @@ final class ExtensionsHost: NSObject {
             context.isInspectable = true
             // The user approved the requested permissions and sites when installing.
             for permission in webExtension.requestedPermissions { context.setPermissionStatus(.grantedExplicitly, for: permission) }
-            for pattern in webExtension.allRequestedMatchPatterns { context.setPermissionStatus(.grantedExplicitly, for: pattern) }
+            for pattern in webExtension.allRequestedMatchPatterns { context.setPermissionStatus(.grantedExplicitly, for: Self.hostPermission(pattern)) }
             try controller.load(context)
             log.info("Loaded \(item.name, privacy: .public); permissions: \(context.grantedPermissions.keys.map(\.rawValue).sorted().joined(separator: ","), privacy: .public); errors: \(context.errors.map(\.localizedDescription).joined(separator: "; "), privacy: .public)")
             contexts.append((item.id, context))
