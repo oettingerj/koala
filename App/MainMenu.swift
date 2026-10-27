@@ -229,8 +229,15 @@ final class BookmarksMenuDelegate: NSObject, NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
         menu.addItem(MainMenu.item("Bookmark This Page", #selector(BrowserWindowController.toggleBookmark(_:)), "d"))
-        menu.addItem(.separator())
         let library = AppServices.shared.bookmarks
+        let controller = NSApp.keyWindow?.windowController as? BrowserWindowController
+        if let bookmark = controller?.tabs.focused?.url.flatMap(library.bookmark(for:)) {
+            let move = NSMenuItem(title: "Move Bookmark To", action: nil, keyEquivalent: "")
+            move.submenu = BookmarkMenus.moveMenu(for: bookmark, library: library)
+            menu.addItem(move)
+        }
+        menu.addItem(MainMenu.item("New Folder…", #selector(BrowserWindowController.newBookmarkFolder(_:))))
+        menu.addItem(.separator())
         BookmarkMenus.append(library.children(of: nil), to: menu, library: library) { url, newTab in
             guard let controller = NSApp.keyWindow?.windowController as? BrowserWindowController else {
                 NSApp.delegate?.application?(NSApp, open: [url])

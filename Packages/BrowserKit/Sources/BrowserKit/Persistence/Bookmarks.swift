@@ -78,7 +78,10 @@ public final class BookmarkLibrary {
         _ = try await database.writer.write { db in try bookmark.delete(db) }
     }
 
+    public enum Failure: Error, Equatable { case folderIntoItself }
+
     /// Moves `bookmark` to `index` among the children of `parentID`.
+    /// Throws `folderIntoItself` when `parentID` is the bookmark or lies inside it.
     public func move(_ bookmark: Bookmark, to index: Int, in parentID: Int64?) async throws {
         var siblings = children(of: parentID).filter { $0.id != bookmark.id }
         let clamped = max(0, min(index, siblings.count))
@@ -91,6 +94,11 @@ public final class BookmarkLibrary {
             return row
         }
         try await database.writer.write { db in
+            var ancestor = parentID
+            while let id = ancestor {
+                if id == bookmark.id { throw Failure.folderIntoItself }
+                ancestor = try Int64?.fetchOne(db, sql: "SELECT parentId FROM bookmark WHERE id = ?", arguments: [id]) ?? nil
+            }
             for row in rows { try row.update(db) }
         }
     }

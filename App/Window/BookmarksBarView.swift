@@ -104,24 +104,49 @@ final class BookmarksBarView: NSView {
             menu.addItem(.separator())
         }
         menu.addItem(closureMenuItem("Rename…") { [weak self] in self?.rename(bookmark) })
-        menu.addItem(closureMenuItem("Delete") { [library] in Task { try? await library.remove(bookmark) } })
+        let move = NSMenuItem(title: "Move To", action: nil, keyEquivalent: "")
+        move.submenu = BookmarkMenus.moveMenu(for: bookmark, library: library)
+        menu.addItem(move)
+        menu.addItem(closureMenuItem("Delete") { [weak self] in self?.delete(bookmark) })
+        menu.addItem(.separator())
+        menu.addItem(closureMenuItem("New Folder…") { [weak self] in self?.newFolder() })
         return menu
     }
 
+    /// Right-click on the bar itself, away from any bookmark.
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let menu = NSMenu()
+        menu.addItem(closureMenuItem("New Folder…") { [weak self] in self?.newFolder() })
+        return menu
+    }
+
+    private func newFolder() {
+        NSApp.sendAction(#selector(BrowserWindowController.newBookmarkFolder(_:)), to: nil, from: self)
+    }
+
     private func rename(_ bookmark: Bookmark) {
-        let alert = NSAlert()
-        alert.messageText = bookmark.isFolder ? "Rename folder" : "Rename bookmark"
-        let field = NSTextField(string: bookmark.title)
-        field.frame = NSRect(x: 0, y: 0, width: 260, height: 22)
-        alert.accessoryView = field
-        alert.addButton(withTitle: "Rename")
-        alert.addButton(withTitle: "Cancel")
-        alert.window.initialFirstResponder = field
         guard let window else { return }
+        BookmarkMenus.promptForTitle(bookmark.isFolder ? "Rename folder" : "Rename bookmark", initial: bookmark.title,
+                                     button: "Rename", in: window) { [library] title in
+            Task { try? await library.rename(bookmark, to: title) }
+        }
+    }
+
+    /// Deleting a folder deletes what it holds, so a non-empty folder asks first.
+    private func delete(_ bookmark: Bookmark) {
+        guard bookmark.isFolder, !library.children(of: bookmark.id).isEmpty, let window else {
+            Task { try? await library.remove(bookmark) }
+            return
+        }
+        let alert = NSAlert()
+        alert.messageText = "Delete “\(bookmark.title)” and everything in it?"
+        alert.informativeText = "The bookmarks and folders inside it are deleted too."
+        alert.addButton(withTitle: "Delete")
+        alert.addButton(withTitle: "Cancel")
+        alert.buttons[0].hasDestructiveAction = true
         alert.beginSheetModal(for: window) { [library] response in
-            let title = field.stringValue.trimmingCharacters(in: .whitespaces)
-            guard response == .alertFirstButtonReturn, !title.isEmpty else { return }
-            Task { @MainActor in try? await library.rename(bookmark, to: title) }
+            guard response == .alertFirstButtonReturn else { return }
+            Task { @MainActor in try? await library.remove(bookmark) }
         }
     }
 }
@@ -207,6 +232,49 @@ final class BookmarkButton: NSButton {
 /// Menus listing bookmarks, with folders as submenus. Shared by the bar and the menu bar.
 @MainActor
 enum BookmarkMenus {
+    /// The bar and every folder, indented by depth, as destinations for `bookmark`. The bookmark's
+    /// own subtree is left out (a folder can't go inside itself) and its current place is checked.
+    static func moveMenu(for bookmark: Bookmark, library: BookmarkLibrary) -> NSMenu {
+        let menu = NSMenu()
+        func add(_ title: String, parentID: Int64?, depth: Int) {
+            let item = closureMenuItem(title) {
+                let end = library.children(of: parentID).count
+                Task { try? await library.move(bookmark, to: end, in: parentID) }
+            }
+            item.image = NSImage(systemSymbolName: parentID == nil ? "menubar.rectangle" : "folder", accessibilityDescription: nil)
+            item.indentationLevel = depth
+            if parentID == bookmark.parentID {
+                item.state = .on
+                item.action = nil
+            }
+            menu.addItem(item)
+            for folder in library.children(of: parentID) where folder.isFolder && folder.id != bookmark.id {
+                add(folder.title, parentID: folder.id, depth: depth + 1)
+            }
+        }
+        add("Bookmarks Bar", parentID: nil, depth: 0)
+        return menu
+    }
+
+    /// Asks for a bookmark or folder name in a sheet; `completion` gets the trimmed, non-empty title.
+    static func promptForTitle(_ message: String, initial: String, button: String, in window: NSWindow,
+                               completion: @escaping @MainActor (String) -> Void) {
+        let alert = NSAlert()
+        alert.messageText = message
+        let field = NSTextField(string: initial)
+        field.placeholderString = "Name"
+        field.frame = NSRect(x: 0, y: 0, width: 260, height: 22)
+        alert.accessoryView = field
+        alert.addButton(withTitle: button)
+        alert.addButton(withTitle: "Cancel")
+        alert.window.initialFirstResponder = field
+        alert.beginSheetModal(for: window) { response in
+            let title = field.stringValue.trimmingCharacters(in: .whitespaces)
+            guard response == .alertFirstButtonReturn, !title.isEmpty else { return }
+            MainActor.assumeIsolated { completion(title) }
+        }
+    }
+
     static func menu(for bookmarks: [Bookmark], library: BookmarkLibrary, onOpen: ((URL, Bool) -> Void)?) -> NSMenu {
         let menu = NSMenu()
         append(bookmarks, to: menu, library: library, onOpen: onOpen)

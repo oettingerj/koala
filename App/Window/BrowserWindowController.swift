@@ -71,6 +71,8 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         window.toolbar = NSToolbar(identifier: "NanoTitlebar")
         window.toolbarStyle = .unifiedCompact
         window.isMovableByWindowBackground = false
+        // BrowserWindow moves itself; see there.
+        window.isMovable = false
         window.collectionBehavior = [.fullScreenPrimary]
         window.minSize = NSSize(width: 480, height: 320)
         window.contentView = rootView
@@ -535,6 +537,14 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
             } else {
                 try? await library.add(title: tab.displayTitle, url: url)
             }
+        }
+    }
+
+    /// Adds an empty folder at the end of the bookmarks bar.
+    @objc func newBookmarkFolder(_ sender: Any?) {
+        guard let window else { return }
+        BookmarkMenus.promptForTitle("New folder", initial: "", button: "Create", in: window) { [services] title in
+            Task { try? await services.bookmarks.add(title: title, url: nil) }
         }
     }
 
@@ -1007,8 +1017,26 @@ extension BrowserWindowController: TabDelegate {
     }
 }
 
-/// Lets the window claim key-equivalents before the web view swallows them.
-final class BrowserWindow: NSWindow {}
+/// The compact toolbar makes the whole titlebar a window-server drag region that ignores the
+/// content views drawn under it, so a drag on a tab would move the window. The window server
+/// can't be told otherwise per press, so the window is not movable there and instead moves
+/// itself, and zooms on double-click, from any press on a view that allows window moves.
+final class BrowserWindow: NSWindow {
+    override func sendEvent(_ event: NSEvent) {
+        guard event.type == .leftMouseDown, !styleMask.contains(.fullScreen),
+              let hit = contentView?.superview?.hitTest(event.locationInWindow), hit.mouseDownCanMoveWindow
+        else { return super.sendEvent(event) }
+        if event.clickCount == 2 {
+            switch UserDefaults.standard.string(forKey: "AppleActionOnDoubleClick") ?? "Maximize" {
+            case "Minimize": performMiniaturize(nil)
+            case "None": break
+            default: performZoom(nil)
+            }
+        } else {
+            performDrag(with: event)
+        }
+    }
+}
 
 /// Stacks strip, toolbar, bookmarks bar, page, and the dev panel drawer.
 /// Frame-based so window resizes cost one layout pass.

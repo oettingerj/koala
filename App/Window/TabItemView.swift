@@ -79,6 +79,13 @@ final class TabItemView: NSView {
     override var isFlipped: Bool { false }
     override var mouseDownCanMoveWindow: Bool { false }
 
+    /// Icon and title are decoration: the tab takes their clicks, so a drag that starts on the
+    /// title reorders tabs instead of moving the window (labels let the window move).
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        guard let hit = super.hitTest(point) else { return nil }
+        return hit.isDescendant(of: closeButton) ? hit : self
+    }
+
     private func apply() {
         if isPinned != tab.isPinned {
             isPinned = tab.isPinned

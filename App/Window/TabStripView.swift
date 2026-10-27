@@ -253,18 +253,6 @@ final class TabStripView: NSView {
         scrollOffset = min(maxScroll, max(0, index * step - Self.guideWidth))
         needsLayout = true
     }
-
-    // MARK: Window behaviors
-
-    override func mouseUp(with event: NSEvent) {
-        guard event.clickCount == 2 else { return super.mouseUp(with: event) }
-        let action = UserDefaults.standard.string(forKey: "AppleActionOnDoubleClick") ?? "Maximize"
-        switch action {
-        case "Minimize": window?.performMiniaturize(nil)
-        case "None": break
-        default: window?.performZoom(nil)
-        }
-    }
 }
 
 extension TabStripView: TabItemViewDelegate {

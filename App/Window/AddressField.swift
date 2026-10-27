@@ -166,19 +166,25 @@ extension AddressField: NSTextFieldDelegate {
 /// NSTextField reports focus through the field editor; this surfaces the moment it gains it.
 private final class FocusAwareTextField: NSTextField {
     var onFocus: (() -> Void)?
+    private var focusedByClick = false
 
     override func becomeFirstResponder() -> Bool {
         let accepted = super.becomeFirstResponder()
-        if accepted { onFocus?() }
+        if accepted {
+            // A click makes the field first responder before its mouseDown arrives.
+            focusedByClick = NSApp.currentEvent?.type == .leftMouseDown
+            onFocus?()
+        }
         return accepted
     }
 
     /// The field editor tracks the focusing click until mouse-up and leaves a caret where it
     /// landed, overriding the select-all from focus. A plain click selects all; a drag keeps its range.
     override func mouseDown(with event: NSEvent) {
-        let wasEditing = currentEditor() != nil
+        let focusingClick = focusedByClick
+        focusedByClick = false
         super.mouseDown(with: event)
-        guard !wasEditing, let editor = currentEditor(), editor.selectedRange.length == 0 else { return }
+        guard focusingClick, let editor = currentEditor(), editor.selectedRange.length == 0 else { return }
         editor.selectAll(nil)
     }
 }

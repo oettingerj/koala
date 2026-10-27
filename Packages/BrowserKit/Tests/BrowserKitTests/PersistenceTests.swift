@@ -70,6 +70,21 @@ import Testing
         try await Task.sleep(for: .milliseconds(50))
         #expect(library.children(of: nil).map(\.title) == ["B", "C", "A"])
     }
+
+    @Test func moveIntoFolderAndRejectCycles() async throws {
+        let library = BookmarkLibrary(database: try .inMemory())
+        let outer = try await library.add(title: "Outer", url: nil)
+        let inner = try await library.add(title: "Inner", url: nil)
+        let page = try await library.add(title: "A", url: URL(string: "https://a.com"))
+        try await Task.sleep(for: .milliseconds(50))
+        try await library.move(inner, to: 0, in: outer.id)
+        try await library.move(page, to: 0, in: inner.id)
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(library.children(of: nil).map(\.title) == ["Outer"])
+        #expect(library.children(of: inner.id).map(\.title) == ["A"])
+        await #expect(throws: BookmarkLibrary.Failure.folderIntoItself) { try await library.move(outer, to: 0, in: outer.id) }
+        await #expect(throws: BookmarkLibrary.Failure.folderIntoItself) { try await library.move(outer, to: 0, in: inner.id) }
+    }
 }
 
 @Suite struct SessionTests {
