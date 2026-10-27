@@ -6,7 +6,11 @@ import Foundation
 public enum ExtensionCompatibility {
     static let folder = "nano-compat"
     static let scriptPath = "/\(folder)/compat.js"
-    static let wrapperPath = "\(folder)/background.js"
+    /// The wrapper sits beside the original worker: a classic worker resolves relative `importScripts`
+    /// paths against its own URL, so a wrapper elsewhere breaks workers that import their siblings.
+    static let wrapperName = "nano-background.js"
+    /// Where older versions put the wrapper.
+    static let legacyWrapperPath = "\(folder)/background.js"
     /// The native host name the compat script sends console errors to; Nano logs them instead of launching anything.
     public static let consoleHost = "nano.console"
 
@@ -22,14 +26,22 @@ public enum ExtensionCompatibility {
         try Data(script.utf8).write(to: directory.appendingPathComponent("compat.js"), options: .atomic)
 
         var changed = false
-        if let worker = background["service_worker"] as? String, worker != wrapperPath {
-            let original = try specifier("/" + worker.drop { $0 == "/" })
-            let source = background["type"] as? String == "module"
-                ? "import \(try specifier(scriptPath));\nimport \(original);\n"
-                : "importScripts(\(try specifier(scriptPath)), \(original));\n"
-            try Data(source.utf8).write(to: bundle.appendingPathComponent(wrapperPath), options: .atomic)
-            background["service_worker"] = wrapperPath
-            changed = true
+        if var worker = (background["service_worker"] as? String).map({ String($0.drop { $0 == "/" }) }) {
+            let legacyWrapper = bundle.appendingPathComponent(legacyWrapperPath)
+            if worker == legacyWrapperPath, let original = legacyOriginal(in: legacyWrapper) {
+                worker = original
+                try? FileManager.default.removeItem(at: legacyWrapper)
+            }
+            if (worker as NSString).lastPathComponent != wrapperName {
+                let wrapperPath = ((worker as NSString).deletingLastPathComponent as NSString).appendingPathComponent(wrapperName)
+                let original = try specifier("/" + worker)
+                let source = background["type"] as? String == "module"
+                    ? "import \(try specifier(scriptPath));\nimport \(original);\n"
+                    : "importScripts(\(try specifier(scriptPath)), \(original));\n"
+                try Data(source.utf8).write(to: bundle.appendingPathComponent(wrapperPath), options: .atomic)
+                background["service_worker"] = wrapperPath
+                changed = true
+            }
         }
         if var scripts = background["scripts"] as? [String], scripts.first != scriptPath {
             scripts.insert(scriptPath, at: 0)
@@ -40,6 +52,13 @@ public enum ExtensionCompatibility {
         manifest["background"] = background
         let output = try JSONSerialization.data(withJSONObject: manifest, options: [.prettyPrinted, .withoutEscapingSlashes])
         try output.write(to: manifestURL, options: .atomic)
+    }
+
+    /// The worker an older wrapper loads: the last quoted path in it, without the leading slash.
+    private static func legacyOriginal(in wrapper: URL) -> String? {
+        guard let source = try? String(contentsOf: wrapper, encoding: .utf8) else { return nil }
+        let quoted = source.split(separator: "\"", omittingEmptySubsequences: false).enumerated().filter { $0.offset % 2 == 1 }
+        return quoted.last.map { String($0.element.drop { $0 == "/" }) }
     }
 
     /// A quoted JavaScript string for a script path.
@@ -118,9 +137,27 @@ public enum ExtensionCompatibility {
               try { Object.defineProperty(target, key, { value: inert(path), configurable: true, writable: true }); } catch {}
             }
           };
+          // WebKit throws when it can't convert a rule (a regexFilter with `|`, say) where Chrome rejects the
+          // returned promise, and a throw at startup stops the rest of the background script.
+          const rejecting = new WeakSet();
+          const rejectInsteadOfThrowing = (target, key) => {
+            const original = target?.[key];
+            if (typeof original !== "function" || rejecting.has(original)) return;
+            const wrapper = function (...args) {
+              try { return original.apply(this, args); } catch (error) {
+                console.warn("[Nano]", `declarativeNetRequest.${key} refused: ${error?.message ?? error}`);
+                const callback = args.findLast(arg => typeof arg === "function");
+                if (!callback) return Promise.reject(error);
+                queueMicrotask(() => callback());
+              }
+            };
+            rejecting.add(wrapper);
+            try { Object.defineProperty(target, key, { value: wrapper, configurable: true, writable: true }); } catch {}
+          };
           const patch = root => {
             for (const name of permissions) fill(root, name, name);
             for (const [name, keys] of Object.entries(members)) for (const key of keys) fill(root?.[name], key, `${name}.${key}`);
+            for (const key of ["updateDynamicRules", "updateSessionRules", "updateEnabledRulesets"]) rejectInsteadOfThrowing(root?.declarativeNetRequest, key);
             return root;
           };
           for (const name of ["chrome", "browser"]) {

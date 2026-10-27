@@ -73,19 +73,32 @@ import Testing
 
     @Test func wrapsBackgroundScriptsOnce() throws {
         let bundle = try temporaryDirectory()
+        for folder in ["bg", "lib"] {
+            try FileManager.default.createDirectory(at: bundle.appendingPathComponent(folder), withIntermediateDirectories: true)
+        }
         try Data(#"{"background":{"service_worker":"bg/main.js","type":"module"}}"#.utf8).write(to: bundle.appendingPathComponent("manifest.json"))
         try ExtensionCompatibility.apply(toBundleAt: bundle)
         try ExtensionCompatibility.apply(toBundleAt: bundle)
         let background = try manifest(in: bundle)["background"] as! [String: Any]
-        #expect(background["service_worker"] as? String == "nano-compat/background.js")
-        let wrapper = try String(contentsOf: bundle.appendingPathComponent("nano-compat/background.js"), encoding: .utf8)
+        #expect(background["service_worker"] as? String == "bg/nano-background.js")
+        let wrapper = try String(contentsOf: bundle.appendingPathComponent("bg/nano-background.js"), encoding: .utf8)
         #expect(wrapper == "import \"/nano-compat/compat.js\";\nimport \"/bg/main.js\";\n")
         #expect(FileManager.default.fileExists(atPath: bundle.appendingPathComponent("nano-compat/compat.js").path))
 
         try Data(#"{"background":{"service_worker":"sw.js"}}"#.utf8).write(to: bundle.appendingPathComponent("manifest.json"))
         try ExtensionCompatibility.apply(toBundleAt: bundle)
-        let classic = try String(contentsOf: bundle.appendingPathComponent("nano-compat/background.js"), encoding: .utf8)
+        let classic = try String(contentsOf: bundle.appendingPathComponent("nano-background.js"), encoding: .utf8)
         #expect(classic == "importScripts(\"/nano-compat/compat.js\", \"/sw.js\");\n")
+
+        // A wrapper from an older version, kept in nano-compat/, moves beside the worker it loads.
+        let legacy = bundle.appendingPathComponent("nano-compat/background.js")
+        try Data("importScripts(\"/nano-compat/compat.js\", \"/lib/sw.js\");\n".utf8).write(to: legacy)
+        try Data(#"{"background":{"service_worker":"nano-compat/background.js"}}"#.utf8).write(to: bundle.appendingPathComponent("manifest.json"))
+        try ExtensionCompatibility.apply(toBundleAt: bundle)
+        #expect((try manifest(in: bundle)["background"] as! [String: Any])["service_worker"] as? String == "lib/nano-background.js")
+        #expect(try String(contentsOf: bundle.appendingPathComponent("lib/nano-background.js"), encoding: .utf8)
+                == "importScripts(\"/nano-compat/compat.js\", \"/lib/sw.js\");\n")
+        #expect(!FileManager.default.fileExists(atPath: legacy.path))
 
         try Data(#"{"background":{"scripts":["a.js"]}}"#.utf8).write(to: bundle.appendingPathComponent("manifest.json"))
         try ExtensionCompatibility.apply(toBundleAt: bundle)
@@ -107,7 +120,7 @@ import Testing
         #expect(!item.bundleName.hasSuffix(".zip"))
         #expect(!FileManager.default.fileExists(atPath: store.directory.appendingPathComponent(oldName).path))
         #expect((try manifest(in: store.bundleURL(for: item))["background"] as! [String: Any])["service_worker"] as? String
-                == "nano-compat/background.js")
+                == "nano-background.js")
     }
 
     @Test func storeRoundTripsAndRefusesEscapes() async throws {
