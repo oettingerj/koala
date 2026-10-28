@@ -12,6 +12,11 @@ final class BookmarksBarView: NSView {
     private let hairline = CALayer()
     private let emptyLabel = NSTextField(labelWithString: "Bookmark pages with ⌘D to keep them here")
     private var observation: ObservationLoop?
+    private lazy var dropdown: BookmarkDropdown = {
+        let dropdown = BookmarkDropdown(library: library) { [weak self] url, newTab in self?.onOpen?(url, newTab) }
+        dropdown.onClose = { [weak self] in self?.buttons.forEach { $0.isOpen = false } }
+        return dropdown
+    }()
 
     /// Opens a bookmark; `newTab` when ⌘-clicked or chosen from the context menu.
     var onOpen: ((URL, _ newTab: Bool) -> Void)?
@@ -44,6 +49,7 @@ final class BookmarksBarView: NSView {
 
     private func sync() {
         let items = library.children(of: nil)
+        dropdown.close() // its anchor is one of the buttons about to be replaced
         buttons.forEach { $0.removeFromSuperview() }
         buttons = items.map { bookmark in
             let button = BookmarkButton(bookmark: bookmark)
@@ -83,17 +89,15 @@ final class BookmarksBarView: NSView {
 
     @objc private func pressed(_ sender: BookmarkButton) {
         if sender.bookmark.isFolder {
-            let menu = BookmarkMenus.menu(for: library.children(of: sender.bookmark.id), library: library, onOpen: onOpen)
-            menu.popUp(positioning: nil, at: NSPoint(x: 0, y: -4), in: sender)
+            dropdown.show(library.children(of: sender.bookmark.id), below: sender)
+            sender.isOpen = true
         } else if let url = sender.bookmark.url.flatMap(URL.init(string:)) {
             onOpen?(url, NSApp.currentEvent?.modifierFlags.contains(.command) ?? false)
         }
     }
 
     @objc private func showOverflow() {
-        let hidden = buttons.filter(\.isHidden).map(\.bookmark)
-        let menu = BookmarkMenus.menu(for: hidden, library: library, onOpen: onOpen)
-        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: -4), in: overflowButton)
+        dropdown.show(buttons.filter(\.isHidden).map(\.bookmark), below: overflowButton, alignRight: true)
     }
 
     private func contextMenu(for bookmark: Bookmark) -> NSMenu {
@@ -155,8 +159,12 @@ final class BookmarksBarView: NSView {
 final class BookmarkButton: NSButton {
     let bookmark: Bookmark
     private var favicon: NSImage?
+    private var faviconRevision: Int?
+    private var faviconObservation: ObservationLoop?
     private var isHovered = false { didSet { updateFill() } }
     private var tracking: NSTrackingArea?
+    /// Held pressed while the folder's dropdown is open.
+    var isOpen = false { didSet { updateFill() } }
 
     init(bookmark: Bookmark) {
         self.bookmark = bookmark
@@ -176,13 +184,21 @@ final class BookmarkButton: NSButton {
             .font: NSFont.systemFont(ofSize: 12), .foregroundColor: Theme.textSecondary,
         ])
         if let host = DisplayURL(bookmark.url.flatMap(URL.init(string:)))?.host {
-            Task { [weak self] in
-                guard let data = await AppServices.shared.favicons.cached(host: host),
-                      let icon = AppServices.image(data) else { return }
-                icon.size = NSSize(width: 14, height: 14)
-                self?.favicon = icon
-                self?.applyIcon()
-            }
+            faviconObservation = ObservationLoop { [weak self] in self?.loadFavicon(host: host) }
+        }
+    }
+
+    /// Loads the cached icon now, and again whenever a visit fetches a new one.
+    private func loadFavicon(host: String) {
+        let revision = AppServices.shared.faviconRevisions[host, default: 0]
+        guard revision != faviconRevision else { return }
+        faviconRevision = revision
+        Task { [weak self] in
+            guard let data = await AppServices.shared.favicons.cached(host: host),
+                  let icon = AppServices.image(data) else { return }
+            icon.size = NSSize(width: 14, height: 14)
+            self?.favicon = icon
+            self?.applyIcon()
         }
     }
 
@@ -224,12 +240,12 @@ final class BookmarkButton: NSButton {
     override var isHighlighted: Bool { didSet { updateFill() } }
 
     private func updateFill() {
-        let fill: NSColor? = isHighlighted ? Theme.pressedFill : isHovered ? Theme.hoverFill : nil
+        let fill: NSColor? = isHighlighted || isOpen ? Theme.pressedFill : isHovered ? Theme.hoverFill : nil
         layer?.backgroundColor = fill.map(resolved) ?? .clear
     }
 }
 
-/// Menus listing bookmarks, with folders as submenus. Shared by the bar and the menu bar.
+/// Menus listing bookmarks, with folders as submenus, for the menu bar; and the bar's shared menus.
 @MainActor
 enum BookmarkMenus {
     /// The bar and every folder, indented by depth, as destinations for `bookmark`. The bookmark's

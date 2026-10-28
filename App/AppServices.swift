@@ -20,6 +20,9 @@ final class AppServices {
 
     /// Most recent last. Backs ⇧⌘T and History › Recently Closed.
     private(set) var recentlyClosed: [ClosedItem] = []
+    /// Bumped per host when a fetch changes its cached icon, so views outside the tab
+    /// (the bookmarks bar) can reload it.
+    private(set) var faviconRevisions: [String: Int] = [:]
     private static let recentlyClosedLimit = 25
 
     @ObservationIgnored var windowSnapshots: () -> [WindowSnapshot] = { [] }
@@ -109,7 +112,7 @@ final class AppServices {
     /// After a load finishes, reads the page's declared icons and refreshes the cache.
     func refreshFavicon(for tab: Tab) {
         guard let webView = tab.webView, let pageURL = tab.url, let host = DisplayURL(pageURL)?.host else { return }
-        webView.evaluateJavaScript(FaviconCandidates.script, in: nil, in: .defaultClient) { [favicons] result in
+        webView.evaluateJavaScript(FaviconCandidates.script, in: nil, in: .defaultClient) { [self] result in
             let links: [FaviconCandidates.Link]
             if case .success(let value) = result, let json = try? JSONSerialization.data(withJSONObject: value) {
                 links = (try? JSONDecoder().decode([FaviconCandidates.Link].self, from: json)) ?? []
@@ -119,12 +122,14 @@ final class AppServices {
             let candidates = FaviconCandidates.rank(links, pageURL: pageURL)
             let store = webView.configuration.websiteDataStore.httpCookieStore
             Task { @MainActor in
+                let previous = await favicons.cached(host: host)
                 // Cookies go only to the page's own host: enough for icons behind a sign-in,
                 // without handing a CDN or another site cookies a tab icon doesn't need.
                 let data = await favicons.icon(host: host, candidates: candidates) { @MainActor url in
                     guard url.host() == pageURL.host() else { return [] }
                     return BackgroundFetch.cookies(await store.allCookies(), for: url)
                 }
+                if let data, data != previous { faviconRevisions[host, default: 0] += 1 }
                 guard DisplayURL(tab.url)?.host == host, let data else { return }
                 tab.setFavicon(Self.image(data))
             }

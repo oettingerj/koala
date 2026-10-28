@@ -15,13 +15,7 @@ final class AddressDropdown {
 
     init(engine: SuggestionEngine) {
         model = SuggestionModel(engine: engine)
-        panel = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-        panel.isOpaque = false
-        panel.backgroundColor = .clear
-        panel.hasShadow = true
-        panel.isReleasedWhenClosed = false
-        panel.animationBehavior = .none
-        panel.becomesKeyOnlyIfNeeded = true
+        panel = dropdownPanel()
         let view = DropdownView(model: model) { [weak self] row in self?.activate(row, newTab: false) }
         panel.contentView = NSHostingView(rootView: view)
         heightObservation = ObservationLoop { [weak self] in self?.layout() }
@@ -83,14 +77,6 @@ private struct DropdownView: View {
     var body: some View {
         SuggestionList(model: model, onActivate: onActivate)
             .frame(maxWidth: .infinity, alignment: .top)
-            .background(
-                RoundedRectangle(cornerRadius: Theme.panelRadius, style: .continuous)
-                    .fill(Color(nsColor: Theme.chromeSurface))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: Theme.panelRadius, style: .continuous)
-                    .strokeBorder(Color(nsColor: Theme.hairline), lineWidth: 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: Theme.panelRadius, style: .continuous))
+            .dropdownSurface()
     }
 }
