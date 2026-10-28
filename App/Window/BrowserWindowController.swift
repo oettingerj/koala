@@ -12,6 +12,8 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     private var mediaDecisions: [String: Bool] = [:]
     private var extensionObservation: ObservationLoop?
     private var sleepTimer: Timer?
+    private var devSessions: [UUID: DevPanelModel] = [:]
+    private var detachedTools: [UUID: DevToolsWindowController] = [:]
     private static let sleepAfter: TimeInterval = 30 * 60
 
     /// Puts background tabs to sleep after 30 idle minutes. Pinned tabs, split panes, and pages
@@ -19,6 +21,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     private func sleepIdleTabs() {
         let now = Date()
         for tab in tabs.tabs where tab !== tabs.selected && !tab.isPinned && tab.splitTab == nil {
+            guard devSessions[tab.id]?.isPresented != true else { continue }
             guard let webView = tab.webView, now.timeIntervalSince(tab.lastActiveAt) > Self.sleepAfter,
                   webView.cameraCaptureState == .none, webView.microphoneCaptureState == .none else { continue }
             webView.requestMediaPlaybackState { [weak tab, weak self] state in
@@ -128,7 +131,6 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
             MainActor.assumeIsolated { self?.sleepIdleTabs() }
         }
         sleepTimer?.tolerance = 20
-        rootView.devPanelModel.perform = { [weak self] action in self?.perform(action) }
         rootView.peek.onOpenInTab = { [weak self] webView in self?.openPeekInTab(webView) }
         rootView.peek.onOpenInSplit = { [weak self] webView in self?.openPeekInSplit(webView) }
         rootView.onFocusPane = { [weak self] secondary in self?.tabs.focusesSplit = secondary }
@@ -424,6 +426,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     @objc func closeSplitPane(_ sender: Any?) {
         guard let tab = tabs.selected, let partner = tab.splitTab else { return }
         if tabs.focusesSplit {
+            closeDevTools(for: partner)
             tabs.unsplit(tab, keepingPartner: false)
             partner.stop()
             partner.webView?.removeFromSuperview()
@@ -458,28 +461,109 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     // MARK: Dev tools
 
     @objc func toggleDevPanel(_ sender: Any?) {
+        guard let tab = tabs.focused else { return }
+        if let detached = detachedTools[tab.id] { detached.showWindow(nil); detached.window?.makeKeyAndOrderFront(nil); return }
+        updateDevToolsTarget()
         rootView.showsDevPanel.toggle()
+        if rootView.showsDevPanel { rootView.devPanelModel.isPresented = true }
+        else { rootView.devPanelModel.close() }
     }
 
-    @objc func viewSource(_ sender: Any?) { perform(.viewSource) }
+    @objc func viewSource(_ sender: Any?) {
+        guard let tab = tabs.focused else { return }
+        perform(.viewSource, session: devSession(for: tab))
+    }
 
     func showDevPanel(section: DevPanelModel.Section) {
+        updateDevToolsTarget()
         rootView.devPanelModel.section = section
+        if let id = tabs.focused?.id, let detached = detachedTools[id] { detached.showWindow(nil); detached.window?.makeKeyAndOrderFront(nil); return }
         rootView.showsDevPanel = true
+        rootView.devPanelModel.isPresented = true
     }
 
-    private func perform(_ action: DevPanelModel.PageAction) {
+    @objc func showDevSection(_ sender: NSMenuItem) {
+        guard DevPanelModel.Section.allCases.indices.contains(sender.tag) else { return }
+        showDevPanel(section: DevPanelModel.Section.allCases[sender.tag])
+    }
+
+    @objc func detachDevTools(_ sender: Any?) {
         guard let tab = tabs.focused else { return }
+        detach(devSession(for: tab))
+    }
+
+    private func devSession(for tab: Tab) -> DevPanelModel {
+        if let session = devSessions[tab.id] { return session }
+        let session = DevPanelModel(tab: tab)
+        session.perform = { [weak self, weak session] action in
+            guard let session else { return }
+            self?.perform(action, session: session)
+        }
+        devSessions[tab.id] = session
+        return session
+    }
+
+    private func updateDevToolsTarget() {
+        guard let tab = tabs.focused else { return }
+        let session = devSession(for: tab), old = rootView.devPanelModel
+        if old !== session && !old.isDetached { old.close() }
+        rootView.devPanelModel = session
+        if session.isDetached { rootView.showsDevPanel = false }
+        session.isPresented = session.isDetached || rootView.showsDevPanel
+    }
+
+    private func detach(_ session: DevPanelModel) {
+        guard let tab = session.tab else { return }
+        if let existing = detachedTools[tab.id] { existing.showWindow(nil); existing.window?.makeKeyAndOrderFront(nil); return }
+        session.isDetached = true; session.isPresented = true
+        if rootView.devPanelModel === session { rootView.showsDevPanel = false }
+        let controller = DevToolsWindowController(model: session)
+        controller.onClose = { [weak self, weak session] in
+            session?.close(); session?.isDetached = false
+            self?.detachedTools.removeValue(forKey: tab.id)
+        }
+        controller.onRedock = { [weak self, weak session] in if let session { self?.redock(session) } }
+        detachedTools[tab.id] = controller
+        controller.showWindow(nil); controller.window?.makeKeyAndOrderFront(nil)
+    }
+
+    private func redock(_ session: DevPanelModel) {
+        guard let tab = session.tab else { return }
+        let controller = detachedTools.removeValue(forKey: tab.id)
+        controller?.onClose = nil; controller?.close()
+        session.isDetached = false
+        if let parent = tabs.tabs.first(where: { $0 === tab || $0.splitTab === tab }) {
+            tabs.select(parent); tabs.focusesSplit = parent !== tab
+        }
+        rootView.devPanelModel = session; rootView.showsDevPanel = true; session.isPresented = true
+        window?.makeKeyAndOrderFront(nil)
+    }
+
+    private func closeDevTools(for tab: Tab) {
+        devSessions.removeValue(forKey: tab.id)?.close()
+        let controller = detachedTools.removeValue(forKey: tab.id)
+        controller?.onClose = nil; controller?.close()
+    }
+
+    private func perform(_ action: DevPanelModel.PageAction, session: DevPanelModel) {
+        guard let tab = session.tab else { return }
         switch action {
         case .close:
-            rootView.showsDevPanel = false
+            if session.isDetached { detachedTools[tab.id]?.close() }
+            else { rootView.showsDevPanel = false; session.close() }
+        case .detach: detach(session)
+        case .redock: redock(session)
         case .hardReload:
             tab.reload(fromOrigin: true)
         case .viewSource:
             guard let webView = tab.webView, let url = tab.url else { return }
+            let generation = tab.devTools.navigationID
             webView.evaluateJavaScript(PageTools.readSource, in: nil, in: DevToolsScripts.world) { [weak self] result in
-                guard case .success(let value) = result, let html = value as? String else { return }
                 MainActor.assumeIsolated {
+                    guard tab.devTools.navigationID == generation else { return }
+                    guard case .success(let value) = result, let html = value as? String else {
+                        session.status = "Could not read this page’s source."; return
+                    }
                     guard let self else { return }
                     let source = self.openTab(url: nil, select: true, opener: tab)
                     source.loadHTML(PageTools.sourcePage(for: html, url: url), baseURL: nil,
@@ -487,39 +571,49 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
                 }
             }
         case .copyScreenshot:
-            tab.webView?.takeSnapshot(with: nil) { image, _ in
-                guard let image else { return }
+            let generation = tab.devTools.navigationID
+            tab.webView?.takeSnapshot(with: nil) { image, error in
+                guard tab.devTools.navigationID == generation else { return }
+                guard let image else { session.status = "Screenshot failed: \(error?.localizedDescription ?? "No image returned")"; return }
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.writeObjects([image])
+                session.status = "Screenshot copied."
             }
         case .savePDF:
-            guard let webView = tab.webView, let window else { return }
+            guard let webView = tab.webView, let window = detachedTools[tab.id]?.window ?? window else { return }
             let panel = NSSavePanel()
             panel.allowedContentTypes = [.pdf]
             panel.nameFieldStringValue = (tab.displayTitle.isEmpty ? "Page" : tab.displayTitle) + ".pdf"
             panel.beginSheetModal(for: window) { response in
                 guard response == .OK, let url = panel.url else { return }
                 webView.createPDF { result in
-                    if case .success(let data) = result { try? data.write(to: url) }
+                    do {
+                        let data = try result.get()
+                        try data.write(to: url, options: .atomic)
+                        session.status = "PDF saved."
+                    } catch { session.status = "Could not save PDF: \(error.localizedDescription)" }
                 }
             }
         case .clearSiteData:
-            guard let host = tab.url?.host(), let window else { return }
+            guard let host = tab.url?.host(), let window = detachedTools[tab.id]?.window ?? window else { return }
+            let generation = tab.devTools.navigationID
+            guard let store = tab.webView?.configuration.websiteDataStore else { return }
             let alert = NSAlert()
             alert.messageText = "Clear data for \(host)?"
-            alert.informativeText = "Removes cookies, storage, and caches for this site. You will be signed out of it."
+            alert.informativeText = "Removes cookies, storage, and caches for this site and related site domains. You will be signed out of them."
             alert.addButton(withTitle: "Clear Data")
             alert.addButton(withTitle: "Cancel")
             alert.buttons.first?.hasDestructiveAction = true
-            alert.beginSheetModal(for: window) { [weak self] response in
+            alert.beginSheetModal(for: window) { response in
                 guard response == .alertFirstButtonReturn else { return }
                 Task { @MainActor in
-                    let store = WKWebsiteDataStore.default()
+                    guard tab.devTools.navigationID == generation else { session.status = "The page changed; site data was not cleared."; return }
                     let types = WKWebsiteDataStore.allWebsiteDataTypes()
                     let records = await store.dataRecords(ofTypes: types)
                     let matching = records.filter { host == $0.displayName || host.hasSuffix("." + $0.displayName) }
+                    guard tab.devTools.navigationID == generation else { session.status = "The page changed; site data was not cleared."; return }
                     await store.removeData(ofTypes: types, for: matching)
-                    self?.rootView.devPanelModel.refreshStorage()
+                    session.refreshStorage()
                     tab.reload()
                 }
             }
@@ -609,6 +703,8 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func close(_ tab: Tab) {
+        closeDevTools(for: tab)
+        if let partner = tab.splitTab { closeDevTools(for: partner) }
         if tabs.tabs.count > 1, tab.url != nil, let index = tabs.index(of: tab) {
             services.remember(.tab(tab.snapshot, index: index))
         }
@@ -641,7 +737,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
             _ = pane.viewportWidth
         }
         rootView.focusesSplit = tabs.focusesSplit
-        rootView.devPanelModel.tab = tabs.focused
+        updateDevToolsTarget()
         rootView.pageLayoutChanged()
         let switchedTabs = shownTab !== tab || shownSplit !== partner
         guard switchedTabs || shownWebView !== webView || shownSplitWebView !== partnerView else { return }
@@ -896,6 +992,9 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     func windowWillExitFullScreen(_ notification: Notification) { rootView.isFullScreen = false }
 
     func windowWillClose(_ notification: Notification) {
+        for session in devSessions.values { session.close() }
+        for controller in detachedTools.values { controller.onClose = nil; controller.close() }
+        detachedTools.removeAll(); devSessions.removeAll()
         closeSignInPanel()
         if !isDisposable, tabs.tabs.count > 0 {
             if tabs.tabs.count == 1, let tab = tabs.tabs.first {
@@ -1031,6 +1130,7 @@ extension BrowserWindowController: TabDelegate {
     }
 
     func tabDidCommitNavigation(_ tab: Tab) {
+        devSessions[tab.id]?.navigationDidCommit()
         services.applyCachedFavicon(to: tab)
         applySiteZoom(to: tab)
         guard let url = tab.url else { return }
@@ -1057,13 +1157,14 @@ extension BrowserWindowController: TabDelegate {
 /// The compact toolbar makes the whole titlebar a window-server drag region that ignores the
 /// content views drawn under it, so a drag on a tab would move the window. The window server
 /// can't be told otherwise per press, so the window is not movable there and instead moves
-/// itself, and zooms on double-click, from any press on a content view that allows window moves.
+/// itself, and zooms on double-click, from chrome views that allow window moves.
 /// Presses on the frame itself (the resize edges) go to AppKit.
 final class BrowserWindow: NSWindow {
     override func sendEvent(_ event: NSEvent) {
         guard event.type == .leftMouseDown, !styleMask.contains(.fullScreen), let contentView,
+              let root = contentView as? BrowserRootView,
               let hit = contentView.superview?.hitTest(event.locationInWindow),
-              hit.isDescendant(of: contentView), hit.mouseDownCanMoveWindow
+              root.isWindowDragRegion(hit), hit.mouseDownCanMoveWindow
         else { return super.sendEvent(event) }
         if event.clickCount == 2 {
             switch UserDefaults.standard.string(forKey: "AppleActionOnDoubleClick") ?? "Maximize" {
@@ -1083,9 +1184,11 @@ final class BrowserRootView: NSView {
     let strip: TabStripView
     let toolbar: ToolbarView
     let bookmarksBar = BookmarksBarView(library: AppServices.shared.bookmarks)
-    let devPanelModel = DevPanelModel()
+    var devPanelModel = DevPanelModel() {
+        didSet { if oldValue !== devPanelModel { devPanel.rootView = DevPanel(model: devPanelModel) } }
+    }
     let findBar = FindBar()
-    private lazy var devPanel: NSView = DevPanel.host(model: devPanelModel)
+    private lazy var devPanel = DevPanel.host(model: devPanelModel)
     private let devPanelHandle = DragHandle()
     private let content = NSView()
     private weak var current: WKWebView?
@@ -1103,13 +1206,15 @@ final class BrowserRootView: NSView {
 
     var showsDevPanel = false {
         didSet {
+            devPanelModel.isPresented = showsDevPanel || devPanelModel.isDetached
+            if !devPanelModel.isPresented { devPanelModel.close() }
             devPanel.isHidden = !showsDevPanel
             devPanelHandle.isHidden = !showsDevPanel
             needsLayout = true
         }
     }
 
-    private var devPanelHeight = UserDefaults.standard.object(forKey: "DevPanelHeight") as? CGFloat ?? 300
+    private var devPanelHeight = max(200, UserDefaults.standard.object(forKey: "DevPanelHeight") as? CGFloat ?? 300)
 
     var isFullScreen = false { didSet { strip.leadingInset = isFullScreen ? 12 : Theme.trafficLightInset } }
 
@@ -1127,7 +1232,7 @@ final class BrowserRootView: NSView {
         devPanelHandle.isHidden = true
         devPanelHandle.onDrag = { [weak self] delta in
             guard let self else { return }
-            devPanelHeight = max(120, min(bounds.height * 0.8, devPanelHeight + delta))
+            devPanelHeight = max(200, min(bounds.height * 0.8, devPanelHeight + delta))
             UserDefaults.standard.set(devPanelHeight, forKey: "DevPanelHeight")
             needsLayout = true
         }
@@ -1137,6 +1242,12 @@ final class BrowserRootView: NSView {
     required init?(coder: NSCoder) { fatalError() }
 
     override var isFlipped: Bool { false }
+
+    /// SwiftUI hit views can allow window moves even when they contain a Button. Only the
+    /// browser chrome opts into our custom window dragging; page and devtools input stays native.
+    func isWindowDragRegion(_ hit: NSView) -> Bool {
+        [strip, toolbar, bookmarksBar, findBar].contains { hit.isDescendant(of: $0) }
+    }
 
     override func updateLayer() {
         // Visible around the page only in responsive mode.

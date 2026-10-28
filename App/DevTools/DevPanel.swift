@@ -1,597 +1,93 @@
 import AppKit
 import BrowserKit
 import SwiftUI
-import WebKit
-
-/// Which tab the dev panel is showing, plus storage read on demand.
-@MainActor
-@Observable
-final class DevPanelModel {
-    enum Section: String, CaseIterable, Identifiable {
-        case console = "Console", network = "Network", storage = "Storage", page = "Page"
-        var id: String { rawValue }
-    }
-
-    var tab: BrowserKit.Tab?
-    var section: Section = .console
-    var cookies: [HTTPCookie] = []
-    var localStorage: [(String, String)] = []
-    var sessionStorage: [(String, String)] = []
-
-    /// Page-tool actions handled by the window controller.
-    var perform: (PageAction) -> Void = { _ in }
-
-    enum PageAction {
-        case viewSource, copyScreenshot, savePDF, hardReload, clearSiteData, close
-    }
-
-    func refreshStorage() {
-        guard let webView = tab?.webView, let host = tab?.url?.host() else {
-            cookies = []; localStorage = []; sessionStorage = []
-            return
-        }
-        Task {
-            let all = await webView.configuration.websiteDataStore.httpCookieStore.allCookies()
-            cookies = all.filter { cookie in
-                let domain = cookie.domain.hasPrefix(".") ? String(cookie.domain.dropFirst()) : cookie.domain
-                return host == domain || host.hasSuffix("." + domain)
-            }.sorted { $0.name < $1.name }
-        }
-        webView.evaluateJavaScript(DevToolsScripts.readStorage, in: nil, in: DevToolsScripts.world) { [weak self] (result: Result<Any, any Error>) in
-            guard case .success(let value) = result, let dict = value as? [String: Any] else { return }
-            func pairs(_ key: String) -> [(String, String)] {
-                ((dict[key] as? [String: String]) ?? [:]).sorted { $0.key < $1.key }.map { ($0.key, $0.value) }
-            }
-            MainActor.assumeIsolated {
-                self?.localStorage = pairs("local")
-                self?.sessionStorage = pairs("session")
-            }
-        }
-    }
-
-    func delete(_ cookie: HTTPCookie) {
-        guard let store = tab?.webView?.configuration.websiteDataStore.httpCookieStore else { return }
-        Task {
-            await store.deleteCookie(cookie)
-            refreshStorage()
-        }
-    }
-}
 
 struct DevPanel: View {
     @Bindable var model: DevPanelModel
 
-    static func host(model: DevPanelModel) -> NSView {
-        NSHostingView(rootView: DevPanel(model: model))
-    }
+    static func host(model: DevPanelModel) -> NSHostingView<DevPanel> { NSHostingView(rootView: DevPanel(model: model)) }
 
     var body: some View {
         VStack(spacing: 0) {
             header
-            Divider().overlay(Color(nsColor: Theme.hairline))
-            Group {
-                if let tab = model.tab {
+            DevRule()
+            if let tab = model.tab {
+                Group {
                     switch model.section {
-                    case .console: ConsoleView(record: tab.devTools)
-                    case .network: NetworkView(record: tab.devTools)
-                    case .storage: StorageView(model: model)
-                    case .page: PageView(model: model, tab: tab)
+                    case .console: DevConsoleView(model: model, record: tab.devTools)
+                    case .network: DevNetworkView(model: model, record: tab.devTools)
+                    case .elements: DevElementsView(model: model, record: tab.devTools)
+                    case .storage: DevStorageView(model: model)
+                    case .page: DevPageView(model: model, tab: tab)
                     }
-                } else {
-                    Text("No page").foregroundStyle(Color(nsColor: Theme.textTertiary))
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
+                .id(tab.id)
+            } else {
+                DevEmpty(title: "No inspected page", detail: "Open a page to use developer tools.", symbol: "globe")
+            }
+            if let status = model.status {
+                DevRule()
+                HStack {
+                    Image(systemName: "info.circle")
+                    Text(status).textSelection(.enabled)
+                    Spacer()
+                    DevIcon("Dismiss message", symbol: "xmark") { model.status = nil }
+                }.font(.system(size: 11)).foregroundStyle(devSecondary).padding(.horizontal, 12).padding(.vertical, 4)
             }
         }
         .background(Color(nsColor: Theme.chromeSurface))
-        .onChange(of: model.section) { _, section in if section == .storage { model.refreshStorage() } }
+        .foregroundStyle(devPrimary)
+        .tint(Color(nsColor: Theme.accentText))
+        .onChange(of: model.section) { _, section in
+            model.stopPicking()
+            if section == .storage { model.refreshStorage() }
+        }
     }
 
     private var header: some View {
-        HStack(spacing: 2) {
-            ForEach(DevPanelModel.Section.allCases) { section in
-                Button { model.section = section } label: {
-                    HStack(spacing: 4) {
-                        Text(section.rawValue)
-                        if section == .console, let count = model.tab?.devTools.errorCount, count > 0 {
-                            Text("\(count)").font(.system(size: 10, weight: .semibold).monospacedDigit())
-                                .foregroundStyle(Color(nsColor: Theme.fail))
-                        }
-                    }
-                    .font(.system(size: 12, weight: model.section == section ? .medium : .regular))
-                    .foregroundStyle(Color(nsColor: model.section == section ? Theme.textPrimary : Theme.textSecondary))
-                    .padding(.horizontal, 10)
-                    .frame(height: 24)
-                    .background(RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .fill(model.section == section ? Color(nsColor: Theme.hoverFill) : .clear))
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            }
-            Spacer()
-            Button { model.perform(.close) } label: {
-                Image(systemName: "xmark").font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(Color(nsColor: Theme.textSecondary)).frame(width: 24, height: 24)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help("Close Dev Panel (⌥⌘J)")
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 2) { tabs; Spacer(minLength: 8); target; windowActions }
+            HStack(spacing: 2) { tabs; Spacer(minLength: 0); windowActions }
         }
-        .padding(.horizontal, 8)
-        .frame(height: 32)
-    }
-}
-
-// MARK: Console
-
-private struct ConsoleView: View {
-    let record: DevToolsRecord
-    @State private var filter = ""
-    @State private var levels: Set<ConsoleEntry.Level> = Set(ConsoleEntry.Level.allCases)
-
-    private var entries: [ConsoleEntry] {
-        record.console.filter { levels.contains($0.level) && (filter.isEmpty || $0.text.localizedCaseInsensitiveContains(filter)) }
+        .padding(.horizontal, 8).frame(height: 36)
+        .accessibilityElement(children: .contain).accessibilityLabel("Developer tools")
     }
 
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                FilterField(text: $filter, prompt: "Filter messages")
-                ForEach([ConsoleEntry.Level.error, .warn, .info, .log], id: \.self) { level in
-                    LevelChip(level: level, glyph: glyph(level), color: color(level),
-                              count: record.console.filter { $0.level == level }.count,
-                              isOn: Binding(get: { levels.contains(level) },
-                                            set: { on in if on { levels.insert(level) } else { levels.remove(level) } }))
-                }
-                Spacer()
-                Button { record.clearConsole() } label: {
-                    Image(systemName: "trash").font(.system(size: 11)).foregroundStyle(Color(nsColor: Theme.textSecondary))
-                        .frame(width: 24, height: 22).contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .help("Clear Console (⇧⌘K)")
-                .keyboardShortcut("k", modifiers: [.command, .shift])
-            }
-            .padding(8)
-            ScrollViewReader { proxy in
-                List(entries) { entry in
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Image(systemName: glyph(entry.level)).font(.system(size: 10))
-                            .foregroundStyle(color(entry.level)).frame(width: 12)
-                        Text(entry.text).font(.system(size: 12, design: .monospaced))
-                            .foregroundStyle(entry.level == .error ? Color(nsColor: Theme.fail) : Color(nsColor: Theme.textPrimary))
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        if !entry.source.isEmpty {
-                            Text(URL(string: entry.source)?.lastPathComponent ?? entry.source)
-                                .font(.system(size: 11, design: .monospaced))
-                                .foregroundStyle(Color(nsColor: Theme.textTertiary)).lineLimit(1)
-                                .help(entry.source)
-                        }
-                    }
-                    .id(entry.id)
-                    .listRowInsets(EdgeInsets(top: 3, leading: 10, bottom: 3, trailing: 10))
-                    .listRowBackground(rowTint(entry.level))
-                    .listRowSeparatorTint(Color(nsColor: Theme.hairline))
-                }
-                .listStyle(.plain)
-                .environment(\.defaultMinListRowHeight, 20)
-                .scrollContentBackground(.hidden)
-                .onChange(of: record.console.last?.id) { _, id in if let id { proxy.scrollTo(id, anchor: .bottom) } }
-                .overlay {
-                    if entries.isEmpty { EmptyNote("No console messages") }
-                }
-            }
-        }
-    }
-
-    /// Errors and warnings read at a glance down the list: a faint wash of their state color.
-    private func rowTint(_ level: ConsoleEntry.Level) -> Color {
-        switch level {
-        case .error: Color(nsColor: Theme.fail).opacity(0.07)
-        case .warn: Color(nsColor: Theme.pending).opacity(0.07)
-        default: .clear
-        }
-    }
-
-    private func glyph(_ level: ConsoleEntry.Level) -> String {
-        switch level {
-        case .error: "xmark.octagon.fill"
-        case .warn: "exclamationmark.triangle.fill"
-        case .info: "info.circle"
-        case .log, .debug: "chevron.right"
-        }
-    }
-
-    private func color(_ level: ConsoleEntry.Level) -> Color {
-        switch level {
-        case .error: Color(nsColor: Theme.fail)
-        case .warn: Color(nsColor: Theme.pending)
-        default: Color(nsColor: Theme.textTertiary)
-        }
-    }
-}
-
-// MARK: Network
-
-private struct NetworkView: View {
-    let record: DevToolsRecord
-    @State private var filter = ""
-
-    private var entries: [ResourceEntry] {
-        filter.isEmpty ? record.resources : record.resources.filter { $0.url.localizedCaseInsensitiveContains(filter) || $0.type == filter }
-    }
-
-    var body: some View {
-        let rows = entries
-        // One shared time scale: a bar's length is exactly its duration, and the ruler uses it too.
-        let end = max(1, rows.map { $0.start + $0.duration }.max() ?? 1)
-        let step = Self.tickStep(for: end)
-        let showsStatus = rows.contains { $0.status != 0 }
-        VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                FilterField(text: $filter, prompt: "Filter URLs")
-                Text("\(rows.count) requests · \(bytes(rows.reduce(0) { $0 + $1.bytesTransferred })) transferred · \(ms(end))")
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(Color(nsColor: Theme.textTertiary))
-                Spacer()
-            }
-            .padding(8)
-            columns(name: Text("Name"), status: Text("Status"), type: Text("Type"), size: Text("Size"), time: Text("Time"),
-                    showsStatus: showsStatus) {
-                Ruler(end: end, step: step, labeled: true)
-            }
-            .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(Color(nsColor: Theme.textTertiary))
-            .padding(.horizontal, 10)
-            .frame(height: 22)
-            Rectangle().fill(Color(nsColor: Theme.hairline)).frame(height: 1)
-            List(rows) { entry in
-                columns(name: Text(label(entry.url)).foregroundStyle(Color(nsColor: Theme.textPrimary)),
-                        status: Text(entry.status == 0 ? "" : "\(entry.status)")
-                            .foregroundStyle(entry.status >= 400 ? Color(nsColor: Theme.fail) : Color(nsColor: Theme.textSecondary)),
-                        type: Text(entry.type).foregroundStyle(Color(nsColor: Theme.textTertiary)),
-                        size: sizeLabel(entry),
-                        time: Text(ms(entry.duration)).foregroundStyle(Color(nsColor: Theme.textSecondary)),
-                        showsStatus: showsStatus) {
-                    ZStack(alignment: .leading) {
-                        Ruler(end: end, step: step, labeled: false)
-                        GeometryReader { geo in
-                            Rectangle()
-                                .fill(Color(nsColor: entry.status >= 400 ? Theme.fail : Theme.neutral(6)))
-                                .frame(width: max(1, geo.size.width * entry.duration / end), height: 6)
-                                .offset(x: geo.size.width * entry.start / end, y: (geo.size.height - 6) / 2)
-                        }
+    private var tabs: some View {
+        ForEach(DevPanelModel.Section.allCases) { section in
+            Button { model.section = section } label: {
+                HStack(spacing: 5) {
+                    Text(section.rawValue)
+                    if section == .console, let count = model.tab?.devTools.errorCount, count > 0 {
+                        Text("\(count)").font(.system(size: 10, weight: .semibold).monospacedDigit()).foregroundStyle(Color(nsColor: Theme.fail))
                     }
                 }
-                .font(.system(size: 11, design: .monospaced))
-                .help(entry.url)
-                .listRowInsets(EdgeInsets(top: 1, leading: 10, bottom: 1, trailing: 10))
-                .listRowSeparatorTint(Color(nsColor: Theme.hairline))
-            }
-            .listStyle(.plain)
-            .environment(\.defaultMinListRowHeight, 20)
-            .scrollContentBackground(.hidden)
-            .overlay { if rows.isEmpty { EmptyNote("Reload the page to record its requests") } }
+                .font(.system(size: 12, weight: model.section == section ? .semibold : .regular))
+                .foregroundStyle(model.section == section ? devPrimary : devSecondary)
+                .padding(.horizontal, 9).frame(height: 26)
+                .background(RoundedRectangle(cornerRadius: 5).fill(model.section == section ? Color(nsColor: Theme.hoverFill) : .clear))
+                .contentShape(Rectangle())
+            }.buttonStyle(.plain)
+                .accessibilityAddTraits(model.section == section ? .isSelected : [])
         }
     }
 
-    /// One layout for the header and every row, so columns always line up.
-    private func columns<Waterfall: View>(name: some View, status: some View, type: some View, size: some View, time: some View,
-                                          showsStatus: Bool, @ViewBuilder waterfall: () -> Waterfall) -> some View {
-        HStack(spacing: 10) {
-            name.lineLimit(1).truncationMode(.middle).frame(width: 280, alignment: .leading)
-            if showsStatus { status.frame(width: 40, alignment: .trailing) }
-            type.lineLimit(1).frame(width: 64, alignment: .leading)
-            size.frame(width: 76, alignment: .trailing)
-            time.frame(width: 60, alignment: .trailing)
-            waterfall().frame(maxWidth: .infinity)
-        }
-        .frame(height: 18)
-    }
-
-    /// Bytes only ever appear as bytes; how the response arrived is said in words.
-    private func sizeLabel(_ entry: ResourceEntry) -> Text {
-        let quiet = Color(nsColor: Theme.textTertiary)
-        switch entry.delivery {
-        case .cached:
-            return Text("cached").foregroundStyle(quiet)
-        case .revalidated where entry.encodedSize > 0:
-            return Text(bytes(entry.encodedSize)).foregroundStyle(Color(nsColor: Theme.textSecondary))
-                + Text(" · 304").foregroundStyle(quiet)
-        case .revalidated:
-            return Text("revalidated").foregroundStyle(quiet)
-        case .network:
-            return Text(bytes(entry.transferSize)).foregroundStyle(Color(nsColor: Theme.textSecondary))
-        }
-    }
-
-    /// A round tick interval giving four to eight gridlines across `end` milliseconds.
-    static func tickStep(for end: Double) -> Double {
-        let raw = end / 6
-        let magnitude = pow(10, floor(log10(max(raw, 1))))
-        for multiple in [1.0, 2, 5, 10] where magnitude * multiple >= raw { return magnitude * multiple }
-        return magnitude * 10
-    }
-
-    private func label(_ url: String) -> String {
-        guard let components = URL(string: url) else { return url }
-        let path = components.path.isEmpty ? "/" : components.path
-        return (components.host() ?? "") + path
-    }
-}
-
-/// Hairline gridlines at every `step` ms on the waterfall's shared scale, labeled in the header.
-private struct Ruler: View {
-    let end: Double
-    let step: Double
-    let labeled: Bool
-
-    var body: some View {
-        GeometryReader { geo in
-            let ticks = Array(stride(from: step, through: end, by: step))
-            ZStack(alignment: .topLeading) {
-                ForEach(ticks, id: \.self) { tick in
-                    let x = geo.size.width * tick / end
-                    if labeled {
-                        Text(ms(tick)).font(.system(size: 10, design: .monospaced))
-                            .fixedSize()
-                            .position(x: min(x, geo.size.width - 18), y: geo.size.height / 2)
-                    } else {
-                        Rectangle().fill(Color(nsColor: Theme.hairline)).frame(width: 1, height: geo.size.height).offset(x: x)
-                    }
-                }
-            }
-        }
-    }
-}
-
-private struct LevelChip: View {
-    let level: ConsoleEntry.Level
-    let glyph: String
-    let color: Color
-    let count: Int
-    @Binding var isOn: Bool
-
-    var body: some View {
-        Button { isOn.toggle() } label: {
-            HStack(spacing: 4) {
-                Image(systemName: glyph).font(.system(size: 9)).foregroundStyle(isOn ? color : Color(nsColor: Theme.textTertiary))
-                Text(level.rawValue.capitalized)
-                if count > 0 { Text("\(count)").font(.system(size: 10, design: .monospaced)) }
-            }
-            .font(.system(size: 11, weight: isOn ? .medium : .regular))
-            .foregroundStyle(Color(nsColor: isOn ? Theme.textPrimary : Theme.textTertiary))
-            .padding(.horizontal, 8)
-            .frame(height: 22)
-            .background(RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .fill(isOn ? Color(nsColor: Theme.hoverFill) : .clear))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(level.rawValue.capitalized) messages")
-        .accessibilityValue(isOn ? "shown" : "hidden")
-        .help(isOn ? "Hide \(level.rawValue) messages" : "Show \(level.rawValue) messages")
-    }
-}
-
-// MARK: Storage
-
-private struct StorageView: View {
-    @Bindable var model: DevPanelModel
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                SectionTitle("Cookies", count: model.cookies.count) {
-                    Button("Refresh") { model.refreshStorage() }.controlSize(.small)
-                }
-                if model.cookies.isEmpty { EmptyNote("No cookies for this site").frame(height: 40) }
-                ForEach(model.cookies, id: \.self) { cookie in
-                    HStack(alignment: .firstTextBaseline, spacing: 10) {
-                        Text(cookie.name).font(.system(size: 12, weight: .medium, design: .monospaced)).frame(width: 180, alignment: .leading)
-                        Text(cookie.value).font(.system(size: 12, design: .monospaced)).lineLimit(1).truncationMode(.middle)
-                            .textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
-                        Text(flags(cookie)).font(.system(size: 11)).foregroundStyle(Color(nsColor: Theme.textTertiary))
-                        Button { model.delete(cookie) } label: { Image(systemName: "minus.circle") }
-                            .buttonStyle(.borderless).help("Delete cookie")
-                    }
-                }
-                KeyValues(title: "Local Storage", pairs: model.localStorage)
-                KeyValues(title: "Session Storage", pairs: model.sessionStorage)
-                // Destructive and set apart, so it is never hit by accident.
-                Spacer(minLength: 24)
-                Button("Clear Site Data…", role: .destructive) { model.perform(.clearSiteData) }.controlSize(.small)
-            }
-            .padding(12)
-        }
-    }
-
-    private func flags(_ cookie: HTTPCookie) -> String {
-        var parts = [cookie.domain]
-        if cookie.isSecure { parts.append("Secure") }
-        if cookie.isHTTPOnly { parts.append("HttpOnly") }
-        if let date = cookie.expiresDate { parts.append(date.formatted(date: .abbreviated, time: .omitted)) } else { parts.append("Session") }
-        return parts.joined(separator: " · ")
-    }
-}
-
-private struct KeyValues: View {
-    let title: String
-    let pairs: [(String, String)]
-
-    var body: some View {
-        SectionTitle(title, count: pairs.count) { EmptyView() }
-        if pairs.isEmpty { EmptyNote("Empty").frame(height: 24) }
-        ForEach(pairs, id: \.0) { key, value in
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text(key).font(.system(size: 12, weight: .medium, design: .monospaced)).frame(width: 180, alignment: .leading)
-                Text(value).font(.system(size: 12, design: .monospaced)).lineLimit(2).textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-    }
-}
-
-// MARK: Page
-
-private struct PageView: View {
-    @Bindable var model: DevPanelModel
-    @Bindable var tab: BrowserKit.Tab
-
-    var body: some View {
-        ScrollView {
-            HStack(alignment: .top, spacing: 24) {
-                VStack(alignment: .leading, spacing: 14) {
-                    SectionTitle("Vitals", count: nil) { EmptyView() }
-                    VitalsGrid(vitals: tab.devTools.vitals)
-                    SectionTitle("Tools", count: nil) { EmptyView() }
-                    tools
-                }
-                .frame(width: 320, alignment: .leading)
-                VStack(alignment: .leading, spacing: 8) {
-                    if let response = tab.devTools.mainResponse {
-                        SectionTitle("Response", count: nil) {
-                            Text("\(response.statusCode) · \(response.mimeType ?? "unknown")")
-                                .font(.system(size: 12, design: .monospaced))
-                                .foregroundStyle(response.statusCode >= 400 ? Color(nsColor: Theme.fail) : Color(nsColor: Theme.textSecondary))
-                        }
-                        ForEach(response.headers, id: \.0) { name, value in
-                            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                                Text(name).font(.system(size: 12, weight: .medium, design: .monospaced)).frame(width: 200, alignment: .leading)
-                                Text(value).font(.system(size: 12, design: .monospaced)).textSelection(.enabled)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                        }
-                    } else {
-                        EmptyNote("Load a page to see its response")
-                    }
-                }
-            }
-            .padding(12)
-        }
-    }
-
-    private var tools: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            LabeledContent("Appearance") {
-                Picker("", selection: $tab.colorSchemeOverride) {
-                    Text("System").tag(String?.none)
-                    Text("Light").tag(String?.some("light"))
-                    Text("Dark").tag(String?.some("dark"))
-                }
-                .pickerStyle(.segmented).labelsHidden().frame(width: 180)
-            }
-            LabeledContent("Viewport") {
-                Picker("", selection: $tab.viewportWidth) {
-                    Text("Window").tag(CGFloat?.none)
-                    Text("390").tag(CGFloat?.some(390))
-                    Text("768").tag(CGFloat?.some(768))
-                    Text("1024").tag(CGFloat?.some(1024))
-                    Text("1440").tag(CGFloat?.some(1440))
-                }
-                .labelsHidden().frame(width: 180)
-            }
-            LabeledContent("JavaScript") {
-                Toggle("", isOn: Binding(get: { tab.javaScriptEnabled }, set: { enabled in
-                    tab.javaScriptEnabled = enabled
-                    tab.reload()
-                }))
-                .toggleStyle(.switch).controlSize(.small).labelsHidden()
-            }
-            HStack(spacing: 6) {
-                Button("View Source") { model.perform(.viewSource) }
-                Button("Copy Screenshot") { model.perform(.copyScreenshot) }
-                Button("Save PDF…") { model.perform(.savePDF) }
-            }
-            .controlSize(.small)
-        }
-        .font(.system(size: 12))
-        .tint(Color(nsColor: Theme.accent))
-    }
-}
-
-private struct VitalsGrid: View {
-    let vitals: Vitals
-
-    var body: some View {
-        Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
-            row("TTFB", vitals.ttfb, good: 800, poor: 1800, format: ms)
-            row("LCP", vitals.lcp, good: 2500, poor: 4000, format: ms)
-            row("INP", vitals.inp, good: 200, poor: 500, format: ms)
-            row("CLS", vitals.cls, good: 0.1, poor: 0.25) { String(format: "%.3f", $0) }
-            row("Load", vitals.load, good: .infinity, poor: .infinity, format: ms)
-        }
-    }
-
-    private func row(_ name: String, _ value: Double?, good: Double, poor: Double, format: (Double) -> String) -> some View {
-        GridRow {
-            Text(name).font(.system(size: 12, weight: .medium)).foregroundStyle(Color(nsColor: Theme.textSecondary))
-            if let value {
-                HStack(spacing: 6) {
-                    Circle().fill(Color(nsColor: value <= good ? Theme.pass : value <= poor ? Theme.pending : Theme.fail))
-                        .frame(width: 6, height: 6)
-                        .opacity(good.isInfinite ? 0 : 1)
-                    Text(format(value)).font(.system(size: 12, design: .monospaced))
-                }
-            } else {
-                Text("–").foregroundStyle(Color(nsColor: Theme.textTertiary))
-            }
-        }
-    }
-}
-
-// MARK: Shared pieces
-
-private struct SectionTitle<Accessory: View>: View {
-    let title: String
-    let count: Int?
-    @ViewBuilder var accessory: Accessory
-
-    init(_ title: String, count: Int?, @ViewBuilder accessory: () -> Accessory) {
-        self.title = title
-        self.count = count
-        self.accessory = accessory()
-    }
-
-    var body: some View {
+    private var target: some View {
         HStack(spacing: 6) {
-            Text(title).font(.system(size: 12, weight: .semibold)).foregroundStyle(Color(nsColor: Theme.textPrimary))
-            if let count {
-                Text("\(count)").font(.system(size: 11).monospacedDigit()).foregroundStyle(Color(nsColor: Theme.textTertiary))
+            if model.tab?.devTools.captureID != nil {
+                Image(systemName: "record.circle").foregroundStyle(Color(nsColor: Theme.accent)).help("Detailed capture is active")
             }
-            Spacer()
-            accessory
+            Text(model.origin ?? model.tab?.url?.host() ?? "No page").font(.system(size: 11, design: .monospaced)).lineLimit(1)
+                .help(model.tab?.url?.absoluteString ?? "No page")
+        }.foregroundStyle(devSecondary).fixedSize()
+    }
+
+    private var windowActions: some View {
+        HStack(spacing: 2) {
+            DevIcon(model.isDetached ? "Dock tools in browser" : "Detach tools", symbol: model.isDetached ? "rectangle.bottomthird.inset.filled" : "arrow.up.right.square") {
+                model.perform(model.isDetached ? .redock : .detach)
+            }
+            DevIcon("Close developer tools (⌥⌘J)", symbol: "xmark") { model.perform(.close) }
         }
     }
-}
-
-private struct FilterField: View {
-    @Binding var text: String
-    let prompt: String
-
-    var body: some View {
-        TextField(prompt, text: $text)
-            .textFieldStyle(.roundedBorder)
-            .controlSize(.small)
-            .frame(maxWidth: 260)
-    }
-}
-
-private struct EmptyNote: View {
-    let text: String
-    init(_ text: String) { self.text = text }
-
-    var body: some View {
-        Text(text).font(.system(size: 12)).foregroundStyle(Color(nsColor: Theme.textTertiary))
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
-private func ms(_ value: Double) -> String {
-    value >= 1000 ? String(format: "%.2f s", value / 1000) : "\(Int(value.rounded())) ms"
-}
-
-private func bytes(_ count: Int) -> String {
-    ByteCountFormatter.string(fromByteCount: Int64(count), countStyle: .file)
 }

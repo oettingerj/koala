@@ -43,6 +43,9 @@ enum Theme {
 
     /// Nano teal: focus, selection, and primary actions only.
     static let accent = dynamic(light: 0x0E8F80, dark: 0x2CC3AE, name: "accent")
+    static let accentText = dynamic(light: 0x0B7A6D, dark: 0x2CC3AE, name: "accentText")
+    /// Native selected segments use white labels in both appearances.
+    static let controlSelectionTint = dynamic(light: 0x4E4E56, dark: 0x3E3E44, name: "controlSelectionTint")
     static let pass = dynamic(light: 0x248A57, dark: 0x3DD68C, name: "pass")
     static let pending = dynamic(light: 0xB07A0A, dark: 0xF5A524, name: "pending")
     static let fail = dynamic(light: 0xD1343A, dark: 0xF2555A, name: "fail")

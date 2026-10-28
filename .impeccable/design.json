@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-27T01:47:08+00:00",
+  "generatedAt": "2026-10-28T19:14:32.601986+00:00",
   "title": "Design System: Nano",
   "extensions": {
     "colorMeta": {
@@ -401,6 +401,24 @@
           "#F4F4F5"
         ],
         "rampStep": 5
+      },
+      "dev-accent-text": {
+        "role": "primary",
+        "displayName": "Devtools Text-safe Teal",
+        "purpose": "Theme.accentText: action labels and active capture status; existing deep teal light and accent dark."
+      },
+      "dev-accent-text-dark": {
+        "role": "primary",
+        "displayName": "Devtools Text-safe Teal (dark)"
+      },
+      "dev-control-selection": {
+        "role": "neutral",
+        "displayName": "Devtools Native Control Selection",
+        "purpose": "Theme.controlSelectionTint behind white system labels; does not style evidence rows."
+      },
+      "dev-control-selection-dark": {
+        "role": "neutral",
+        "displayName": "Devtools Native Control Selection (dark)"
       }
     },
     "typographyMeta": {
@@ -491,6 +509,10 @@
       {
         "name": "command-bar-narrow",
         "value": "window width - 48pt below 688pt"
+      },
+      {
+        "name": "devtools-details-replacement",
+        "value": "below 760pt: selected details replace list with Back to list"
       }
     ]
   },
@@ -536,12 +558,12 @@
       "css": ".ds-cmd{width:560px;border:1px solid #DEDEE1;border-radius:10px;background:#FAFAFA;box-shadow:0 10px 30px rgba(0,0,0,.18);overflow:hidden;font-family:-apple-system, system-ui, sans-serif}.ds-cmd-q{display:flex;align-items:center;gap:10px;height:52px;padding:0 16px;font-size:16px;color:#18181B;border-bottom:1px solid #DEDEE1}.ds-cmd-list{padding:6px}.ds-row{display:flex;align-items:center;gap:10px;height:40px;padding:0 10px;border-radius:6px;font-size:13px;color:#18181B}.ds-row:hover,.ds-row-sel{background:#DEDEE1}.ds-row-sel .ds-row-t{font-weight:500}.ds-row>span:nth-child(2){display:flex;flex-direction:column;gap:1px;min-width:0}.ds-row-i{flex:none;width:16px;height:16px;border-radius:4px;background:#A0A0A8}.ds-row-cmd{background:#0E8F80}.ds-row-u{font:11px ui-monospace, SFMono-Regular, monospace;color:#6C6C75}.ds-row-u b{font-weight:400;color:#4E4E56}.ds-row-h{margin-left:auto;font-size:11px;color:#6C6C75;font-variant-numeric:tabular-nums}"
     },
     {
-      "name": "Dev Panel Chips and Table",
+      "name": "Dev Panel Workbench",
       "kind": "custom",
-      "refersTo": "dev-chip",
-      "description": "Section tabs, level chips, and a mono table with shared-scale timing bars.",
-      "html": "<div class=\"ds-dev\"><div class=\"ds-dev-h\"><span class=\"ds-sec ds-on\">Console <em>3</em></span><span class=\"ds-sec\">Network</span><span class=\"ds-sec\">Storage</span><span class=\"ds-sec\">Vitals</span></div><div class=\"ds-dev-f\"><span class=\"ds-lvl ds-on\"><i style=\"background:#D1343A\"></i>Error <code>3</code></span><span class=\"ds-lvl\"><i></i>Warn</span></div><div class=\"ds-th\"><span>Name</span><span>Time</span></div><div class=\"ds-tr\"><span>/api/pulls</span><span>182 ms</span><span class=\"ds-bar\"><b style=\"left:10%;width:40%\"></b></span></div><div class=\"ds-tr ds-err\"><span>/favicon.ico</span><span>12 ms</span><span class=\"ds-bar\"><b style=\"left:55%;width:4%\"></b></span></div></div>",
-      "css": ".ds-dev{width:560px;background:#FAFAFA;border-top:1px solid #DEDEE1;font-family:-apple-system, system-ui, sans-serif;color:#18181B}.ds-dev-h{display:flex;gap:2px;align-items:center;height:32px;padding:0 8px}.ds-sec{display:inline-flex;gap:4px;align-items:center;height:24px;padding:0 10px;border-radius:5px;font-size:12px;color:#4E4E56}.ds-sec.ds-on{background:#DEDEE1;color:#18181B;font-weight:500}.ds-sec em{font:normal 600 10px -apple-system, system-ui, sans-serif;font-variant-numeric:tabular-nums;color:#D1343A}.ds-dev-f{display:flex;gap:4px;padding:0 8px 8px}.ds-lvl{display:inline-flex;gap:4px;align-items:center;height:22px;padding:0 8px;border-radius:5px;font-size:11px;color:#6C6C75}.ds-lvl:hover{background:#EBEBED}.ds-lvl.ds-on{background:#DEDEE1;color:#18181B;font-weight:500}.ds-lvl i{width:7px;height:7px;border-radius:50%;background:#6C6C75}.ds-lvl code{font:10px ui-monospace, SFMono-Regular, monospace}.ds-th{display:grid;grid-template-columns:200px 80px 1fr;height:22px;align-items:center;padding:0 10px;font-size:11px;font-weight:500;color:#4E4E56;border-bottom:1px solid #DEDEE1}.ds-tr{display:grid;grid-template-columns:200px 80px 1fr;height:22px;align-items:center;padding:0 10px;font:11px ui-monospace, SFMono-Regular, monospace}.ds-tr span:nth-child(2){color:#4E4E56}.ds-err{background:rgba(209,52,58,.07)}.ds-bar{position:relative;height:6px}.ds-bar b{position:absolute;top:0;height:6px;border-radius:1px;background:#0E8F80}"
+      "refersTo": "dev-panel",
+      "description": "Native five-tab workbench; this self-contained HTML translation illustrates the light list/detail hierarchy, not a shipping web surface.",
+      "html": "<div class=\"ds-dev\"><nav class=\"ds-dev-header\" aria-label=\"Developer tools\"><button>Console</button><button class=\"ds-dev-on\" aria-current=\"page\">Network</button><button>Elements</button><button>Storage</button><button>Page</button></nav><div class=\"ds-dev-toolbar\"><button class=\"ds-dev-segment\">Fetch / XHR</button><input aria-label=\"Search requests\" placeholder=\"Search requests\"><button>Stop capture</button></div><div class=\"ds-dev-split\"><div class=\"ds-dev-items\"><div class=\"ds-dev-columns\">Method · Name · Status · Time</div><button class=\"ds-dev-row\">GET /api/cart · 200 · 18 ms</button><button class=\"ds-dev-row ds-dev-selected\">POST /api/checkout · 422 · 9 ms</button></div><section class=\"ds-dev-detail\"><button class=\"ds-dev-back\">‹ Back to list</button><strong>POST /api/checkout</strong><p><button class=\"ds-dev-segment\">Response</button></p><pre>{\"error\": \"Missing shipping address\"}</pre></section></div><footer class=\"ds-dev-footer\"><span>2 captured requests</span><span>Capture on · this origin only</span></footer></div>",
+      "css": ".ds-dev{width:100%;min-width:300px;background:#FAFAFA;color:#18181B;font:12px -apple-system,system-ui,sans-serif;border-top:1px solid #DEDEE1;container-type:inline-size}.ds-dev button{font:inherit;color:#4E4E56;background:transparent;border:0;border-radius:5px;cursor:pointer}.ds-dev button:hover{background:#DEDEE1}.ds-dev button:focus-visible,.ds-dev input:focus-visible{outline:2px solid #0B7A6D;outline-offset:1px}.ds-dev button:active{background:#C8C8CD}.ds-dev-header{display:flex;gap:2px;align-items:center;height:36px;padding:0 8px;border-bottom:1px solid #DEDEE1}.ds-dev-header button{height:26px;padding:0 9px}.ds-dev-header .ds-dev-on{background:#DEDEE1;color:#18181B;font-weight:600}.ds-dev-toolbar{display:flex;align-items:center;gap:10px;height:40px;padding:0 12px;overflow-x:auto;white-space:nowrap;border-bottom:1px solid #DEDEE1}.ds-dev-toolbar input{font:inherit;min-width:100px;height:26px;padding:0 8px;border:0;border-radius:5px;background:#EBEBED;color:#18181B}.ds-dev .ds-dev-segment{background:#4E4E56;color:white;padding:4px 10px}.ds-dev-split{display:grid;grid-template-columns:58% 42%;min-height:160px}.ds-dev-columns{height:26px;padding:0 12px;display:flex;align-items:center;font-size:11px;color:#4E4E56;border-bottom:1px solid #DEDEE1}.ds-dev .ds-dev-row{display:block;width:100%;min-height:28px;padding:5px 12px;text-align:left;border-radius:0;border-bottom:1px solid #DEDEE1;font:12px ui-monospace,SFMono-Regular,monospace;color:#18181B}.ds-dev .ds-dev-selected{background:#DEDEE1}.ds-dev-detail{padding:16px;border-left:1px solid #DEDEE1;overflow:auto}.ds-dev-detail pre{white-space:pre-wrap;font:12px/1.5 ui-monospace,SFMono-Regular,monospace}.ds-dev-footer{height:24px;border-top:1px solid #DEDEE1;padding:0 12px;display:flex;justify-content:space-between;align-items:center;font-size:10px;color:#4E4E56}.ds-dev-footer span:last-child{color:#0B7A6D}.ds-dev .ds-dev-back{display:none}@container(max-width:759px){.ds-dev-split{display:block}.ds-dev-items{display:none}.ds-dev-detail{border-left:0}.ds-dev .ds-dev-back{display:block;height:30px;margin-bottom:12px}.ds-dev-header{overflow-x:auto}}"
     },
     {
       "name": "Peek Card",
@@ -613,7 +635,7 @@
       },
       {
         "name": "The Opaque Rule",
-        "body": "Every Nano-drawn surface is an opaque ramp step. Translucency, blur, and gradients are not part of this world; the only alpha in the chrome is the Peek scrim and the 7% fail/pending tint on console error and warning rows.",
+        "body": "Every Nano-drawn surface is an opaque ramp step. Translucency, blur, and gradients are not part of this world; the only alpha in the chrome is the Peek scrim. Console rows remain neutral; severity appears in semantic glyphs and counts.",
         "section": "elevation"
       }
     ],

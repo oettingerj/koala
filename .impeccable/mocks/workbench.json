@@ -1,0 +1,8 @@
+{
+  "approved": true,
+  "composition": "A · Split inspector",
+  "reference": "workbench.html#split",
+  "medium": "browser-rendered interface mockup",
+  "reason": "Built-in image generation failed twice with HTTP 500. User reviewed all three rendered compositions and selected A.",
+  "approvedDate": "2026-10-28"
+}

@@ -123,12 +123,34 @@ enum MainMenu {
     private static func developMenu() -> NSMenu {
         let menu = NSMenu(title: "Develop")
         menu.addItem(item("Show Dev Panel", #selector(BrowserWindowController.toggleDevPanel(_:)), "j", [.command, .option]))
+        for (index, section) in DevPanelModel.Section.allCases.enumerated() {
+            let command = item("Show \(section.rawValue)", #selector(BrowserWindowController.showDevSection(_:)))
+            command.tag = index
+            menu.addItem(command)
+        }
+        menu.addItem(item("Detach / Dock Developer Tools", #selector(BrowserWindowController.detachDevTools(_:))))
+        menu.addItem(.separator())
         menu.addItem(item("View Source", #selector(BrowserWindowController.viewSource(_:)), "u", [.command, .option]))
         menu.addItem(item("Reload from Origin", #selector(BrowserWindowController.hardReload(_:)), "r", [.command, .shift]))
         menu.addItem(.separator())
         let note = NSMenuItem(title: "Web Inspector: right-click › Inspect Element", action: nil, keyEquivalent: "")
         note.isEnabled = false
         menu.addItem(note)
+        #if DEBUG
+        menu.addItem(.separator())
+        let review = NSMenu(title: "Review Tools")
+        review.addItem(closureMenuItem("Save Devtools Snapshot") { DevToolsReview.saveSnapshot() })
+        review.addItem(.separator())
+        review.addItem(closureMenuItem("Light Appearance") { NSApp.appearance = NSAppearance(named: .aqua) })
+        review.addItem(closureMenuItem("Dark Appearance") { NSApp.appearance = NSAppearance(named: .darkAqua) })
+        review.addItem(closureMenuItem("System Appearance") { NSApp.appearance = nil })
+        review.addItem(.separator())
+        review.addItem(closureMenuItem("Compact Window") { NSApp.keyWindow?.setContentSize(NSSize(width: 640, height: 600)) })
+        review.addItem(closureMenuItem("Standard Window") { NSApp.keyWindow?.setContentSize(NSSize(width: 1280, height: 820)) })
+        let reviewItem = NSMenuItem(title: "Review Tools", action: nil, keyEquivalent: "")
+        reviewItem.submenu = review
+        menu.addItem(reviewItem)
+        #endif
         return menu
     }
 

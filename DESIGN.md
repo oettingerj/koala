@@ -5,6 +5,10 @@ colors:
   accent: "#0E8F80"
   accent-dark: "#2CC3AE"
   accent-deep: "#0B7A6D"
+  dev-accent-text: "#0B7A6D"
+  dev-accent-text-dark: "#2CC3AE"
+  dev-control-selection: "#4E4E56"
+  dev-control-selection-dark: "#3E3E44"
   on-accent-dark: "#0B1F1C"
   pass: "#248A57"
   pass-dark: "#3DD68C"
@@ -149,21 +153,31 @@ components:
     padding: "0 10pt"
   command-row-selected:
     backgroundColor: "{colors.hover-fill}"
-  dev-chip:
-    textColor: "{colors.text-tertiary}"
-    typography: "{typography.label}"
-    rounded: "{rounded.inner}"
-    height: "22pt"
-    padding: "0 8pt"
-  dev-chip-on:
-    backgroundColor: "{colors.hover-fill}"
+  dev-panel:
+    backgroundColor: "{colors.chrome-surface}"
     textColor: "{colors.text-primary}"
   dev-section-tab:
     textColor: "{colors.text-secondary}"
     typography: "{typography.body}"
     rounded: "{rounded.inner}"
-    height: "24pt"
-    padding: "0 10pt"
+    height: "26pt"
+    padding: "0 9pt"
+  dev-section-tab-selected:
+    backgroundColor: "{colors.hover-fill}"
+    textColor: "{colors.text-primary}"
+  dev-search:
+    backgroundColor: "{colors.field-fill}"
+    typography: "{typography.body}"
+    rounded: "{rounded.inner}"
+    height: "26pt"
+    padding: "0 8pt"
+  dev-row:
+    textColor: "{colors.text-primary}"
+    typography: "{typography.mono}"
+    padding: "5pt 12pt"
+  dev-row-selected:
+    backgroundColor: "{colors.hover-fill}"
+    textColor: "{colors.text-primary}"
   peek-card:
     backgroundColor: "{colors.chrome-surface}"
     rounded: "{rounded.panel}"
@@ -253,7 +267,7 @@ Nano-authored web pages use the same faces through `-apple-system, system-ui` an
 
 ## Layout
 
-The window is a fixed vertical stack: tab strip (40pt, the native compact titlebar height, so traffic lights center untouched; 80pt leading inset, 12pt in full screen), toolbar (36pt), optional bookmarks bar (28pt, off by default), optional find bar (32pt), the page edge to edge, and the optional dev panel at the bottom (resizable from 120pt to 80% of window height). Each chrome row ends in one hairline.
+The window is a fixed vertical stack: tab strip (40pt, the native compact titlebar height, so traffic lights center untouched; 80pt leading inset, 12pt in full screen), toolbar (36pt), optional bookmarks bar (28pt, off by default), optional find bar (32pt), the page edge to edge, and the optional dev panel at the bottom (300pt by default, preferred minimum 200pt, capped to 80% of available content height). Each chrome row ends in one hairline.
 
 Tabs run 120 to 200pt wide with 4pt gaps and a centered 16pt hairline separator between unselected neighbors; pinned tabs are 40pt icon-only. Past the minimum width the strip scrolls whole tabs and shows a guide word at each overflowing edge. The toolbar holds back, forward, reload at left (28pt buttons, 2pt apart, 8pt from the edge), the flexing address field, then the right cluster.
 
@@ -269,7 +283,7 @@ Nano is flat. Docked chrome conveys depth only by tonal step: strip ground sits 
 ### Named Rules
 **The Floating-Only Shadow Rule.** Shadow belongs only to surfaces that float above the page. Docked chrome, tabs, chips, buttons, and panels never cast one.
 
-**The Opaque Rule.** Every Nano-drawn surface is an opaque ramp step. Translucency, blur, and gradients are not part of this world; the only alpha in the chrome is the Peek scrim and the 7% fail/pending tint on console error and warning rows.
+**The Opaque Rule.** Every Nano-drawn surface is an opaque ramp step. Translucency, blur, and gradients are not part of this world; the only alpha in the chrome is the Peek scrim. Console rows remain neutral; severity appears in semantic glyphs and counts.
 
 ## Shapes
 
@@ -309,11 +323,16 @@ On any GitHub page: field well, 6pt, 24pt tall, `owner/repo · #number` in 11pt 
 - **Selected:** hover fill and a medium-weight title. Pointer hover moves the selection; streaming results never move the selected row.
 
 ### Dev Panel
-An editor pane on chrome surface below a draggable hairline.
-- **Header:** 32pt, section tabs 24pt tall at 5pt radius, 12pt (medium and primary when selected, on hover fill); the console tab carries a fail-red error count.
-- **Level chips:** 22pt, 5pt, 11pt; on: hover fill, primary text, level glyph in its state color; off: no fill, tertiary.
-- **Tables:** 11 to 12pt mono rows; column headers 11pt medium in a 22pt row above a hairline; key columns 180 to 200pt in medium mono; error and warning rows tinted 7%.
-- **Network timing:** every bar shares one exact time scale with the ruler; 6pt bars, hairline ticks, 10pt mono tick labels.
+A native debugging workbench on chrome surface, docked below a draggable hairline or detached into a normal, resizable macOS window bound to its inspected tab.
+- **Frame:** default dock height 300pt, preferred minimum 200pt, capped to 80% of available content height. The detached window restores its frame and has a 480 × 320pt minimum.
+- **Header:** 36pt; Console, Network, Elements, Storage, Page. Section tabs are 26pt tall with 5pt corners and 9pt horizontal insets; selected tabs use neutral hover fill and 12pt semibold primary text. Origin and capture indicator yield space to tabs and window actions when needed. Console errors use a red count.
+- **Toolbar:** 40pt with 12pt side insets, 10pt gaps and small native controls. Search uses a 26pt field well with 5pt corners. Overflow actions scroll horizontally rather than compressing labels.
+- **Evidence and details:** Console, Network and Storage use a draggable list/detail split, initially 58% list. At 760pt and wider, the list has a 300pt minimum and details retain roughly 320pt; below 760pt, selection replaces the list with details and a 30pt Back to list row. Split proportion persists and can be adjusted with arrow keys and accessibility actions.
+- **Rows:** virtualized native lists, minimum 28pt rows with 5pt vertical and 12pt horizontal insets; table headings are 26pt. Data uses 11–12pt SF Mono, headings and controls 11–12pt SF Pro, and compact timestamps/footer counts 10pt. Selected rows use neutral hover fill with primary/secondary text in both active and inactive windows. Console rows use neutral backgrounds; semantic glyphs carry severity.
+- **Control selection:** native selected segments and checkboxes use dev-control-selection (Theme.controlSelectionTint) behind white system labels. Action text and capture status use dev-accent-text (Theme.accentText), the text-safe teal role; ordinary row selection stays neutral.
+- **Detail reading:** 12pt selectable mono code, 4pt added line spacing, semibold 12pt section headings and explicit Copy actions. Network exposes native Overview/Headers/Payload/Response segments, formatted JSON and Raw. Resource timing bars use a shared time scale and neutral bars, with fail red for errors.
+- **Anchors:** Console input stays below the evidence area; Console, Network and Storage end in 24pt count/status footers. Empty states state the next useful action; unavailable data is named explicitly.
+- **Other sections:** Elements presents a read-only picked-element snapshot; Page groups native controls and observed performance in a scroll view. No raster assets or authored entrance animations are used.
 
 ### Peek Card
 The linked page floats over the current one: the scrim, then a 10pt card on chrome surface with a hairline border; a 36pt header with the host in 12pt mono secondary and three icon buttons (split, tab, close). Opens with a 0.97 to 1 scale and fade over 120ms ease-out.

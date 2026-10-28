@@ -22,7 +22,7 @@ Nano is a fast, native Mac browser that understands the engineer's web. Pages le
 
 ## Positioning
 
-A native WebKit browser that treats GitHub and devtools as first-class parts of the browser rather than as websites like any other: PR and CI state live in the tab strip, a context chip names the repo and PR, a native dev panel shows console, network, storage, and vitals. Traditional layout (top tab strip + toolbar), not a sidebar browser.
+A native WebKit browser that treats GitHub and devtools as first-class parts of the browser rather than as websites like any other: PR and CI state live in the tab strip, a context chip names the repo and PR, a native dev panel shows console, network, elements, site storage, and page tools. Traditional layout (top tab strip + toolbar), not a sidebar browser.
 
 ## Operating Context
 
@@ -39,7 +39,8 @@ v1 scope:
 - History, bookmarks, import from Chrome / Brave / Arc / Safari. Session restore, recently closed.
 - Downloads manager. Web extensions via `WKWebExtension`: Chrome Web Store installs, a compatibility script that stands in for Chrome APIs WebKit lacks, and Chrome's native messaging hosts.
 - GitHub (GitHub App device flow, token in Keychain): PR/issue state and CI status in tabs, toolbar context chip, review queue, permalinks, open in local editor.
-- Devtools: Web Inspector (public API only: `isInspectable`, opened from the context menu), native dev panel (console, network timing, storage, vitals), page tools (force light/dark, hard reload, disable JS, view source, JSON viewer, responsive widths, full-page screenshot).
+- Devtools: Web Inspector (public API only: `isInspectable`, opened from the context menu) plus a resizable bottom-docked or detached native workbench bound to its inspected tab. Five sections: Console (argument snapshots, repeated-message groups, evaluation/history, preserve log and follow controls); Network (resource timing plus explicitly enabled per-tab fetch/XHR capture, script-visible headers, bounded text payloads, formatted/raw JSON and Copy as cURL); Elements (read-only page picker and element snapshot); Storage (current-site cookies and editable local/session storage); Page (force light/dark, responsive widths, enable/disable JS, reload from origin, view source, copy screenshot, save PDF and observed performance). JSON viewer remains a page utility.
+- Detailed network capture is limited to 64 KiB per body and an 8 MiB retained payload budget; closing tools or crossing origins stops it. Browser-added credentials, iframe requests and binary/streaming bodies are unavailable. Inspection records stay in memory; presentation preferences may persist. Page performance values are local observations, not field scores or a complete INP measurement.
 - Copy as Markdown.
 
 Explicitly out of v1: password manager, spaces/profiles, tab auto-archive, automatic localhost dev mode, private WebKit SPI (one exception: `_setAllowsPictureInPictureMediaPlayback:`, since macOS WKWebView has no public switch for Picture in Picture), implementing Chrome-only extension APIs (they get inert stand-ins).

@@ -10,6 +10,9 @@ public struct ConsoleEntry: Identifiable, Equatable, Sendable {
     public let text: String
     public let source: String
     public let date: Date
+    public var arguments: [String] = []
+    public var stack: String = ""
+    public var kind: String = "message"
 
     /// Validates a message posted by the page-world console hook. The page can call the
     /// handler directly, so every field is checked and capped.
@@ -18,8 +21,11 @@ public struct ConsoleEntry: Identifiable, Equatable, Sendable {
               let levelName = dict["level"] as? String, let level = Level(rawValue: levelName),
               let text = dict["text"] as? String else { return nil }
         let source = dict["source"] as? String ?? ""
-        return ConsoleEntry(id: id, level: level, text: String(text.prefix(4000)),
-                            source: String(source.prefix(500)), date: date)
+        var entry = ConsoleEntry(id: id, level: level, text: DebugValue.text(text),
+                                 source: DebugValue.text(source, limit: 500), date: date)
+        entry.arguments = (dict["arguments"] as? [String] ?? []).prefix(12).map { DebugValue.text($0) }
+        entry.stack = DebugValue.text(dict["stack"], limit: 8000)
+        return entry
     }
 }
 
@@ -36,26 +42,26 @@ public struct ResourceEntry: Identifiable, Equatable, Sendable {
     public let status: Int
 
     /// How the response was delivered, as Resource Timing reports it.
-    public enum Delivery: Sendable, Equatable { case network, cached, revalidated }
+    public enum Delivery: Sendable, Equatable { case network, cached, revalidated, unknown }
 
     public var delivery: Delivery {
-        if transferSize == 0 { return .cached }
+        if transferSize == 0 { return encodedSize > 0 ? .cached : .unknown }
         // The Fetch spec reports a fixed 300 bytes for responses revalidated from cache (304).
         if transferSize == 300 { return .revalidated }
         return .network
     }
 
     /// Bytes that crossed the network for this request (headers only when revalidated).
-    public var bytesTransferred: Int { delivery == .network ? transferSize : 0 }
+    public var bytesTransferred: Int { transferSize }
 
     static func decode(_ value: Any, id: Int) -> ResourceEntry? {
         guard let dict = value as? [String: Any], let url = dict["name"] as? String else { return nil }
         func number(_ key: String) -> Double {
             let value = (dict[key] as? NSNumber)?.doubleValue ?? 0
-            return value.isFinite ? max(0, value) : 0
+            return value.isFinite ? min(1e12, max(0, value)) : 0
         }
-        return ResourceEntry(id: id, url: String(url.prefix(2000)),
-                             type: String((dict["type"] as? String ?? "other").prefix(32)),
+        return ResourceEntry(id: id, url: DebugValue.text(url, limit: 2000),
+                             type: DebugValue.text(dict["type"] as? String ?? "other", limit: 32),
                              start: number("start"), duration: number("duration"),
                              transferSize: Int(number("size")), encodedSize: Int(number("encoded")),
                              status: Int(number("status")))
@@ -106,6 +112,19 @@ public final class DevToolsRecord {
     public private(set) var resources: [ResourceEntry] = []
     public private(set) var vitals = Vitals()
     public private(set) var mainResponse: MainResponse?
+    public private(set) var requests: [NetworkRequest] = []
+    public private(set) var element: ElementSnapshot?
+    public private(set) var isPicking = false
+    public var preserveLog = false
+    public private(set) var navigationID = UUID()
+    public private(set) var captureID: String?
+    public private(set) var captureOrigin: String?
+    public private(set) var document: String?
+    public private(set) var isolatedDocument: String?
+    @ObservationIgnored private var pendingMessages: [(String, Any)] = []
+    @ObservationIgnored private var pickerID: String?
+    @ObservationIgnored private var clearedRequestIDs: Set<String> = []
+    static let payloadBudget = 8 * 1024 * 1024
 
     @ObservationIgnored private var nextID = 0
     static let consoleLimit = 2000
@@ -114,10 +133,105 @@ public final class DevToolsRecord {
     public init() {}
 
     func reset() {
-        console.removeAll()
-        resources.removeAll()
-        errorCount = 0
+        navigationID = UUID()
+        if !preserveLog {
+            clearConsole()
+            resources.removeAll()
+            requests.removeAll()
+        }
+        element = nil
+        isPicking = false
+        pickerID = nil
         vitals = Vitals()
+    }
+
+    func willNavigate() {
+        navigationID = UUID()
+        document = nil
+        isolatedDocument = nil
+        pendingMessages.removeAll()
+        mainResponse = nil
+    }
+
+    public func bindDocument(_ value: String, isolated: String) {
+        guard !value.isEmpty, value.count <= 120, !isolated.isEmpty, isolated.count <= 120 else { return }
+        document = value
+        isolatedDocument = isolated
+        let pending = pendingMessages
+        pendingMessages.removeAll()
+        for (name, body) in pending { route(name: name, body: body) }
+    }
+
+    func route(name: String, body: Any) {
+        guard let dict = body as? [String: Any], let stamp = dict["document"] as? String, stamp.count <= 120 else { return }
+        guard let expected = name == DevToolsScripts.consoleHandler || name == DevToolsScripts.networkHandler ? document : isolatedDocument else {
+            if pendingMessages.count < 64 { pendingMessages.append((name, body)) }
+            return
+        }
+        guard stamp == expected else { return }
+        switch name {
+        case DevToolsScripts.consoleHandler: receive(console: body)
+        case DevToolsScripts.metricsHandler: receive(metrics: body)
+        case DevToolsScripts.networkHandler: receive(network: body)
+        case DevToolsScripts.elementHandler:
+            guard dict["token"] as? String == pickerID, pickerID != nil else { return }
+            element = ElementSnapshot.decode(body)
+            isPicking = false
+            pickerID = nil
+        default: break
+        }
+    }
+
+    public func beginCapture(origin: String) -> String {
+        let token = UUID().uuidString
+        captureID = token
+        captureOrigin = origin
+        return token
+    }
+
+    public func endCapture() { captureID = nil; captureOrigin = nil }
+    public func beginPicking() -> String {
+        let token = UUID().uuidString
+        pickerID = token
+        isPicking = true
+        return token
+    }
+    public func endPicking() { pickerID = nil; isPicking = false }
+    public func clearNetwork() {
+        resources.removeAll()
+        // Rotate the capture token in the model when clearing, rejecting late body updates.
+        requests.removeAll()
+        clearedRequestIDs.removeAll()
+    }
+
+    public func appendEvaluation(_ text: String, level: ConsoleEntry.Level = .log, kind: String) {
+        nextID += 1
+        var entry = ConsoleEntry(id: nextID, level: level, text: DebugValue.text(text, limit: 16_000), source: "", date: Date())
+        entry.kind = kind
+        append(entry)
+    }
+
+    func receive(network body: Any) {
+        guard let dict = body as? [String: Any], let token = captureID, dict["token"] as? String == token,
+              let entry = NetworkRequest.decode(body), !clearedRequestIDs.contains(entry.id) else { return }
+        if let index = requests.firstIndex(where: { $0.id == entry.id }) {
+            // Payload updates may arrive after response completion. Scripts send complete snapshots.
+            requests[index] = entry
+        } else {
+            if requests.count >= Self.resourceLimit {
+                clearedRequestIDs.insert(requests.removeFirst().id)
+                if clearedRequestIDs.count > Self.resourceLimit { clearedRequestIDs.removeAll() }
+            }
+            requests.append(entry)
+        }
+        var total = requests.reduce(0) { $0 + $1.requestBody.text.utf8.count + $1.responseBody.text.utf8.count }
+        for index in requests.indices where total > Self.payloadBudget {
+            total -= requests[index].requestBody.text.utf8.count + requests[index].responseBody.text.utf8.count
+            requests[index].requestBody.text = ""
+            requests[index].responseBody.text = ""
+            requests[index].requestBody.note = "Payload evicted to keep capture within 8 MiB."
+            requests[index].responseBody.note = "Payload evicted to keep capture within 8 MiB."
+        }
     }
 
     public func clearConsole() {
@@ -137,6 +251,10 @@ public final class DevToolsRecord {
     func receive(console body: Any) {
         nextID += 1
         guard let entry = ConsoleEntry.decode(body, id: nextID) else { return }
+        append(entry)
+    }
+
+    private func append(_ entry: ConsoleEntry) {
         if entry.level == .error { errorCount += 1 }
         console.append(entry)
         if console.count > Self.consoleLimit { console.removeFirst(console.count - Self.consoleLimit) }
@@ -172,10 +290,6 @@ public final class DevToolsRouter: NSObject, WKScriptMessageHandler {
     public func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
         guard message.frameInfo.isMainFrame, let webView = message.webView,
               let record = records[ObjectIdentifier(webView)]?.record else { return }
-        switch message.name {
-        case DevToolsScripts.consoleHandler: record.receive(console: message.body)
-        case DevToolsScripts.metricsHandler: record.receive(metrics: message.body)
-        default: break
-        }
+        record.route(name: message.name, body: message.body)
     }
 }

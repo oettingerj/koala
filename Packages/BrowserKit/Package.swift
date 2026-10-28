@@ -12,7 +12,7 @@ let package = Package(
     ],
     targets: [
         .target(name: "BrowserKit", dependencies: [.product(name: "GRDB", package: "GRDB.swift")],
-                resources: [.copy("Extensions/compat.js")]),
+                resources: [.copy("Extensions/compat.js"), .copy("DevTools/Scripts")]),
         .testTarget(name: "BrowserKitTests", dependencies: ["BrowserKit"]),
     ]
 )

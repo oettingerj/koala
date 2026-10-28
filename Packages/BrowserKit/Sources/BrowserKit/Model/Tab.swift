@@ -314,18 +314,35 @@ extension Tab: WKNavigationDelegate {
     public func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
         isShowingErrorPage = navigation != nil && navigation === errorNavigation
         devTools.reset()
+        if isShowingErrorPage { devTools.endCapture() }
+        bindDevToolsDocument(webView)
         if !isShowingErrorPage {
             delegate?.tabDidCommitNavigation(self)
         }
         nextNavigationIsTyped = false
     }
 
+    private func bindDevToolsDocument(_ webView: WKWebView) {
+        let generation = devTools.navigationID
+        Task { [weak self, weak webView] in
+            guard let webView,
+                  let page = try? await webView.evaluateJavaScript("globalThis.__nanoDocumentID", contentWorld: .page) as? String,
+                  let isolated = try? await webView.evaluateJavaScript("globalThis.__nanoDocumentID", contentWorld: DevToolsScripts.world) as? String,
+                  let self, self.devTools.navigationID == generation else { return }
+            self.devTools.bindDocument(page, isolated: isolated)
+        }
+    }
+
     public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         if !isShowingErrorPage { delegate?.tabDidFinishNavigation(self) }
     }
 
+    public func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+        devTools.willNavigate()
+    }
+
     public func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-        guard !ErrorPage.isSilent(error) else { return }
+        guard !ErrorPage.isSilent(error) else { bindDevToolsDocument(webView); return }
         let failingURL = (error as NSError).userInfo[NSURLErrorFailingURLErrorKey] as? URL ?? url
         guard let failingURL else { return }
         // Base URL keeps the address field on the URL that failed; "Try Again" links back to it.
