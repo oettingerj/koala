@@ -1,5 +1,5 @@
 (() => {
-  if (globalThis.__nanoNetwork) return;
+  if (globalThis.__koalaNetwork) return;
   const limit = 65536;
   let token = null, sequence = 0, restore = [];
   const readers = new Set();
@@ -46,7 +46,7 @@
   };
   const emit = record => {
     if (!token || record.token !== token) return;
-    try { webkit.messageHandlers.nanoNetwork.postMessage({ ...record, document: globalThis.__nanoDocumentID }); } catch {}
+    try { webkit.messageHandlers.koalaNetwork.postMessage({ ...record, document: globalThis.__koalaDocumentID }); } catch {}
   };
   const entry = (url, method, kind) => ({ id: token + ':' + (++sequence), token, url, method, kind, start: performance.now(),
     requestHeaders: [], responseHeaders: [], requestBody: body('', 'Not captured.'), responseBody: body('', 'Waiting for response.') });
@@ -135,5 +135,5 @@
       return true;
     } catch { stop(); return false; }
   };
-  Object.defineProperty(globalThis, '__nanoNetwork', { value: { enable, stop }, configurable: true });
+  Object.defineProperty(globalThis, '__koalaNetwork', { value: { enable, stop }, configurable: true });
 })();

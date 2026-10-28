@@ -1,8 +1,8 @@
 import Foundation
 
-/// Background requests the compat script hands to Nano (see compat.js). WebKit sends an extension's
+/// Background requests the compat script hands to Koala (see compat.js). WebKit sends an extension's
 /// background requests without the site's cookies, where Chrome sends them to sites the extension may
-/// access, so sign-in checks like Okta's see a signed-out user. Nano makes these requests itself, with
+/// access, so sign-in checks like Okta's see a signed-out user. Koala makes these requests itself, with
 /// the cookies, and returns each response without following redirects: the script follows them so it
 /// can report every step to webRequest listeners, as Chrome does.
 public enum BackgroundFetch {
@@ -41,7 +41,7 @@ public enum BackgroundFetch {
     /// Headers URLSession sets itself, or that only the browser may set.
     private static let reservedHeaders: Set<String> = ["host", "content-length", "connection", "cookie", "cookie2", "keep-alive", "transfer-encoding"]
 
-    /// Cookies stay out of URLSession: Nano adds the ones from WebKit's store and saves the ones that come back.
+    /// Cookies stay out of URLSession: Koala adds the ones from WebKit's store and saves the ones that come back.
     public static let session: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.httpCookieStorage = nil

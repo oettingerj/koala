@@ -33,7 +33,7 @@ public enum BookmarkImporters {
             return ImportedBookmark(title: name, url: nil, createdAt: created, children: children)
         }
         var result: [ImportedBookmark] = []
-        // The bar's contents go on Nano's bar directly; other roots become folders.
+        // The bar's contents go on Koala's bar directly; other roots become folders.
         if let bar = node(roots["bookmark_bar"]) { result.append(contentsOf: bar.children) }
         for key in ["other", "synced"] {
             if let folder = node(roots[key]), !folder.children.isEmpty { result.append(folder) }
@@ -167,7 +167,7 @@ public enum ChromiumProfileImporter {
     }
 }
 
-/// Copies visits from a Chromium `History` database (Chrome, Brave) into Nano's history.
+/// Copies visits from a Chromium `History` database (Chrome, Brave) into Koala's history.
 public enum ChromeHistoryImporter {
     public static func entries(fromDatabaseAt url: URL, limit: Int = 20_000) throws -> [HistoryEntry] {
         // Chrome keeps the file locked while running: read a copy.

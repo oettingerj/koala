@@ -72,7 +72,7 @@ public struct Session: Codable, Equatable, Sendable {
 /// never leaves a torn file.
 public final class SessionStore: Sendable {
     public let fileURL: URL
-    private let queue = DispatchQueue(label: "nano.session", qos: .utility)
+    private let queue = DispatchQueue(label: "koala.session", qos: .utility)
 
     public init(fileURL: URL) {
         self.fileURL = fileURL

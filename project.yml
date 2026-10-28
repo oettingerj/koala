@@ -1,4 +1,4 @@
-name: Nano
+name: Koala
 options:
   bundleIdPrefix: com.joshoettinger
   deploymentTarget:
@@ -14,7 +14,7 @@ packages:
   BrowserKit:
     path: Packages/BrowserKit
 targets:
-  Nano:
+  Koala:
     type: application
     platform: macOS
     sources:
@@ -24,8 +24,8 @@ targets:
     info:
       path: App/Info.plist
       properties:
-        CFBundleName: $(NANO_DISPLAY_NAME)
-        CFBundleDisplayName: $(NANO_DISPLAY_NAME)
+        CFBundleName: $(KOALA_DISPLAY_NAME)
+        CFBundleDisplayName: $(KOALA_DISPLAY_NAME)
         CFBundleShortVersionString: "0.1.0"
         CFBundleVersion: "1"
         LSApplicationCategoryType: public.app-category.developer-tools
@@ -44,25 +44,25 @@ targets:
             CFBundleTypeRole: Viewer
             LSItemContentTypes: [public.html, public.xhtml]
     entitlements:
-      path: App/Nano.entitlements
+      path: App/Koala.entitlements
       properties:
-        # Not sandboxed: like Chrome, Nano launches extensions' native messaging hosts, and a
+        # Not sandboxed: like Chrome, Koala launches extensions' native messaging hosts, and a
         # sandboxed app's child processes inherit its sandbox. The hardened runtime still applies.
         com.apple.security.device.camera: true
         com.apple.security.device.audio-input: true
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.joshoettinger.nano
-        PRODUCT_NAME: Nano
+        PRODUCT_BUNDLE_IDENTIFIER: com.joshoettinger.koala
+        PRODUCT_NAME: Koala
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        # A stable signature: macOS keeps Nano's data, Keychain items, and permissions across rebuilds.
+        # A stable signature: macOS keeps Koala's data, Keychain items, and permissions across rebuilds.
         CODE_SIGN_IDENTITY: "Apple Development"
         DEVELOPMENT_TEAM: B9XC6ZD8WD
         CODE_SIGN_STYLE: Manual
         ENABLE_HARDENED_RUNTIME: YES
         GENERATE_INFOPLIST_FILE: NO
         COMBINE_HIDPI_IMAGES: YES
-        NANO_DISPLAY_NAME: Nano
+        KOALA_DISPLAY_NAME: Koala
       configs:
         # Release is signed with Developer ID: 1Password's helper only talks to browsers whose leaf
         # certificate is Developer ID or Mac App Store (never Apple Development, whatever the custom
@@ -76,13 +76,13 @@ targets:
         # Debug builds get their own bundle ID and name, so their data folder, defaults,
         # Keychain item, and Launch Services entry stay apart from the installed Release app.
         Debug:
-          PRODUCT_BUNDLE_IDENTIFIER: com.joshoettinger.nano.dev
-          NANO_DISPLAY_NAME: Nano Dev
+          PRODUCT_BUNDLE_IDENTIFIER: com.joshoettinger.koala.dev
+          KOALA_DISPLAY_NAME: Koala Dev
 schemes:
-  Nano:
+  Koala:
     build:
       targets:
-        Nano: all
+        Koala: all
     run:
       config: Debug
     test:

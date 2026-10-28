@@ -5,7 +5,7 @@ import os
 import WebKit
 
 /// Loads installed web extensions into one WKWebExtensionController shared by every web view,
-/// and answers the controller's questions about Nano's windows and tabs.
+/// and answers the controller's questions about Koala's windows and tabs.
 @MainActor
 @Observable
 final class ExtensionsHost: NSObject {
@@ -28,7 +28,7 @@ final class ExtensionsHost: NSObject {
 
     @ObservationIgnored let controller: WKWebExtensionController
     @ObservationIgnored private let store: ExtensionStore?
-    @ObservationIgnored let log = Logger(subsystem: "com.joshoettinger.nano", category: "extensions")
+    @ObservationIgnored let log = Logger(subsystem: "com.joshoettinger.koala", category: "extensions")
 
     private override init() {
         // A stable identifier keeps extension storage (settings, rules) across launches.
@@ -158,7 +158,7 @@ final class ExtensionsHost: NSObject {
         return true
     }
 
-    /// Shows what the extension asks for before anything runs. Permissions Nano added aren't the extension's to ask for.
+    /// Shows what the extension asks for before anything runs. Permissions Koala added aren't the extension's to ask for.
     private func confirmInstall(_ webExtension: WKWebExtension, hiding added: Set<String> = []) async -> Bool {
         let alert = NSAlert()
         alert.messageText = "Add “\(webExtension.displayName ?? "this extension")”?"
@@ -213,7 +213,7 @@ final class ExtensionsHost: NSObject {
             contexts.append((item.id, context))
             loadFailures[item.id] = nil
             if item.safariID == nil, ExtensionCompatibility.addedPermissions(inBundleAt: store.bundleURL(for: item)).contains("nativeMessaging") {
-                nativeMessagingAddedByNano.insert(item.id)
+                nativeMessagingAddedByKoala.insert(item.id)
             }
             announceOpenWindowsAndTabs(to: context)
         } catch {
@@ -266,7 +266,7 @@ final class ExtensionsHost: NSObject {
         log.error("\(message, privacy: .public)")
     }
 
-    // MARK: Events from Nano
+    // MARK: Events from Koala
 
     private var windows: [BrowserWindowController] {
         NSApp.orderedWindows.compactMap { $0.windowController as? BrowserWindowController }
@@ -302,13 +302,13 @@ final class ExtensionsHost: NSObject {
     // MARK: Native messaging
 
     /// Open connections to native hosts. Releasing a port disconnects it, so it lives here too.
-    /// Extensions whose nativeMessaging permission Nano added to reach its own hosts; real hosts stay closed to them.
-    @ObservationIgnored private var nativeMessagingAddedByNano: Set<String> = []
+    /// Extensions whose nativeMessaging permission Koala added to reach its own hosts; real hosts stay closed to them.
+    @ObservationIgnored private var nativeMessagingAddedByKoala: Set<String> = []
     @ObservationIgnored fileprivate var nativePorts: [ObjectIdentifier: (port: WKWebExtension.MessagePort, connection: NativeMessagingConnection)] = [:]
 
     /// Launches the host `name` for an extension, if the host's manifest in Chrome's folders allows it.
     fileprivate func connectNativeHost(_ name: String?, for context: WKWebExtensionContext) throws -> NativeMessagingConnection {
-        guard !nativeMessagingAddedByNano.contains(context.uniqueIdentifier) else {
+        guard !nativeMessagingAddedByKoala.contains(context.uniqueIdentifier) else {
             log.error("Native host \(name ?? "nil", privacy: .public) refused: the extension didn’t ask for native messaging")
             throw NativeMessaging.Failure.forbidden
         }
@@ -464,7 +464,7 @@ extension ExtensionsHost: WKWebExtensionControllerDelegate {
     }
 }
 
-// MARK: Nano's tabs and windows, as extensions see them
+// MARK: Koala's tabs and windows, as extensions see them
 
 extension Tab: @retroactive WKWebExtensionTab {
     private var owner: BrowserWindowController? { ExtensionsHost.shared.window(for: self) }

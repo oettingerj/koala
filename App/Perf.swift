@@ -2,10 +2,10 @@ import Foundation
 import os
 
 /// Signposts for the input-latency budgets (view in Instruments › os_signpost). With the
-/// `NanoPerfLog` default set, durations also go to tmp/nano-perf.log for checks without Instruments.
+/// `KoalaPerfLog` default set, durations also go to tmp/koala-perf.log for checks without Instruments.
 enum Perf {
-    static let signposter = OSSignposter(subsystem: "com.joshoettinger.nano", category: .pointsOfInterest)
-    private static let log = Logger(subsystem: "com.joshoettinger.nano", category: "perf")
+    static let signposter = OSSignposter(subsystem: "com.joshoettinger.koala", category: .pointsOfInterest)
+    private static let log = Logger(subsystem: "com.joshoettinger.koala", category: "perf")
 
     @discardableResult
     static func measure<T>(_ name: StaticString, _ work: () throws -> T) rethrows -> T {
@@ -21,7 +21,7 @@ enum Perf {
     static func record(_ name: StaticString, _ duration: Duration) {
         let ms = Double(duration.components.attoseconds) / 1e15 + Double(duration.components.seconds) * 1000
         log.debug("\(name, privacy: .public) \(ms, format: .fixed(precision: 2), privacy: .public) ms")
-        if UserDefaults.standard.bool(forKey: "NanoPerfLog") {
+        if UserDefaults.standard.bool(forKey: "KoalaPerfLog") {
             append("\(name) \(String(format: "%.2f", ms))\n")
         }
     }
@@ -37,7 +37,7 @@ enum Perf {
         return .milliseconds(Int((Date().timeIntervalSince1970 - started) * 1000))
     }
 
-    private static let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent("nano-perf.log")
+    private static let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent("koala-perf.log")
 
     private static func append(_ line: String) {
         guard let data = line.data(using: .utf8) else { return }

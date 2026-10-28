@@ -26,7 +26,7 @@ final class GitHubService {
     @ObservationIgnored let client = GitHubClient(token: { GitHubKeychain.read() })
     @ObservationIgnored private var pollTask: Task<Void, Never>?
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
-    @ObservationIgnored private let log = Logger(subsystem: "com.joshoettinger.nano", category: "github")
+    @ObservationIgnored private let log = Logger(subsystem: "com.joshoettinger.koala", category: "github")
     private static let pollInterval: Duration = .seconds(60)
 
     private init() {

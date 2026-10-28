@@ -20,7 +20,7 @@ import WebKit
         func load() async throws {
             try await withCheckedThrowingContinuation { continuation in
                 loaded = continuation
-                webView.loadHTMLString("<html><body><button id='checkout' aria-label='Complete order'>Checkout</button></body></html>", baseURL: URL(string: "https://fixture.nano.test"))
+                webView.loadHTMLString("<html><body><button id='checkout' aria-label='Complete order'>Checkout</button></body></html>", baseURL: URL(string: "https://fixture.koala.test"))
             }
         }
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { loaded?.resume(); loaded = nil }
@@ -41,8 +41,8 @@ import WebKit
         _ = NSApplication.shared
         let page = Page(); defer { page.dispose() }
         try await page.load()
-        let pageToken = try #require(try await page.js("return globalThis.__nanoDocumentID;") as? String)
-        let isolatedToken = try #require(try await page.js("return globalThis.__nanoDocumentID;", world: DevToolsScripts.world) as? String)
+        let pageToken = try #require(try await page.js("return globalThis.__koalaDocumentID;") as? String)
+        let isolatedToken = try #require(try await page.js("return globalThis.__koalaDocumentID;", world: DevToolsScripts.world) as? String)
         #expect(pageToken != isolatedToken)
         let record = DevToolsRecord()
         record.bindDocument(pageToken, isolated: isolatedToken)
@@ -51,7 +51,7 @@ import WebKit
         for (name, body) in page.messages { record.route(name: name, body: body) }
         #expect(record.console.last?.text == "bound document")
         _ = try await page.js("await new Promise(resolve => setTimeout(resolve, 40)); return true;")
-        #expect(try await page.js("return globalThis.__nanoDocumentID;") as? String == pageToken)
+        #expect(try await page.js("return globalThis.__koalaDocumentID;") as? String == pageToken)
     }
 
     @Test(.timeLimit(.minutes(1))) func consoleSnapshotsDoNotInvokeGettersAndPreserveUndefined() async throws {
@@ -68,7 +68,7 @@ import WebKit
         #expect(getterCount == 0)
         // A round trip drains earlier posted messages from the same web process.
         _ = try await page.js("return true;")
-        let logs = page.messages.filter { $0.0 == "nanoConsole" }.map(\.1)
+        let logs = page.messages.filter { $0.0 == "koalaConsole" }.map(\.1)
         #expect(logs.count == 2)
         #expect((logs.first?["text"] as? String)?.contains("undefined") == true)
         #expect((logs.first?["text"] as? String)?.contains("[Circular]") == true)
@@ -87,18 +87,18 @@ import WebKit
           return Promise.resolve(new Response(JSON.stringify({ value: 'x'.repeat(input.includes('large') ? 90000 : 8) }), { status: 201, headers: { 'content-type': 'application/json' } }));
         }; globalThis.fetch = globalThis.fixtureFetch;
         """)
-        _ = try await page.js(DevToolsScripts.network + "\nreturn __nanoNetwork.enable('test');")
+        _ = try await page.js(DevToolsScripts.network + "\nreturn __koalaNetwork.enable('test');")
         let results = try await page.js("""
-        const replies = await Promise.all([fetch('https://fixture.nano.test/same'), fetch('https://fixture.nano.test/same')]);
+        const replies = await Promise.all([fetch('https://fixture.koala.test/same'), fetch('https://fixture.koala.test/same')]);
         const values = await Promise.all(replies.map(response => response.json()));
-        const large = await (await fetch('https://fixture.nano.test/large')).json();
-        const binary = await (await fetch('https://fixture.nano.test/binary')).arrayBuffer();
+        const large = await (await fetch('https://fixture.koala.test/large')).json();
+        const binary = await (await fetch('https://fixture.koala.test/binary')).arrayBuffer();
         let rejection = false, aborted = false;
-        try { await fetch('https://fixture.nano.test/reject'); } catch(error) { rejection = error.message === 'fixture rejection'; }
+        try { await fetch('https://fixture.koala.test/reject'); } catch(error) { rejection = error.message === 'fixture rejection'; }
         const controller = new AbortController(); controller.abort();
-        try { await fetch('https://fixture.nano.test/abort', { signal: controller.signal }); } catch(error) { aborted = error.name === 'AbortError'; }
+        try { await fetch('https://fixture.koala.test/abort', { signal: controller.signal }); } catch(error) { aborted = error.name === 'AbortError'; }
         await new Promise(resolve => setTimeout(resolve, 80));
-        __nanoNetwork.stop();
+        __koalaNetwork.stop();
         return { values: values.length, large: large.value.length, binary: binary.byteLength, rejection, aborted, restored: fetch === fixtureFetch };
         """) as? [String: Any]
         #expect(results?["values"] as? Int == 2)
@@ -107,7 +107,7 @@ import WebKit
         #expect(results?["rejection"] as? Bool == true)
         #expect(results?["aborted"] as? Bool == true)
         #expect(results?["restored"] as? Bool == true)
-        let requests = page.messages.filter { $0.0 == "nanoNetwork" }.map(\.1)
+        let requests = page.messages.filter { $0.0 == "koalaNetwork" }.map(\.1)
         let large = try #require(requests.last { ($0["url"] as? String)?.contains("large") == true })
         let captured = try #require(large["responseBody"] as? [String: Any])
         #expect((captured["text"] as? String)?.utf8.count == 65536)
@@ -122,7 +122,7 @@ import WebKit
         _ = NSApplication.shared
         let page = Page(); defer { page.dispose() }
         try await page.load()
-        _ = try await page.js(DevToolsScripts.network + "\n__nanoNetwork.enable('xhr');")
+        _ = try await page.js(DevToolsScripts.network + "\n__koalaNetwork.enable('xhr');")
         let response = try await page.js("""
         return await new Promise((resolve, reject) => {
           const request = new XMLHttpRequest();
@@ -133,8 +133,8 @@ import WebKit
         """) as? Bool
         #expect(response == true)
         _ = try await page.js("return true;")
-        #expect(page.messages.contains { $0.0 == "nanoNetwork" && $0.1["kind"] as? String == "xhr" })
-        _ = try await page.js(DevToolsScripts.elements + "\n__nanoElements.start('picker');", world: DevToolsScripts.world)
+        #expect(page.messages.contains { $0.0 == "koalaNetwork" && $0.1["kind"] as? String == "xhr" })
+        _ = try await page.js(DevToolsScripts.elements + "\n__koalaElements.start('picker');", world: DevToolsScripts.world)
         let prevented = try await page.js("""
         const target = document.querySelector('button');
         const click = new MouseEvent('click', { bubbles: true, composed: true, cancelable: true });
@@ -143,11 +143,11 @@ import WebKit
         """) as? Bool
         #expect(prevented == true)
         _ = try await page.js("return true;")
-        let element = try #require(page.messages.last { $0.0 == "nanoElement" }?.1)
+        let element = try #require(page.messages.last { $0.0 == "koalaElement" }?.1)
         #expect(element["selector"] as? String == "#checkout")
         #expect((element["html"] as? String)?.contains("Complete order") == true)
         let clean = try await page.js("return document.querySelectorAll('div[aria-hidden]').length === 0;") as? Bool
         #expect(clean == true)
-        _ = try await page.js("__nanoElements.start('again'); __nanoElements.stop();", world: DevToolsScripts.world)
+        _ = try await page.js("__koalaElements.start('again'); __koalaElements.stop();", world: DevToolsScripts.world)
     }
 }

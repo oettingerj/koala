@@ -1,7 +1,7 @@
 import Foundation
 
 /// Safari web extensions ship as app extensions inside Mac apps. WebKit loads them straight from the
-/// app's bundle, so Nano finds them where apps live instead of copying them.
+/// app's bundle, so Koala finds them where apps live instead of copying them.
 public enum SafariExtensions {
     static let extensionPoint = "com.apple.Safari.web-extension"
 
@@ -11,7 +11,7 @@ public enum SafariExtensions {
         /// The app that ships it, which is how people recognize it.
         public let appName: String
         public let url: URL
-        /// Its messages go to a handler inside the app extension, which Nano can't launch yet.
+        /// Its messages go to a handler inside the app extension, which Koala can't launch yet.
         public let usesNativeMessaging: Bool
     }
 

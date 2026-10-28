@@ -326,8 +326,8 @@ extension Tab: WKNavigationDelegate {
         let generation = devTools.navigationID
         Task { [weak self, weak webView] in
             guard let webView,
-                  let page = try? await webView.evaluateJavaScript("globalThis.__nanoDocumentID", contentWorld: .page) as? String,
-                  let isolated = try? await webView.evaluateJavaScript("globalThis.__nanoDocumentID", contentWorld: DevToolsScripts.world) as? String,
+                  let page = try? await webView.evaluateJavaScript("globalThis.__koalaDocumentID", contentWorld: .page) as? String,
+                  let isolated = try? await webView.evaluateJavaScript("globalThis.__koalaDocumentID", contentWorld: DevToolsScripts.world) as? String,
                   let self, self.devTools.navigationID == generation else { return }
             self.devTools.bindDocument(page, isolated: isolated)
         }

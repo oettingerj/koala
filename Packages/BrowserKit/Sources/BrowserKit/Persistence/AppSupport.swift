@@ -1,10 +1,9 @@
 import Foundation
 
-/// Where Nano keeps its own files: Application Support/<app name>. Release ("Nano") and Debug
-/// ("Nano Dev") builds have different names, so they never share history, sessions, or extensions.
+/// Release and Debug use separate Application Support folders for history, sessions, and extensions.
 public enum AppSupport {
     public static var folderName: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "Nano"
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "Koala"
     }
 
     /// The folder, or a subfolder of it, created if needed.
@@ -18,7 +17,7 @@ public enum AppSupport {
     }
 }
 
-/// Nano used to run in the App Sandbox, which kept its data in its container. This copies that data
+/// Koala used to run in the App Sandbox, which kept its data in its container. This copies that data
 /// to where an unsandboxed app keeps it. It copies and never overwrites, so the container stays
 /// intact for a rollback.
 public struct SandboxMigration: Sendable {
@@ -38,7 +37,7 @@ public struct SandboxMigration: Sendable {
 
     /// Container path, then the path outside it. In the container WebKit's folders are not per app.
     var copies: [(from: URL, to: URL)] {
-        [(container.appendingPathComponent("Application Support/Nano"), library.appendingPathComponent("Application Support/\(supportFolder)")),
+        [(container.appendingPathComponent("Application Support/Koala"), library.appendingPathComponent("Application Support/\(supportFolder)")),
          (container.appendingPathComponent("WebKit"), library.appendingPathComponent("WebKit/\(bundleID)")),
          (container.appendingPathComponent("HTTPStorages/\(bundleID)"), library.appendingPathComponent("HTTPStorages/\(bundleID)")),
          (container.appendingPathComponent("Cookies/Cookies.binarycookies"), library.appendingPathComponent("Cookies/\(bundleID).binarycookies"))]

@@ -98,7 +98,7 @@ final class DevPanelModel {
         Task {
             guard current(webView, navigation), captureRevision == revision, isPresented else { return }
             do {
-                let enabled = try await webView.callAsyncJavaScript("if (location.origin !== expectedOrigin) return false;\n" + DevToolsScripts.network + "\nreturn globalThis.__nanoNetwork.enable(token);",
+                let enabled = try await webView.callAsyncJavaScript("if (location.origin !== expectedOrigin) return false;\n" + DevToolsScripts.network + "\nreturn globalThis.__koalaNetwork.enable(token);",
                     arguments: ["token": token, "expectedOrigin": origin], contentWorld: .page) as? Bool ?? false
                 guard current(webView, navigation), captureRevision == revision else { return }
                 if !enabled { tab.devTools.endCapture(); status = "This page could not enable detailed capture." }
@@ -112,7 +112,7 @@ final class DevPanelModel {
     func stopCapture() {
         captureRevision = UUID()
         tab?.devTools.endCapture()
-        tab?.webView?.evaluateJavaScript("globalThis.__nanoNetwork?.stop()", in: nil, in: .page) { _ in }
+        tab?.webView?.evaluateJavaScript("globalThis.__koalaNetwork?.stop()", in: nil, in: .page) { _ in }
     }
 
     func clearNetwork() {
@@ -130,7 +130,7 @@ final class DevPanelModel {
         Task {
             guard current(webView, navigation), pickerRevision == revision, isPresented else { return }
             do {
-                _ = try await webView.callAsyncJavaScript("if (globalThis.__nanoDocumentID !== expectedDocument) throw new Error('The inspected document changed.');\n" + DevToolsScripts.elements + "\nglobalThis.__nanoElements.start(token);", arguments: ["token": token, "expectedDocument": document], contentWorld: DevToolsScripts.world)
+                _ = try await webView.callAsyncJavaScript("if (globalThis.__koalaDocumentID !== expectedDocument) throw new Error('The inspected document changed.');\n" + DevToolsScripts.elements + "\nglobalThis.__koalaElements.start(token);", arguments: ["token": token, "expectedDocument": document], contentWorld: DevToolsScripts.world)
             } catch {
                 guard current(webView, navigation) else { return }
                 tab.devTools.endPicking(); status = "Element picker failed: \(error.localizedDescription)"
@@ -141,7 +141,7 @@ final class DevPanelModel {
     func stopPicking() {
         pickerRevision = UUID()
         tab?.devTools.endPicking()
-        tab?.webView?.evaluateJavaScript("globalThis.__nanoElements?.stop()", in: nil, in: DevToolsScripts.world) { _ in }
+        tab?.webView?.evaluateJavaScript("globalThis.__koalaElements?.stop()", in: nil, in: DevToolsScripts.world) { _ in }
     }
 
     func evaluate() {
@@ -160,11 +160,11 @@ final class DevPanelModel {
             do {
                 let result: Any?
                 if awaits {
-                    result = try await webView.callAsyncJavaScript("if (globalThis.__nanoDocumentID !== expectedDocument) throw new Error('The inspected document changed.'); const value = await (\n\(source)\n); return globalThis.__nanoConsole ? globalThis.__nanoConsole.snapshot(value) : String(value);", arguments: ["expectedDocument": document], contentWorld: .page)
+                    result = try await webView.callAsyncJavaScript("if (globalThis.__koalaDocumentID !== expectedDocument) throw new Error('The inspected document changed.'); const value = await (\n\(source)\n); return globalThis.__koalaConsole ? globalThis.__koalaConsole.snapshot(value) : String(value);", arguments: ["expectedDocument": document], contentWorld: .page)
                 } else {
                     let encoded = try JSONSerialization.data(withJSONObject: document, options: [.fragmentsAllowed])
                     let literal = String(decoding: encoded, as: UTF8.self)
-                    result = try await webView.evaluateJavaScript("if (globalThis.__nanoDocumentID !== \(literal)) throw new Error('The inspected document changed.');\n" + source, contentWorld: .page)
+                    result = try await webView.evaluateJavaScript("if (globalThis.__koalaDocumentID !== \(literal)) throw new Error('The inspected document changed.');\n" + source, contentWorld: .page)
                 }
                 guard current(webView, navigation), evaluationRevision == revision else { return }
                 let text: String
@@ -235,7 +235,7 @@ final class DevPanelModel {
             do {
                 _ = try await webView.callAsyncJavaScript("""
                 const store = area === 'local' ? localStorage : sessionStorage;
-                if (globalThis.__nanoDocumentID !== expectedDocument) throw new Error('The inspected document changed.');
+                if (globalThis.__koalaDocumentID !== expectedDocument) throw new Error('The inspected document changed.');
                 if (creating && store.getItem(key) !== null) throw new Error('This key already exists. Refresh and edit its value.');
                 if (!creating && expected !== store.getItem(key)) throw new Error('This value changed on the page. Refresh before editing.');
                 if (remove) store.removeItem(key); else store.setItem(key, value);

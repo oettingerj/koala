@@ -1,6 +1,6 @@
 (() => {
-  globalThis.__nanoDocumentID ||= String(performance.timeOrigin) + ":" + Math.random().toString(36).slice(2);
-  if (globalThis.__nanoConsole) return;
+  globalThis.__koalaDocumentID ||= String(performance.timeOrigin) + ":" + Math.random().toString(36).slice(2);
+  if (globalThis.__koalaConsole) return;
   const clone = (value, depth = 0, seen = new WeakSet()) => {
     try {
       if (value === undefined) return 'undefined';
@@ -31,11 +31,11 @@
       const error = args.find(value => value instanceof Error);
       const stack = (error ? String(error) + '\n' + (error.stack || '') : String(new Error().stack || '')).slice(0, 8000);
       const location = source || stack.split('\n').slice(3).join('\n').split('\n')[0] || '';
-      webkit.messageHandlers.nanoConsole.postMessage({ document: globalThis.__nanoDocumentID,
+      webkit.messageHandlers.koalaConsole.postMessage({ document: globalThis.__koalaDocumentID,
         level, text: values.join(' ').slice(0, 4000), arguments: values, stack, source: location });
     } catch {}
   };
-  Object.defineProperty(globalThis, '__nanoConsole', { value: { snapshot }, configurable: true });
+  Object.defineProperty(globalThis, '__koalaConsole', { value: { snapshot }, configurable: true });
   for (const level of ['log', 'info', 'warn', 'error', 'debug']) {
     const original = console[level];
     console[level] = function (...args) { post(level, args); return original.apply(this, args); };

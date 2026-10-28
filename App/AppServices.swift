@@ -27,14 +27,14 @@ final class AppServices {
 
     @ObservationIgnored var windowSnapshots: () -> [WindowSnapshot] = { [] }
     @ObservationIgnored private var saveTask: Task<Void, Never>?
-    @ObservationIgnored private let log = Logger(subsystem: "com.joshoettinger.nano", category: "services")
+    @ObservationIgnored private let log = Logger(subsystem: "com.joshoettinger.koala", category: "services")
 
     private init() {
         let database: AppDatabase
         do {
             database = try AppDatabase.openDefault()
         } catch {
-            Logger(subsystem: "com.joshoettinger.nano", category: "services")
+            Logger(subsystem: "com.joshoettinger.koala", category: "services")
                 .error("Database unavailable, using memory: \(error.localizedDescription)")
             database = try! AppDatabase.inMemory()
         }
@@ -99,7 +99,7 @@ final class AppServices {
     // MARK: Favicons
 
     /// Shows the cached icon immediately on commit, so a tab never flashes the placeholder
-    /// for a site Nano has seen before.
+    /// for a site Koala has seen before.
     func applyCachedFavicon(to tab: Tab) {
         guard let host = DisplayURL(tab.url)?.host else { return tab.setFavicon(nil) }
         Task {

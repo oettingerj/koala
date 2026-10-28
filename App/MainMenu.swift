@@ -41,8 +41,8 @@ enum MainMenu {
     }
 
     private static func appMenu() -> NSMenu {
-        let menu = NSMenu(title: "Nano")
-        menu.addItem(item("About Nano", #selector(NSApplication.orderFrontStandardAboutPanel(_:))))
+        let menu = NSMenu(title: "Koala")
+        menu.addItem(item("About Koala", #selector(NSApplication.orderFrontStandardAboutPanel(_:))))
         menu.addItem(.separator())
         menu.addItem(item("Settings…", #selector(AppDelegate.showSettings(_:)), ","))
         menu.addItem(.separator())
@@ -52,11 +52,11 @@ enum MainMenu {
         NSApp.servicesMenu = services
         menu.addItem(servicesItem)
         menu.addItem(.separator())
-        menu.addItem(item("Hide Nano", #selector(NSApplication.hide(_:)), "h"))
+        menu.addItem(item("Hide Koala", #selector(NSApplication.hide(_:)), "h"))
         menu.addItem(item("Hide Others", #selector(NSApplication.hideOtherApplications(_:)), "h", [.command, .option]))
         menu.addItem(item("Show All", #selector(NSApplication.unhideAllApplications(_:))))
         menu.addItem(.separator())
-        menu.addItem(item("Quit Nano", #selector(NSApplication.terminate(_:)), "q"))
+        menu.addItem(item("Quit Koala", #selector(NSApplication.terminate(_:)), "q"))
         return menu
     }
 

@@ -12,7 +12,7 @@ import Testing
         ("127.0.0.1:8080", "http://127.0.0.1:8080"),
         ("api.dev.test", "http://api.dev.test"),
         ("about:blank", "about:blank"),
-        ("nano.dev", "https://nano.dev"),
+        ("koala.dev", "https://koala.dev"),
         ("docs.rs/tokio", "https://docs.rs/tokio"),
     ])
     func resolvesURLs(input: String, expected: String) {

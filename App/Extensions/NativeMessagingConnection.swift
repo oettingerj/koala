@@ -2,16 +2,16 @@ import BrowserKit
 import Foundation
 import os
 
-/// One running native messaging host: Nano launches it the way Chrome does, with the extension's
+/// One running native messaging host: Koala launches it the way Chrome does, with the extension's
 /// origin as its argument, and relays framed JSON over its stdin and stdout.
 final class NativeMessagingConnection {
     private let process = Process()
     private let input = Pipe()
     private let output = Pipe()
     /// Writes can block while the host is busy, so they happen off the main thread, in order.
-    private let writes = DispatchQueue(label: "com.joshoettinger.nano.native-messaging")
+    private let writes = DispatchQueue(label: "com.joshoettinger.koala.native-messaging")
     private var reader = NativeMessaging.Reader()
-    private let log = Logger(subsystem: "com.joshoettinger.nano", category: "native-messaging")
+    private let log = Logger(subsystem: "com.joshoettinger.koala", category: "native-messaging")
     private var isClosed = false
 
     var onMessage: ((Any) -> Void)?

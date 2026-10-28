@@ -1,6 +1,6 @@
 import AppKit
 
-/// Nano's design tokens. One 11-step neutral ramp is the only tonal scale; every surface,
+/// Koala's design tokens. One 11-step neutral ramp is the only tonal scale; every surface,
 /// hairline, and text color is a step on it. Chroma is reserved for the accent and state.
 enum Theme {
     // MARK: Neutral ramp (step 0 is the lightest surface in light mode, the deepest in dark)
@@ -41,7 +41,7 @@ enum Theme {
 
     // MARK: Accent and state
 
-    /// Nano teal: focus, selection, and primary actions only.
+    /// Koala teal: focus, selection, and primary actions only.
     static let accent = dynamic(light: 0x0E8F80, dark: 0x2CC3AE, name: "accent")
     static let accentText = dynamic(light: 0x0B7A6D, dark: 0x2CC3AE, name: "accentText")
     /// Native selected segments use white labels in both appearances.

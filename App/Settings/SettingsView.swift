@@ -50,7 +50,7 @@ final class SettingsWindowController: NSWindowController {
         let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView()))
         window.title = "Settings"
         window.styleMask = [.titled, .closable]
-        window.setFrameAutosaveName("NanoSettings")
+        window.setFrameAutosaveName("KoalaSettings")
         super.init(window: window)
     }
 
@@ -89,9 +89,9 @@ private struct GeneralSettings: View {
                 .font(.caption).foregroundStyle(.secondary)
             LabeledContent("Default browser") {
                 if isDefault {
-                    Text("Nano is your default browser").foregroundStyle(.secondary)
+                    Text("Koala is your default browser").foregroundStyle(.secondary)
                 } else {
-                    Button("Make Nano the Default Browser") {
+                    Button("Make Koala the Default Browser") {
                         Task {
                             try? await NSWorkspace.shared.setDefaultApplication(at: Bundle.main.bundleURL, toOpenURLsWithScheme: "http")
                             checkDefault()
@@ -213,7 +213,7 @@ private struct ExtensionSettings: View {
                     ForEach(host.installed) { item in ExtensionRow(item: item) { removing = item } }
                 }
             } footer: {
-                Text("Nano runs Safari-compatible web extensions, including most Manifest V3 Chrome extensions.")
+                Text("Koala runs Safari-compatible web extensions, including most Manifest V3 Chrome extensions.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             if !safariToAdd.isEmpty {
@@ -223,7 +223,7 @@ private struct ExtensionSettings: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(found.appName)
                                 if found.usesNativeMessaging {
-                                    Text("Needs to talk to its app, which Nano can’t do yet.")
+                                    Text("Needs to talk to its app, which Koala can’t do yet.")
                                         .font(.caption).foregroundStyle(.secondary)
                                 }
                             }
@@ -275,7 +275,7 @@ private struct ExtensionSettings: View {
                             presenting: removing) { item in
             Button("Remove", role: .destructive) { host.remove(item) }
         } message: { item in
-            Text(item.safariID == nil ? "Nano deletes its files. You can add it again later." : "Its app stays installed. You can add it again later.")
+            Text(item.safariID == nil ? "Koala deletes its files. You can add it again later." : "Its app stays installed. You can add it again later.")
         }
     }
 

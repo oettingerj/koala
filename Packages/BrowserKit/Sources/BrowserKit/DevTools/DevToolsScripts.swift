@@ -2,11 +2,11 @@ import WebKit
 
 @MainActor
 public enum DevToolsScripts {
-    public static let consoleHandler = "nanoConsole"
-    public static let metricsHandler = "nanoMetrics"
-    public static let networkHandler = "nanoNetwork"
-    public static let elementHandler = "nanoElement"
-    public static let world = WKContentWorld.world(name: "NanoDevTools")
+    public static let consoleHandler = "koalaConsole"
+    public static let metricsHandler = "koalaMetrics"
+    public static let networkHandler = "koalaNetwork"
+    public static let elementHandler = "koalaElement"
+    public static let world = WKContentWorld.world(name: "KoalaDevTools")
 
     static func source(_ name: String) -> String {
         guard let url = Bundle.module.url(forResource: name, withExtension: "js", subdirectory: "Scripts"),
@@ -29,7 +29,7 @@ public enum DevToolsScripts {
       }
       return rows;
     };
-    return { local: dump(localStorage), session: dump(sessionStorage), document: globalThis.__nanoDocumentID };
+    return { local: dump(localStorage), session: dump(sessionStorage), document: globalThis.__koalaDocumentID };
     """
 
     public static func install(on controller: WKUserContentController, handler: WKScriptMessageHandler) {

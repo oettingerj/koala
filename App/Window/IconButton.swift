@@ -1,6 +1,6 @@
 import AppKit
 
-/// Borderless SF Symbol button with Nano's hover and pressed fills.
+/// Borderless SF Symbol button with Koala's hover and pressed fills.
 class IconButton: NSButton {
     /// Fills for hover and press; a button on a hovered surface needs steps stronger than the surface.
     var hoverFill = Theme.hoverFill { didSet { updateFill() } }

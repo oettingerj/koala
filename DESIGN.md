@@ -1,5 +1,5 @@
 ---
-name: Nano
+name: Koala
 description: A fast, native Mac browser that understands the engineer's web.
 colors:
   accent: "#0E8F80"
@@ -188,19 +188,19 @@ components:
     padding: "5px 12px"
 ---
 
-# Design System: Nano
+# Design System: Koala
 
 ## Overview
 
 **Creative North Star: "The Editor Pane"**
 
-Nano's chrome is built like a pro editor's frame: neutral, opaque, dense, and exact, at Linear's typographic care and Zed's density. Every surface, hairline, and text color is a step on one 11-step neutral ramp; chroma appears only where it carries meaning (focus, selection, the primary action, and engineering state). The chrome is two thin rows (40pt tab strip, 36pt toolbar) and then the page runs edge to edge below one hairline. Nothing in the chrome is decorative.
+Koala's chrome is built like a pro editor's frame: neutral, opaque, dense, and exact, at Linear's typographic care and Zed's density. Every surface, hairline, and text color is a step on one 11-step neutral ramp; chroma appears only where it carries meaning (focus, selection, the primary action, and engineering state). The chrome is two thin rows (40pt tab strip, 36pt toolbar) and then the page runs edge to edge below one hairline. Nothing in the chrome is decorative.
 
 The world is native first. SF Pro Text sets the chrome at 11 to 13pt, SF Mono carries anything an engineer would copy (URLs, paths, refs, counts, timings), SF Symbols are the only icon set, and system-owned containers (menus, NSPopover, the Settings window, alerts) keep their platform material. Depth comes from tonal steps and 1px hairlines; shadow exists only where a surface floats above the page. Motion is short and never on the input path. It rejects Safari's soft glass toolbar and Arc's color-drenched sidebar.
 
 **Key Characteristics:**
 - One neutral ramp, light and dark derived, is the only tonal scale.
-- One accent (Nano teal) for focus, selection, and the primary action only.
+- One accent (Koala teal) for focus, selection, and the primary action only.
 - Engineer-convention state colors: pass green, pending amber, fail red, merged purple.
 - Opaque flat fills, 1px hairlines, no gradients.
 - 6pt radius on controls, 10pt on floating panels.
@@ -212,7 +212,7 @@ The world is native first. SF Pro Text sets the chrome at 11 to 13pt, SF Mono ca
 A cool, nearly achromatic zinc ramp with one teal and four conventional state hues. Every token is a dynamic color resolved per appearance; the `-dark` key is the same role under Dark Aqua.
 
 ### Primary
-- **Nano Teal** (accent / accent-dark): the editing ring on the address field (1.5pt), the split view focus line (2pt), the page-load progress bar (2pt), the filled bookmark star, the downloads badge, and command glyphs in the command bar. In light appearance it is a non-text color (3.8:1 on chrome surface); it does not set small text.
+- **Koala Teal** (accent / accent-dark): the editing ring on the address field (1.5pt), the split view focus line (2pt), the page-load progress bar (2pt), the filled bookmark star, the downloads badge, and command glyphs in the command bar. In light appearance it is a non-text color (3.8:1 on chrome surface); it does not set small text.
 - **Deep Teal** (accent-deep): the light-appearance accent wherever accent fills a control behind white text, as on the error page's retry button (5.2:1). Dark appearance uses accent-dark with on-accent-dark text.
 
 ### Secondary
@@ -226,7 +226,7 @@ State colors draw glyphs, 7pt dots, timing bars, and badge numerals. In light ap
 ### Neutral
 The ramp, step 0 to 10. Light: #FFFFFF, #FAFAFA, #F4F4F5, #EBEBED, #DEDEE1, #C8C8CD, #A0A0A8, #6C6C75, #4E4E56, #2E2E33, #18181B. Dark: #111113, #18181B, #1E1E21, #26262A, #303035, #3E3E44, #5A5A62, #8A8A93, #A6A6AE, #D4D4D8, #F4F4F5.
 - **Strip Ground** (strip-ground, step 3 light / 0 dark): behind the tab strip and the page content area.
-- **Chrome Surface** (chrome-surface, step 1 / 2): toolbar, selected tab, bookmarks bar, find bar, dev panel, command bar, Peek card, Nano-authored web pages.
+- **Chrome Surface** (chrome-surface, step 1 / 2): toolbar, selected tab, bookmarks bar, find bar, dev panel, command bar, Peek card, Koala-authored web pages.
 - **Field Well** (field-fill, step 3 / 1): the resting address field and the context chip.
 - **Editing Field** (field-editing, step 0 / 0): the address field while focused.
 - **Hover** (hover-fill, step 4 / 3) and **Pressed** (pressed-fill, step 5 / 4): tabs, icon buttons, bookmarks, chips, selected command row.
@@ -258,7 +258,7 @@ The ramp, step 0 to 10. Light: #FFFFFF, #FAFAFA, #F4F4F5, #EBEBED, #DEDEE1, #C8C
 - **Mono small** (11pt): command row URLs, context chip (500), timing columns, review-queue refs; 10pt for guide-word counts (500) and ruler ticks.
 - **Badge** (600, 9pt, tabular): error, queue, and download counts on toolbar buttons.
 
-Nano-authored web pages use the same faces through `-apple-system, system-ui` and `ui-monospace, SFMono-Regular`: 13px/1.5 body, 20px/600 heading at -0.01em, 12px mono code; the JSON viewer and view source are 12px mono at 1.6 and 1.55.
+Koala-authored web pages use the same faces through `-apple-system, system-ui` and `ui-monospace, SFMono-Regular`: 13px/1.5 body, 20px/600 heading at -0.01em, 12px mono code; the JSON viewer and view source are 12px mono at 1.6 and 1.55.
 
 ### Named Rules
 **The Mono Means Data Rule.** SF Mono sets URLs and paths, refs and slugs, counts, timings, and code. Prose, titles, and labels are never mono, and figures that sit in a line of SF Pro use tabular (monospaced) digits.
@@ -275,7 +275,7 @@ Spacing is a 4pt grid for structure (row heights, gaps, insets of 4, 8, 12, 16, 
 
 ## Elevation & Depth
 
-Nano is flat. Docked chrome conveys depth only by tonal step: strip ground sits one or two ramp steps below the chrome surface, and the selected tab shares the toolbar's surface so the two read as one plane. Floating surfaces (command bar, address dropdown) are opaque chrome surface with a 1px hairline border and the standard macOS window shadow. Peek separates from the page with a scrim of text-primary at 18% opacity behind a hairline-bordered card.
+Koala is flat. Docked chrome conveys depth only by tonal step: strip ground sits one or two ramp steps below the chrome surface, and the selected tab shares the toolbar's surface so the two read as one plane. Floating surfaces (command bar, address dropdown) are opaque chrome surface with a 1px hairline border and the standard macOS window shadow. Peek separates from the page with a scrim of text-primary at 18% opacity behind a hairline-bordered card.
 
 ### Shadow Vocabulary
 - **Floating panel** (system `NSWindow.hasShadow`): command bar and address dropdown only.
@@ -283,7 +283,7 @@ Nano is flat. Docked chrome conveys depth only by tonal step: strip ground sits 
 ### Named Rules
 **The Floating-Only Shadow Rule.** Shadow belongs only to surfaces that float above the page. Docked chrome, tabs, chips, buttons, and panels never cast one.
 
-**The Opaque Rule.** Every Nano-drawn surface is an opaque ramp step. Translucency, blur, and gradients are not part of this world; the only alpha in the chrome is the Peek scrim. Console rows remain neutral; severity appears in semantic glyphs and counts.
+**The Opaque Rule.** Every Koala-drawn surface is an opaque ramp step. Translucency, blur, and gradients are not part of this world; the only alpha in the chrome is the Peek scrim. Console rows remain neutral; severity appears in semantic glyphs and counts.
 
 ## Shapes
 
@@ -340,7 +340,7 @@ The linked page floats over the current one: the scrim, then a 10pt card on chro
 ### Split View Focus Line
 Two pages share the content area divided by a 1pt hairline (5pt drag target). The focused pane carries a 2pt teal line along its top edge; one pane has no line.
 
-### Nano Web Pages
+### Koala Web Pages
 The error page, JSON viewer, and view source mirror the chrome tokens through CSS variables with light and dark sets: chrome surface background, primary text, tertiary muted text, hairline rules, accent for focus and selection (30% mix for `::selection`). The error page is a 520px column with a 20px heading, muted body, the URL in mono above a hairline, and one filled retry button (deep teal light, accent dark) with a 2px accent focus outline. Viewer controls are 6px-radius hairline-bordered inputs and buttons with hover fill and an accent border on focus.
 
 ## Do's and Don'ts
@@ -357,7 +357,7 @@ The error page, JSON viewer, and view source mirror the chrome tokens through CS
 - **Do** let system containers (menus, popovers, Settings, alerts) keep their native macOS material.
 
 ### Don't:
-- **Don't** add gradients, glass, blur, or translucency to Nano-drawn chrome.
+- **Don't** add gradients, glass, blur, or translucency to Koala-drawn chrome.
 - **Don't** cast shadows from docked chrome, tabs, chips, or buttons; shadow is for floating surfaces only.
 - **Don't** fill resting surfaces or selected list rows with teal.
 - **Don't** set prose, titles, or labels in SF Mono.

@@ -3,14 +3,14 @@ import AppKit
 import os
 
 /// Debug-only: lets review scripts drive window states without UI scripting permissions.
-/// Post `com.joshoettinger.nano.debug` with an object like "appearance dark",
+/// Post `com.joshoettinger.koala.debug` with an object like "appearance dark",
 /// "action newTab:", "open https://example.com", "resize 1280x820", or "js return document.title"
 /// (runs in the focused tab; the result goes to the log under category "debug").
 @MainActor
 enum DebugCommands {
     static func install() {
         DistributedNotificationCenter.default().addObserver(
-            forName: Notification.Name("com.joshoettinger.nano.debug"), object: nil, queue: .main
+            forName: Notification.Name("com.joshoettinger.koala.debug"), object: nil, queue: .main
         ) { note in
             let command = (note.object as? String) ?? ""
             MainActor.assumeIsolated { perform(command) }
@@ -44,7 +44,7 @@ enum DebugCommands {
             let controller = window?.windowController as? BrowserWindowController
             guard let webView = controller?.tabs.focused?.webView else { return }
             Task {
-                let log = Logger(subsystem: "com.joshoettinger.nano", category: "debug")
+                let log = Logger(subsystem: "com.joshoettinger.koala", category: "debug")
                 do {
                     let result = try await webView.callAsyncJavaScript(argument, contentWorld: .page)
                     log.info("js \(String(describing: result), privacy: .public)")

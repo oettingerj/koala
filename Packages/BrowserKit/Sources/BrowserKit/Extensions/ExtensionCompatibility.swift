@@ -1,22 +1,22 @@
 import Foundation
 
 /// Chrome builds of extensions call Chrome APIs WebKit doesn't implement, often unguarded at startup,
-/// which stops the background script before it does anything. Nano loads a script ahead of the
+/// which stops the background script before it does anything. Koala loads a script ahead of the
 /// background script that fills those gaps with inert stand-ins.
 public enum ExtensionCompatibility {
-    static let folder = "nano-compat"
+    static let folder = "koala-compat"
     static let scriptPath = "/\(folder)/compat.js"
     /// The wrapper sits beside the original worker: a classic worker resolves relative `importScripts`
     /// paths against its own URL, so a wrapper elsewhere breaks workers that import their siblings.
-    static let wrapperName = "nano-background.js"
+    static let wrapperName = "koala-background.js"
     /// Where older versions put the wrapper.
     static let legacyWrapperPath = "\(folder)/background.js"
-    /// The native host name the compat script sends console errors to; Nano logs them instead of launching anything.
-    public static let consoleHost = "nano.console"
-    /// The native host name the compat script sends background requests to; Nano makes them with the site's cookies.
-    public static let fetchHost = "nano.fetch"
-    /// Manifest key listing permissions Nano added, which the extension never asked the user for.
-    static let addedPermissionsKey = "nano_added_permissions"
+    /// The native host name the compat script sends console errors to; Koala logs them instead of launching anything.
+    public static let consoleHost = "koala.console"
+    /// The native host name the compat script sends background requests to; Koala makes them with the site's cookies.
+    public static let fetchHost = "koala.fetch"
+    /// Manifest key listing permissions Koala added, which the extension never asked the user for.
+    static let addedPermissionsKey = "koala_added_permissions"
 
     /// Writes the script into `bundle` and points the manifest's background at it. Safe to repeat;
     /// a bundle that is already wrapped only gets the current script.
@@ -53,7 +53,7 @@ public enum ExtensionCompatibility {
             changed = true
         }
         // Extensions that read cookies work with site sessions, which their background requests carry only
-        // when Nano makes them (see compat.js), and the compat script reaches Nano through native messaging.
+        // when Koala makes them (see compat.js), and the compat script reaches Koala through native messaging.
         var permissions = manifest["permissions"] as? [String] ?? []
         if permissions.contains("cookies"), !permissions.contains("nativeMessaging") {
             permissions.append("nativeMessaging")
@@ -67,7 +67,7 @@ public enum ExtensionCompatibility {
         try output.write(to: manifestURL, options: .atomic)
     }
 
-    /// Permissions in the bundle's manifest that Nano added rather than the extension's author.
+    /// Permissions in the bundle's manifest that Koala added rather than the extension's author.
     public static func addedPermissions(inBundleAt bundle: URL) -> Set<String> {
         guard let data = try? Data(contentsOf: bundle.appendingPathComponent("manifest.json")),
               let manifest = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [] }

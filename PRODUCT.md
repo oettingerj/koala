@@ -14,11 +14,11 @@ Swift 6 · AppKit (window, tab strip, toolbar, web view hosting, menus) + SwiftU
 
 ## Users
 
-Software engineers who live in the browser between GitHub, docs, local apps, and the inspector. First user is the author (Josh), as his daily driver on a Mac. Success: Nano replaces Chrome/Arc for normal engineering work.
+Software engineers who live in the browser between GitHub, docs, local apps, and the inspector. First user is the author (Josh), as his daily driver on a Mac. Success: Koala replaces Chrome/Arc for normal engineering work.
 
 ## Product Purpose
 
-Nano is a fast, native Mac browser that understands the engineer's web. Pages lead; chrome recedes; the context an engineer needs (which repo, which PR, is CI green, what the console says) shows up where the eye already is, without opening another tab.
+Koala is a fast, native Mac browser that understands the engineer's web. Pages lead; chrome recedes; the context an engineer needs (which repo, which PR, is CI green, what the console says) shows up where the eye already is, without opening another tab.
 
 ## Positioning
 
@@ -49,13 +49,13 @@ Terminology: "tab strip", "toolbar", "address field", "command bar", "Peek", "sp
 
 ## Brand Commitments
 
-- Name: **Nano**. Bundle ID `com.joshoettinger.nano`.
+- Name: **Koala**. Bundle ID `com.joshoettinger.koala`. App icon: a koala silhouette.
 - Must not read as an Arc or Safari clone. Must never feel laggy on input. Must never feel non-native.
 - Standing visual preference: grounded in modern pro Mac software, no metaphor worlds. Craft bar: Linear and Zed.
 
 ## Evidence on Hand
 
-None. No logo, icon, screenshots, or users beyond the author. Do not fabricate testimonials, benchmarks, or adoption claims.
+Koala silhouette app icon. No screenshots or users beyond the author. Do not fabricate testimonials, benchmarks, or adoption claims.
 
 ## Product Principles
 

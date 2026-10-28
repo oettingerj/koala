@@ -1,7 +1,7 @@
 import Foundation
 import GRDB
 
-/// Nano's SQLite database: history (with full-text search), bookmarks, and favicons.
+/// Koala's SQLite database: history (with full-text search), bookmarks, and favicons.
 /// Reads and writes happen off the main thread; UI models observe it.
 public final class AppDatabase: Sendable {
     public let writer: any DatabaseWriter
@@ -11,12 +11,12 @@ public final class AppDatabase: Sendable {
         try Self.migrator.migrate(writer)
     }
 
-    /// The on-disk database in Nano's Application Support folder.
+    /// The on-disk database in Koala's Application Support folder.
     public static func openDefault() throws -> AppDatabase {
         let directory = try AppSupport.directory()
         var config = Configuration()
         config.qos = .userInitiated
-        let pool = try DatabasePool(path: directory.appendingPathComponent("nano.sqlite").path, configuration: config)
+        let pool = try DatabasePool(path: directory.appendingPathComponent("koala.sqlite").path, configuration: config)
         return try AppDatabase(pool)
     }
 

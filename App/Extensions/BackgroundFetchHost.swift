@@ -6,7 +6,7 @@ extension ExtensionsHost {
     func performBackgroundFetch(_ message: Any, for context: WKWebExtensionContext) async throws -> [String: Any] {
         guard let request = BackgroundFetch.Request(message: message) else { throw NativeMessaging.Failure.invalidMessage }
         // Only extensions that read cookies anyway, and only sites the user let them access. A refusal
-        // tells the script to use WebKit's fetch, as if Nano weren't there.
+        // tells the script to use WebKit's fetch, as if Koala weren't there.
         guard context.hasPermission(.cookies), context.hasAccess(to: request.url) else { return ["refused": true] }
         let store = WKWebsiteDataStore.default().httpCookieStore
         let cookies = request.sendsCookies ? BackgroundFetch.cookies(await store.allCookies(), for: request.url) : []

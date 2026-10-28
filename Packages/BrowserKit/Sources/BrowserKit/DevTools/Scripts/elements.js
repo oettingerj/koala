@@ -1,5 +1,5 @@
 (() => {
-  if (globalThis.__nanoElements) return;
+  if (globalThis.__koalaElements) return;
   let token = null, selected = null, overlay = null;
   const descriptor = element => element.localName + (element.id ? '#' + element.id : '') + [...element.classList].slice(0, 2).map(c => '.' + c).join('');
   const selector = element => {
@@ -15,7 +15,7 @@
     const box = element.getBoundingClientRect(), style = getComputedStyle(element), ancestors = [];
     for (let node = element; node && ancestors.length < 12; node = node.parentElement || node.getRootNode().host) ancestors.unshift(descriptor(node));
     const names = ['display','position','box-sizing','width','height','margin','padding','border','gap','align-items','justify-content','font-family','font-size','font-weight','line-height','color','background-color','overflow','z-index'];
-    return { document: globalThis.__nanoDocumentID, token, tag: descriptor(element), selector: selector(element),
+    return { document: globalThis.__koalaDocumentID, token, tag: descriptor(element), selector: selector(element),
       html: element.outerHTML.slice(0, 32000), width: box.width, height: box.height, ancestors,
       styles: names.map(name => [name, style.getPropertyValue(name)]),
       attributes: [...element.attributes].filter(a => /^(id|class|role|aria-|alt$|title$|tabindex$|type$|name$)/.test(a.name)).slice(0, 60).map(a => [a.name, a.value.slice(0, 4000)]) };
@@ -34,11 +34,11 @@
     event.preventDefault(); event.stopImmediatePropagation();
     const target = event.composedPath().find(node => node instanceof Element && node !== overlay);
     overlay?.remove();
-    try { webkit.messageHandlers.nanoElement.postMessage(target ? snapshot(target) : { document: globalThis.__nanoDocumentID, token }); } finally { stop(); }
+    try { webkit.messageHandlers.koalaElement.postMessage(target ? snapshot(target) : { document: globalThis.__koalaDocumentID, token }); } finally { stop(); }
   };
   const key = event => {
     if (event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation();
-      try { webkit.messageHandlers.nanoElement.postMessage({ document: globalThis.__nanoDocumentID, token }); } finally { stop(); } }
+      try { webkit.messageHandlers.koalaElement.postMessage({ document: globalThis.__koalaDocumentID, token }); } finally { stop(); } }
   };
   const start = value => {
     stop(); token = value;
@@ -48,5 +48,5 @@
     document.documentElement.append(overlay);
     addEventListener('pointermove', hover, true); addEventListener('click', click, true); addEventListener('keydown', key, true);
   };
-  Object.defineProperty(globalThis, '__nanoElements', { value: { start, stop }, configurable: true });
+  Object.defineProperty(globalThis, '__koalaElements', { value: { start, stop }, configurable: true });
 })();

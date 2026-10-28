@@ -95,8 +95,8 @@ import Testing
           "list", {"id": "list", "parentID": "space", "title": "Repos", "childrenIds": ["tab2"], "data": {"list": {}}},
           "tab1", {"id": "tab1", "parentID": "space", "title": null, "childrenIds": [],
                    "data": {"tab": {"savedURL": "https://linear.app", "savedTitle": "Linear"}}},
-          "tab2", {"id": "tab2", "parentID": "list", "title": "Nano", "childrenIds": [],
-                   "data": {"tab": {"savedURL": "https://github.com/josh/nano", "savedTitle": "x"}}}
+          "tab2", {"id": "tab2", "parentID": "list", "title": "Koala", "childrenIds": [],
+                   "data": {"tab": {"savedURL": "https://github.com/josh/koala", "savedTitle": "x"}}}
         ]}]}}
         """
         let items = try BookmarkImporters.bookmarks(from: Data(json.utf8))
@@ -105,7 +105,7 @@ import Testing
         let work = try #require(arc.children.first)
         #expect(work.title == "Work")
         #expect(work.children.map(\.title) == ["Repos", "Linear"])
-        #expect(work.children[0].children.first?.url?.absoluteString == "https://github.com/josh/nano")
+        #expect(work.children[0].children.first?.url?.absoluteString == "https://github.com/josh/koala")
     }
 
     @Test func rejectsUnknownFiles() {

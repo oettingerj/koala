@@ -1,12 +1,12 @@
 {
   "schemaVersion": 2,
   "generatedAt": "2026-10-28T19:14:32.601986+00:00",
-  "title": "Design System: Nano",
+  "title": "Design System: Koala",
   "extensions": {
     "colorMeta": {
       "accent": {
         "role": "primary",
-        "displayName": "Nano Teal",
+        "displayName": "Koala Teal",
         "tonalRamp": [
           "#06322C",
           "#084F46",
@@ -20,7 +20,7 @@
       },
       "accent-dark": {
         "role": "primary",
-        "displayName": "Nano Teal (dark)",
+        "displayName": "Koala Teal (dark)",
         "tonalRamp": [
           "#06322C",
           "#084F46",
@@ -585,17 +585,17 @@
       "name": "Error Page",
       "kind": "custom",
       "refersTo": "error-retry",
-      "description": "Nano-authored page: muted copy, mono URL above a hairline, one deep-teal retry.",
+      "description": "Koala-authored page: muted copy, mono URL above a hairline, one deep-teal retry.",
       "html": "<main class=\"ds-errp\"><h1>Nothing is answering at localhost:3000</h1><p>The server may not be running.</p><code class=\"ds-errp-url\">http://localhost:3000/</code><a class=\"ds-retry\" href=\"#\">Try Again</a></main>",
       "css": ".ds-errp{max-width:520px;padding:24px;background:#FAFAFA;color:#18181B;font:13px/1.5 -apple-system, system-ui, sans-serif}.ds-errp h1{margin:0 0 8px;font-size:20px;font-weight:600;letter-spacing:-.01em}.ds-errp p{margin:0 0 4px;color:#6C6C75}.ds-errp-url{display:block;margin:16px 0 20px;padding-top:12px;border-top:1px solid #DEDEE1;font:12px/1.5 ui-monospace, SFMono-Regular, monospace;color:#6C6C75}.ds-retry{display:inline-block;padding:5px 12px;border-radius:6px;background:#0B7A6D;color:#FFFFFF;text-decoration:none;font-weight:500}.ds-retry:focus-visible{outline:2px solid #0B7A6D;outline-offset:2px}"
     }
   ],
   "narrative": {
     "northStar": "The Editor Pane",
-    "overview": "Nano's chrome is built like a pro editor's frame: neutral, opaque, dense, and exact, at Linear's typographic care and Zed's density. Every surface, hairline, and text color is a step on one 11-step neutral ramp; chroma appears only where it carries meaning (focus, selection, the primary action, and engineering state). The chrome is two thin rows (40pt tab strip, 36pt toolbar) and then the page runs edge to edge below one hairline. Nothing in the chrome is decorative.\n\nThe world is native first. SF Pro Text sets the chrome at 11 to 13pt, SF Mono carries anything an engineer would copy (URLs, paths, refs, counts, timings), SF Symbols are the only icon set, and system-owned containers (menus, NSPopover, the Settings window, alerts) keep their platform material. Depth comes from tonal steps and 1px hairlines; shadow exists only where a surface floats above the page. Motion is short and never on the input path. It rejects Safari's soft glass toolbar and Arc's color-drenched sidebar.",
+    "overview": "Koala's chrome is built like a pro editor's frame: neutral, opaque, dense, and exact, at Linear's typographic care and Zed's density. Every surface, hairline, and text color is a step on one 11-step neutral ramp; chroma appears only where it carries meaning (focus, selection, the primary action, and engineering state). The chrome is two thin rows (40pt tab strip, 36pt toolbar) and then the page runs edge to edge below one hairline. Nothing in the chrome is decorative.\n\nThe world is native first. SF Pro Text sets the chrome at 11 to 13pt, SF Mono carries anything an engineer would copy (URLs, paths, refs, counts, timings), SF Symbols are the only icon set, and system-owned containers (menus, NSPopover, the Settings window, alerts) keep their platform material. Depth comes from tonal steps and 1px hairlines; shadow exists only where a surface floats above the page. Motion is short and never on the input path. It rejects Safari's soft glass toolbar and Arc's color-drenched sidebar.",
     "keyCharacteristics": [
       "One neutral ramp, light and dark derived, is the only tonal scale.",
-      "One accent (Nano teal) for focus, selection, and the primary action only.",
+      "One accent (Koala teal) for focus, selection, and the primary action only.",
       "Engineer-convention state colors: pass green, pending amber, fail red, merged purple.",
       "Opaque flat fills, 1px hairlines, no gradients.",
       "6pt radius on controls, 10pt on floating panels.",
@@ -635,7 +635,7 @@
       },
       {
         "name": "The Opaque Rule",
-        "body": "Every Nano-drawn surface is an opaque ramp step. Translucency, blur, and gradients are not part of this world; the only alpha in the chrome is the Peek scrim. Console rows remain neutral; severity appears in semantic glyphs and counts.",
+        "body": "Every Koala-drawn surface is an opaque ramp step. Translucency, blur, and gradients are not part of this world; the only alpha in the chrome is the Peek scrim. Console rows remain neutral; severity appears in semantic glyphs and counts.",
         "section": "elevation"
       }
     ],
@@ -651,7 +651,7 @@
       "Do let system containers (menus, popovers, Settings, alerts) keep their native macOS material."
     ],
     "donts": [
-      "Don't add gradients, glass, blur, or translucency to Nano-drawn chrome.",
+      "Don't add gradients, glass, blur, or translucency to Koala-drawn chrome.",
       "Don't cast shadows from docked chrome, tabs, chips, or buttons; shadow is for floating surfaces only.",
       "Don't fill resting surfaces or selected list rows with teal.",
       "Don't set prose, titles, or labels in SF Mono.",

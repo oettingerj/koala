@@ -15,7 +15,7 @@ Audience/job: engineers investigating console errors, API requests, elements and
 
 THESIS: A readable debugging workbench with balanced event lists and selected-item details, rather than an undifferentiated log dump.
 
-OWN-WORLD: Inherit Nano's opaque neutral surfaces, hairlines, SF Pro labels, SF Mono data, semantic status colors and action-only teal. Controls retain native keyboard and accessibility behavior.
+OWN-WORLD: Inherit Koala's opaque neutral surfaces, hairlines, SF Pro labels, SF Mono data, semantic status colors and action-only teal. Controls retain native keyboard and accessibility behavior.
 
 STORY: Find an error or request, select it without losing surrounding context, read the evidence and copy what is useful. Inspect an element or site storage without changing tabs.
 

@@ -71,7 +71,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         window.titleVisibility = .hidden
         // An empty compact toolbar gives the titlebar the strip's 40pt height and centers the
         // traffic lights in it, natively, without repositioning the window buttons.
-        window.toolbar = NSToolbar(identifier: "NanoTitlebar")
+        window.toolbar = NSToolbar(identifier: "KoalaTitlebar")
         window.toolbarStyle = .unifiedCompact
         window.isMovableByWindowBackground = false
         // BrowserWindow moves itself; see there.
@@ -88,7 +88,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         if let frame = snapshot?.frame {
             window.setFrame(frame, display: false)
         } else {
-            window.setFrameAutosaveName("NanoBrowserWindow")
+            window.setFrameAutosaveName("KoalaBrowserWindow")
         }
 
         rootView.strip.onSelect = { [weak self] tab in self?.tabs.select(tab) }
@@ -248,8 +248,8 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         let alert = NSAlert()
         alert.messageText = "No local clone of \(page.slug)"
         alert.informativeText = github.codeRoot == nil
-            ? "Choose the folder where you keep your code, and Nano will find clones in it."
-            : "Nano didn’t find this repository under \(github.codeRoot!.path). You can copy a clone command instead."
+            ? "Choose the folder where you keep your code, and Koala will find clones in it."
+            : "Koala didn’t find this repository under \(github.codeRoot!.path). You can copy a clone command instead."
         if github.codeRoot == nil { alert.addButton(withTitle: "Choose Folder…") }
         alert.addButton(withTitle: "Copy Clone Command")
         alert.addButton(withTitle: "Cancel")
@@ -318,7 +318,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     /// Chromium browsers keep each profile in its own folder: "Default", "Profile 1", and so on.
     private func importBrowserProfile(named browser: String, in folder: String) {
         chooseImport(
-            message: "Choose the \(browser) profile to import, usually “Default”. Nano brings in its bookmarks and history.",
+            message: "Choose the \(browser) profile to import, usually “Default”. Koala brings in its bookmarks and history.",
             in: folder, folders: true) { url in
             try ChromiumProfileImporter.contents(ofProfileAt: url)
         }
@@ -347,8 +347,8 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
                     }
                     self?.report(Self.summary(of: data))
                 } catch {
-                    self?.report(folders ? "Nano couldn’t find bookmarks or history in that folder."
-                                         : "Nano couldn’t read that file as bookmarks.", failed: true)
+                    self?.report(folders ? "Koala couldn’t find bookmarks or history in that folder."
+                                         : "Koala couldn’t read that file as bookmarks.", failed: true)
                 }
             }
         }
@@ -1079,7 +1079,7 @@ extension BrowserWindowController: TabUIHost {
         }
         let alert = NSAlert()
         alert.messageText = "Allow \(origin) to use \(what)?"
-        alert.informativeText = "Nano remembers your choice for this site until you quit."
+        alert.informativeText = "Koala remembers your choice for this site until you quit."
         alert.addButton(withTitle: "Allow")
         alert.addButton(withTitle: "Don’t Allow")
         let allowed = await sheet(alert) == .alertFirstButtonReturn

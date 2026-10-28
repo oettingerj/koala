@@ -28,7 +28,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path.startswith('/api/large'):
             self.reply(200, json.dumps({'value': 'x' * 100000}).encode(), 'application/json')
         elif self.path.startswith('/api/'):
-            self.reply(200, json.dumps({'items': [{'sku': 'nano-01', 'count': 3}], 'total': 128, 'currency': 'USD'}).encode(), 'application/json')
+            self.reply(200, json.dumps({'items': [{'sku': 'koala-01', 'count': 3}], 'total': 128, 'currency': 'USD'}).encode(), 'application/json')
         else:
             self.reply(200, PAGE, 'text/html; charset=utf-8')
 

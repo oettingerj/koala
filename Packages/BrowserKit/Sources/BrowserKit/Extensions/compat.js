@@ -1,4 +1,4 @@
-// Added by Nano: inert stand-ins for Chrome extension APIs WebKit doesn't implement.
+// Added by Koala: inert stand-ins for Chrome extension APIs WebKit doesn't implement.
 (() => {
   const api = globalThis.chrome ?? globalThis.browser;
   if (!api?.runtime?.getManifest) return;
@@ -6,7 +6,7 @@
   // `new WebSocket` deadlocks the extension (a stack sample shows WorkerThreadableWebSocketChannel
   // waiting on a BinarySemaphore forever). This stand-in fails the connection asynchronously instead.
   if (typeof ServiceWorkerGlobalScope !== "undefined" && globalThis instanceof ServiceWorkerGlobalScope && globalThis.WebSocket) {
-    class NanoWebSocket extends EventTarget {
+    class KoalaWebSocket extends EventTarget {
       static CONNECTING = 0; static OPEN = 1; static CLOSING = 2; static CLOSED = 3;
       CONNECTING = 0; OPEN = 1; CLOSING = 2; CLOSED = 3;
       readyState = 0; bufferedAmount = 0; extensions = ""; protocol = ""; binaryType = "blob";
@@ -20,7 +20,7 @@
             set: value => { if (handler) this.removeEventListener(name, handler); handler = typeof value === "function" ? value : null; if (handler) this.addEventListener(name, handler); },
           });
         }
-        console.warn("[Nano]", `WebSocket to ${new URL(this.url).host} refused: not available in a background service worker`);
+        console.warn("[Koala]", `WebSocket to ${new URL(this.url).host} refused: not available in a background service worker`);
         setTimeout(() => {
           if (this.readyState === 3) return;
           this.readyState = 3;
@@ -31,7 +31,7 @@
       send() { throw new DOMException("WebSocket is not open", "InvalidStateError"); }
       close() { this.readyState = 3; }
     }
-    globalThis.WebSocket = NanoWebSocket;
+    globalThis.WebSocket = KoalaWebSocket;
   }
   const stubs = new Map();
   const inert = path => {
@@ -89,13 +89,13 @@
   };
   // A rule WebKit can't convert (a regexFilter with `|`, say): Chrome rejects the update.
   const refuseRules = key => error => {
-    console.warn("[Nano]", `declarativeNetRequest.${key} refused: ${error?.message ?? error}`);
+    console.warn("[Koala]", `declarativeNetRequest.${key} refused: ${error?.message ?? error}`);
     throw error;
   };
   // A permission WebKit doesn't know: the extension doesn't have it and can't get it.
   const notGranted = () => false;
   // WebKit reports none of an extension's own background requests to its webRequest listeners. The
-  // requests Nano makes (below) report themselves, so every listener is also kept here.
+  // requests Koala makes (below) report themselves, so every listener is also kept here.
   const webRequestListeners = new Map();
   const recordingEvents = new WeakSet();
   const recordWebRequestListeners = webRequest => {
@@ -137,10 +137,10 @@
   }
   // WebKit sends an extension's background requests without the site's cookies; Chrome sends them to
   // sites the extension may access, and sign-in checks such as Okta's depend on it. For extensions that
-  // read cookies (Nano gives these native messaging for this), cross-origin requests that may carry
-  // credentials go to Nano, which adds the cookies, saves any the response sets, and returns redirects
+  // read cookies (Koala gives these native messaging for this), cross-origin requests that may carry
+  // credentials go to Koala, which adds the cookies, saves any the response sets, and returns redirects
   // unfollowed. This script follows them, applies the extension's own declarativeNetRequest block and
-  // header rules (WebKit's don't reach requests Nano makes), and reports each step to webRequest
+  // header rules (WebKit's don't reach requests Koala makes), and reports each step to webRequest
   // listeners the way Chrome reports a background fetch: tabId -1, type "xmlhttprequest".
   if (manifest.permissions?.includes("cookies") && typeof api.runtime.sendNativeMessage === "function" && globalThis.fetch) {
     const nativeFetch = globalThis.fetch;
@@ -233,7 +233,7 @@
       const url = new URL(request.url);
       if (!/^https?:$/.test(url.protocol) || url.origin === location.origin || request.credentials === "omit") return nativeFetch.call(globalThis, request);
       const fallback = request.clone();
-      const requestId = `nano-${nextRequestId++}`;
+      const requestId = `koala-${nextRequestId++}`;
       let method = request.method, current = url, hops = 0;
       let body = method === "GET" || method === "HEAD" ? null : new Uint8Array(await request.arrayBuffer());
       let headers = [...request.headers];
@@ -252,13 +252,13 @@
         emit("onSendHeaders", { ...details, requestHeaders });
         let reply;
         try {
-          reply = await api.runtime.sendNativeMessage("nano.fetch", { url: current.href, method, headers, body: body && toBase64(body), credentials: request.credentials });
+          reply = await api.runtime.sendNativeMessage("koala.fetch", { url: current.href, method, headers, body: body && toBase64(body), credentials: request.credentials });
         } catch (error) {
           emit("onErrorOccurred", { ...details, error: "net::ERR_FAILED" });
-          console.warn("[Nano]", `Background request to ${current.host} failed: ${error?.message ?? error}`);
+          console.warn("[Koala]", `Background request to ${current.host} failed: ${error?.message ?? error}`);
           throw failed();
         }
-        // Nano declined (the extension can't access this site): WebKit's fetch, as without Nano.
+        // Koala declined (the extension can't access this site): WebKit's fetch, as without Koala.
         if (reply?.refused) {
           return hops === 0 ? nativeFetch.call(globalThis, fallback)
             : nativeFetch.call(globalThis, current.href, { method, headers, body, credentials: request.credentials, redirect: request.redirect, signal: request.signal });
@@ -291,11 +291,11 @@
       }
     };
   }
-  // Errors and warnings go to Nano's log (Console.app, subsystem com.joshoettinger.nano) through a
-  // native host name Nano reserves. Extensions without the nativeMessaging permission skip this.
+  // Errors and warnings go to Koala's log (Console.app, subsystem com.joshoettinger.koala) through a
+  // native host name Koala reserves. Extensions without the nativeMessaging permission skip this.
   if (manifest.permissions?.includes("nativeMessaging")) {
     const report = (level, text) => {
-      try { api.runtime.sendNativeMessage("nano.console", { level, text: String(text).slice(0, 4000) }).catch(() => {}); } catch {}
+      try { api.runtime.sendNativeMessage("koala.console", { level, text: String(text).slice(0, 4000) }).catch(() => {}); } catch {}
     };
     const describe = value => value instanceof Error ? `${value.message}\n${value.stack ?? ""}` : typeof value === "string" ? value : (() => { try { return JSON.stringify(value); } catch { return String(value); } })();
     for (const level of ["error", "warn", "info"]) {

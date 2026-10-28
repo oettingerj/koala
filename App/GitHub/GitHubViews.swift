@@ -214,7 +214,7 @@ final class GitHubSignIn {
             } catch GitHubDeviceFlow.Failure.expired {
                 phase = .failed("The code expired. Try again.")
             } catch GitHubDeviceFlow.Failure.misconfigured(let message) {
-                phase = .failed("GitHub rejected the request: \(message). Check that device flow is enabled for Nano’s GitHub App.")
+                phase = .failed("GitHub rejected the request: \(message). Check that device flow is enabled for Koala’s GitHub App.")
             } catch {
                 phase = .failed("Couldn’t reach GitHub. Check your connection and try again.")
             }
@@ -236,7 +236,7 @@ struct GitHubSignInView: View {
             case .requesting:
                 ProgressView().controlSize(.small)
             case .waiting(let code):
-                Text("Enter this code on GitHub to let Nano read pull request and issue status.")
+                Text("Enter this code on GitHub to let Koala read pull request and issue status.")
                     .font(.system(size: 12)).foregroundStyle(Color(nsColor: Theme.textSecondary)).fixedSize(horizontal: false, vertical: true)
                 Text(code.userCode).font(.system(size: 28, weight: .semibold, design: .monospaced)).textSelection(.enabled)
                     .tracking(2)

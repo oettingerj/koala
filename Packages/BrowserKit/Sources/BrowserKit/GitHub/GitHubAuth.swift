@@ -3,7 +3,7 @@ import Security
 
 /// The GitHub token, kept only in the Keychain. Never written to defaults, the session, or logs.
 public enum GitHubKeychain {
-    private static let service = (Bundle.main.bundleIdentifier ?? "com.joshoettinger.nano") + ".github"
+    private static let service = (Bundle.main.bundleIdentifier ?? "com.joshoettinger.koala") + ".github"
     private static let account = "oauth-token"
 
     public static func read() -> String? {
@@ -43,8 +43,8 @@ public enum GitHubKeychain {
     }
 }
 
-/// GitHub's device flow for Nano's GitHub App: show a code, the user approves it on github.com,
-/// Nano polls for the token. Needs only the client ID (no secret), so nothing sensitive ships in
+/// GitHub's device flow for Koala's GitHub App: show a code, the user approves it on github.com,
+/// Koala polls for the token. Needs only the client ID (no secret), so nothing sensitive ships in
 /// the app. The app's permissions, not OAuth scopes, decide what the token can read.
 public struct GitHubDeviceFlow: Sendable {
     public struct Code: Decodable, Sendable, Equatable {

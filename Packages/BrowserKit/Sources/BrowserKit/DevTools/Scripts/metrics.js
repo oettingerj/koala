@@ -1,9 +1,9 @@
 (() => {
-  globalThis.__nanoDocumentID ||= String(performance.timeOrigin) + ":" + Math.random().toString(36).slice(2);
+  globalThis.__koalaDocumentID ||= String(performance.timeOrigin) + ":" + Math.random().toString(36).slice(2);
   let queue = [], vitals = {}, timer = 0;
   const flush = () => {
     timer = 0;
-    try { webkit.messageHandlers.nanoMetrics.postMessage({ document: globalThis.__nanoDocumentID, resources: queue.splice(0, 300), vitals }); } catch {}
+    try { webkit.messageHandlers.koalaMetrics.postMessage({ document: globalThis.__koalaDocumentID, resources: queue.splice(0, 300), vitals }); } catch {}
     if (queue.length) schedule();
   };
   const schedule = () => { if (!timer) timer = setTimeout(flush, 500); };

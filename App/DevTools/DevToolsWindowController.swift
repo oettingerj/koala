@@ -18,7 +18,7 @@ final class DevToolsWindowController: NSWindowController, NSWindowDelegate {
         window.tabbingMode = .disallowed
         super.init(window: window)
         window.delegate = self
-        window.setFrameAutosaveName("NanoDevToolsWindow")
+        window.setFrameAutosaveName("KoalaDevToolsWindow")
         titleObservation = ObservationLoop { [weak self] in
             guard let self else { return }
             let url = model.tab?.url

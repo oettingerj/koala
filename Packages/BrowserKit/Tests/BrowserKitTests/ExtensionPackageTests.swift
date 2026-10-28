@@ -80,30 +80,30 @@ import Testing
         try ExtensionCompatibility.apply(toBundleAt: bundle)
         try ExtensionCompatibility.apply(toBundleAt: bundle)
         let background = try manifest(in: bundle)["background"] as! [String: Any]
-        #expect(background["service_worker"] as? String == "bg/nano-background.js")
-        let wrapper = try String(contentsOf: bundle.appendingPathComponent("bg/nano-background.js"), encoding: .utf8)
-        #expect(wrapper == "import \"/nano-compat/compat.js\";\nimport \"/bg/main.js\";\n")
-        #expect(FileManager.default.fileExists(atPath: bundle.appendingPathComponent("nano-compat/compat.js").path))
+        #expect(background["service_worker"] as? String == "bg/koala-background.js")
+        let wrapper = try String(contentsOf: bundle.appendingPathComponent("bg/koala-background.js"), encoding: .utf8)
+        #expect(wrapper == "import \"/koala-compat/compat.js\";\nimport \"/bg/main.js\";\n")
+        #expect(FileManager.default.fileExists(atPath: bundle.appendingPathComponent("koala-compat/compat.js").path))
 
         try Data(#"{"background":{"service_worker":"sw.js"}}"#.utf8).write(to: bundle.appendingPathComponent("manifest.json"))
         try ExtensionCompatibility.apply(toBundleAt: bundle)
-        let classic = try String(contentsOf: bundle.appendingPathComponent("nano-background.js"), encoding: .utf8)
-        #expect(classic == "importScripts(\"/nano-compat/compat.js\", \"/sw.js\");\n")
+        let classic = try String(contentsOf: bundle.appendingPathComponent("koala-background.js"), encoding: .utf8)
+        #expect(classic == "importScripts(\"/koala-compat/compat.js\", \"/sw.js\");\n")
 
-        // A wrapper from an older version, kept in nano-compat/, moves beside the worker it loads.
-        let legacy = bundle.appendingPathComponent("nano-compat/background.js")
-        try Data("importScripts(\"/nano-compat/compat.js\", \"/lib/sw.js\");\n".utf8).write(to: legacy)
-        try Data(#"{"background":{"service_worker":"nano-compat/background.js"}}"#.utf8).write(to: bundle.appendingPathComponent("manifest.json"))
+        // A wrapper from an older version, kept in koala-compat/, moves beside the worker it loads.
+        let legacy = bundle.appendingPathComponent("koala-compat/background.js")
+        try Data("importScripts(\"/koala-compat/compat.js\", \"/lib/sw.js\");\n".utf8).write(to: legacy)
+        try Data(#"{"background":{"service_worker":"koala-compat/background.js"}}"#.utf8).write(to: bundle.appendingPathComponent("manifest.json"))
         try ExtensionCompatibility.apply(toBundleAt: bundle)
-        #expect((try manifest(in: bundle)["background"] as! [String: Any])["service_worker"] as? String == "lib/nano-background.js")
-        #expect(try String(contentsOf: bundle.appendingPathComponent("lib/nano-background.js"), encoding: .utf8)
-                == "importScripts(\"/nano-compat/compat.js\", \"/lib/sw.js\");\n")
+        #expect((try manifest(in: bundle)["background"] as! [String: Any])["service_worker"] as? String == "lib/koala-background.js")
+        #expect(try String(contentsOf: bundle.appendingPathComponent("lib/koala-background.js"), encoding: .utf8)
+                == "importScripts(\"/koala-compat/compat.js\", \"/lib/sw.js\");\n")
         #expect(!FileManager.default.fileExists(atPath: legacy.path))
 
         try Data(#"{"background":{"scripts":["a.js"]}}"#.utf8).write(to: bundle.appendingPathComponent("manifest.json"))
         try ExtensionCompatibility.apply(toBundleAt: bundle)
         try ExtensionCompatibility.apply(toBundleAt: bundle)
-        #expect((try manifest(in: bundle)["background"] as! [String: Any])["scripts"] as? [String] == ["/nano-compat/compat.js", "a.js"])
+        #expect((try manifest(in: bundle)["background"] as! [String: Any])["scripts"] as? [String] == ["/koala-compat/compat.js", "a.js"])
     }
 
     @Test func givesCookieExtensionsNativeMessagingAndSaysSo() throws {
@@ -136,7 +136,7 @@ import Testing
         #expect(!item.bundleName.hasSuffix(".zip"))
         #expect(!FileManager.default.fileExists(atPath: store.directory.appendingPathComponent(oldName).path))
         #expect((try manifest(in: store.bundleURL(for: item))["background"] as! [String: Any])["service_worker"] as? String
-                == "nano-background.js")
+                == "koala-background.js")
     }
 
     @Test func storeRoundTripsAndRefusesEscapes() async throws {

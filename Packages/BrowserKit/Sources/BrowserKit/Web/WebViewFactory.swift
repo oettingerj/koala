@@ -28,7 +28,7 @@ public enum WebViewFactory {
     static let scrollbarStyle = """
     (() => {
       const sheet = new CSSStyleSheet();
-      sheet.replaceSync(`@layer nano-default {
+      sheet.replaceSync(`@layer koala-default {
         ::-webkit-scrollbar { width: 10px; height: 10px; background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgb(128 128 128 / 0.3); background-clip: padding-box;
           border: 2px solid transparent; border-radius: 5px; }

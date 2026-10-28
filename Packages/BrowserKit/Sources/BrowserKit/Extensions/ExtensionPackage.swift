@@ -1,7 +1,7 @@
 import CryptoKit
 import Foundation
 
-/// Chrome Web Store packages and Nano's record of installed extensions.
+/// Chrome Web Store packages and Koala's record of installed extensions.
 public enum ExtensionPackage {
     public enum Failure: Error, Equatable { case notCRX, truncated, unsupportedVersion(UInt32), unpackFailed(Int32) }
 
@@ -152,7 +152,7 @@ public struct ExtensionStore: Sendable {
         return try await unpack(archiveAt: archive)
     }
 
-    /// Bundles are folders so Nano can add its compatibility script. bsdtar reads ZIPs and refuses
+    /// Bundles are folders so Koala can add its compatibility script. bsdtar reads ZIPs and refuses
     /// entries with absolute or `..` paths, so nothing lands outside the new folder.
     private func unpack(archiveAt archive: URL) async throws -> String {
         let name = UUID().uuidString
@@ -177,7 +177,7 @@ public struct ExtensionStore: Sendable {
     /// Readies a bundle to load: unpacks a ZIP left by an older version, refreshes the compatibility
     /// script, and fills in the Chrome ID. Returns the item as it should be saved.
     public func prepare(_ item: InstalledExtension) async throws -> InstalledExtension {
-        // Safari extensions are signed parts of their app; Nano never changes them.
+        // Safari extensions are signed parts of their app; Koala never changes them.
         guard item.safariID == nil else { return item }
         var item = item
         if item.bundleName.hasSuffix(".zip") {

@@ -28,7 +28,7 @@ public struct HistoryStore: Sendable {
 
     public init(database: AppDatabase) { self.database = database }
 
-    /// Pages Nano never records: its own error pages, blank pages, and non-web schemes.
+    /// Pages Koala never records: its own error pages, blank pages, and non-web schemes.
     static func isRecordable(_ url: URL) -> Bool {
         guard let scheme = url.scheme?.lowercased() else { return false }
         return scheme == "http" || scheme == "https"
