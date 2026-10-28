@@ -169,6 +169,8 @@ final class ToolbarView: NSView {
         reloadButton.image = NSImage(systemSymbolName: symbol, accessibilityDescription: loading ? "Stop" : "Reload")?
             .withSymbolConfiguration(.init(pointSize: loading ? 12 : 13, weight: .medium))
         reloadButton.toolTip = loading ? "Stop" : "Reload"
+        // Native pages (Settings) have nothing to reload.
+        reloadButton.isEnabled = tab?.page == nil
         addressField.show(tab?.url)
         let github = GitHubURL(tab?.url)
         githubChip.isHidden = github == nil

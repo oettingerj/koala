@@ -162,15 +162,13 @@ final class ExtensionsHost: NSObject {
     private func confirmInstall(_ webExtension: WKWebExtension, hiding added: Set<String> = []) async -> Bool {
         let alert = NSAlert()
         alert.messageText = "Add “\(webExtension.displayName ?? "this extension")”?"
+        let access = ExtensionAccess(webExtension, hiding: added)
         var lines: [String] = []
-        let permissions = webExtension.requestedPermissions.map(\.rawValue).filter { !added.contains($0) }.sorted()
-        if !permissions.isEmpty { lines.append("Permissions: " + permissions.joined(separator: ", ")) }
-        let patterns = webExtension.allRequestedMatchPatterns.map(Self.hostPermission)
-        let hosts = patterns.map(\.string).sorted()
-        if patterns.contains(where: { $0.matchesAllURLs || $0.matchesAllHosts }) {
+        if !access.permissions.isEmpty { lines.append("Permissions: " + access.permissions.joined(separator: ", ")) }
+        if access.allSites {
             lines.append("It can read and change every website you visit.")
-        } else if !hosts.isEmpty {
-            lines.append("Websites: " + hosts.prefix(6).joined(separator: ", ") + (hosts.count > 6 ? "…" : ""))
+        } else if !access.sites.isEmpty {
+            lines.append("Websites: " + access.sites.prefix(6).joined(separator: ", ") + (access.sites.count > 6 ? "…" : ""))
         }
         alert.informativeText = lines.joined(separator: "\n\n")
         alert.addButton(withTitle: "Add Extension")
@@ -180,7 +178,7 @@ final class ExtensionsHost: NSObject {
 
     /// Chrome ignores the path of a host permission; WebKit matches it, so Okta's `https://*/` would cover
     /// only each site's root page and every other page would ask for access again.
-    private static func hostPermission(_ pattern: WKWebExtension.MatchPattern) -> WKWebExtension.MatchPattern {
+    static func hostPermission(_ pattern: WKWebExtension.MatchPattern) -> WKWebExtension.MatchPattern {
         guard !pattern.matchesAllURLs, pattern.path != "/*", let scheme = pattern.scheme, let host = pattern.host,
               let anyPath = try? WKWebExtension.MatchPattern(scheme: scheme, host: host, path: "/*") else { return pattern }
         return anyPath
@@ -255,6 +253,13 @@ final class ExtensionsHost: NSObject {
         guard let entry = contexts.first(where: { $0.id == item.id }) else { return }
         try? controller.unload(entry.context)
         contexts.removeAll { $0.id == item.id }
+    }
+
+    /// What a loaded extension can reach, for Settings. Nil when it isn't loaded.
+    func access(for item: InstalledExtension) -> ExtensionAccess? {
+        guard let webExtension = context(for: item)?.webExtension else { return nil }
+        let added = item.safariID == nil ? store.map { ExtensionCompatibility.addedPermissions(inBundleAt: $0.bundleURL(for: item)) } ?? [] : []
+        return ExtensionAccess(webExtension, hiding: added)
     }
 
     func context(for item: InstalledExtension) -> WKWebExtensionContext? {
@@ -524,5 +529,20 @@ extension BrowserWindowController: WKWebExtensionWindow {
 
     func setFrame(_ frame: CGRect, for context: WKWebExtensionContext) async throws {
         window?.setFrame(frame, display: true)
+    }
+}
+
+/// The permissions and websites an extension asks for, as the install prompt and Settings show them.
+/// Permissions Koala added for compatibility aren't the extension's to ask for, so they are hidden.
+struct ExtensionAccess {
+    var permissions: [String]
+    var allSites: Bool
+    var sites: [String]
+
+    @MainActor init(_ webExtension: WKWebExtension, hiding added: Set<String>) {
+        permissions = webExtension.requestedPermissions.map(\.rawValue).filter { !added.contains($0) }.sorted()
+        let patterns = webExtension.allRequestedMatchPatterns.map(ExtensionsHost.hostPermission)
+        allSites = patterns.contains { $0.matchesAllURLs || $0.matchesAllHosts }
+        sites = patterns.map(\.string).sorted()
     }
 }

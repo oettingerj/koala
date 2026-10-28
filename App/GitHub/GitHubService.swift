@@ -11,6 +11,8 @@ final class GitHubService {
     static let shared = GitHubService()
 
     private(set) var isSignedIn = GitHubKeychain.read() != nil
+    /// Who is signed in, for Settings. Fetched once per sign-in.
+    private(set) var account: GitHubAccount?
     private(set) var statuses: [GitHubClient.Key: GitHubStatus] = [:]
     private(set) var queue: [GitHubQueueItem] = []
     private(set) var clones = LocalClones()
@@ -78,6 +80,7 @@ final class GitHubService {
             let fresh = try await client.statuses(for: openKeys())
             statuses.merge(fresh) { _, new in new }
             if includeQueue { queue = try await client.reviewQueue() }
+            if account == nil { account = try await client.viewer() }
             lastError = nil
         } catch GitHubClient.Failure.http(401) {
             // Revoked or expired token: sign out rather than retry forever.
@@ -104,6 +107,7 @@ final class GitHubService {
     func signOut() {
         GitHubKeychain.delete()
         isSignedIn = false
+        account = nil
         statuses = [:]
         queue = []
     }

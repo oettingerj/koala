@@ -109,9 +109,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func newWindow(_ sender: Any?) { openWindow(url: nil) }
 
+    /// Settings is a page in a tab: focus the open one, else open it like any link.
     @objc func showSettings(_ sender: Any?) {
-        SettingsWindowController.shared.showWindow(nil)
-        SettingsWindowController.shared.window?.center()
+        if BrowserWindowController.reveal(.settings) { return NSApp.activate() }
+        open(KoalaPage.settings.url)
     }
 
     @objc func clearHistory(_ sender: Any?) {

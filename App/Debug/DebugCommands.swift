@@ -4,7 +4,8 @@ import os
 
 /// Debug-only: lets review scripts drive window states without UI scripting permissions.
 /// Post `com.joshoettinger.koala.debug` with an object like "appearance dark",
-/// "action newTab:", "open https://example.com", "resize 1280x820", or "js return document.title"
+/// "action newTab:", "open https://example.com", "resize 1280x820", "settings-search pin",
+/// "snapshot-settings <suffix>", or "js return document.title"
 /// (runs in the focused tab; the result goes to the log under category "debug").
 @MainActor
 enum DebugCommands {
@@ -52,6 +53,12 @@ enum DebugCommands {
                     log.info("js error \(error.localizedDescription, privacy: .public)")
                 }
             }
+        case "snapshot-settings":
+            SettingsReview.saveSnapshot(suffix: argument)
+        case "settings-search":
+            SettingsReview.search(argument)
+        case "settings-add-keyword":
+            SettingsReview.addKeyword()
         case "resize":
             let size = argument.split(separator: "x").compactMap { Double($0) }
             if size.count == 2 { window?.setContentSize(NSSize(width: size[0], height: size[1])) }

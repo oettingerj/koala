@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-28T19:14:32.601986+00:00",
+  "generatedAt": "2026-10-28T20:49:06.900557+00:00",
   "title": "Design System: Koala",
   "extensions": {
     "colorMeta": {
@@ -36,9 +36,15 @@
         "role": "primary",
         "displayName": "Deep Teal"
       },
+      "on-accent": {
+        "role": "primary",
+        "displayName": "On Teal",
+        "purpose": "Theme.onAccent: text on a filled primary button whose fill is Theme.accentText (dev-accent-text), as on the Settings page's Sign In…."
+      },
       "on-accent-dark": {
         "role": "primary",
-        "displayName": "On Teal (dark)"
+        "displayName": "On Teal (dark)",
+        "purpose": "Theme.onAccent in dark appearance: dark text on the teal (accent-dark) fill."
       },
       "pass": {
         "role": "secondary",
@@ -419,6 +425,15 @@
       "dev-control-selection-dark": {
         "role": "neutral",
         "displayName": "Devtools Native Control Selection (dark)"
+      },
+      "switch-tint": {
+        "role": "neutral",
+        "displayName": "Switch On Track",
+        "purpose": "Theme.switchTint: the on track of Settings switches, above 3:1 on chrome surface; never teal."
+      },
+      "switch-tint-dark": {
+        "role": "neutral",
+        "displayName": "Switch On Track (dark)"
       }
     },
     "typographyMeta": {
@@ -428,7 +443,7 @@
       },
       "panel-heading": {
         "displayName": "Panel heading",
-        "purpose": "PR title in the GitHub context popover."
+        "purpose": "PR title in the GitHub context popover; Settings section headings."
       },
       "title": {
         "displayName": "Title",
@@ -588,11 +603,19 @@
       "description": "Koala-authored page: muted copy, mono URL above a hairline, one deep-teal retry.",
       "html": "<main class=\"ds-errp\"><h1>Nothing is answering at localhost:3000</h1><p>The server may not be running.</p><code class=\"ds-errp-url\">http://localhost:3000/</code><a class=\"ds-retry\" href=\"#\">Try Again</a></main>",
       "css": ".ds-errp{max-width:520px;padding:24px;background:#FAFAFA;color:#18181B;font:13px/1.5 -apple-system, system-ui, sans-serif}.ds-errp h1{margin:0 0 8px;font-size:20px;font-weight:600;letter-spacing:-.01em}.ds-errp p{margin:0 0 4px;color:#6C6C75}.ds-errp-url{display:block;margin:16px 0 20px;padding-top:12px;border-top:1px solid #DEDEE1;font:12px/1.5 ui-monospace, SFMono-Regular, monospace;color:#6C6C75}.ds-retry{display:inline-block;padding:5px 12px;border-radius:6px;background:#0B7A6D;color:#FFFFFF;text-decoration:none;font-weight:500}.ds-retry:focus-visible{outline:2px solid #0B7A6D;outline-offset:2px}"
+    },
+    {
+      "name": "Settings Page",
+      "kind": "custom",
+      "refersTo": "settings-page",
+      "description": "Searchable native page in a tab: pinned title, search field, dev-tab section index, flat hairline rows, neutral switches, one filled primary button.",
+      "html": "<div class=\"ds-set\"><h1>Settings</h1><label class=\"ds-set-search\"><svg width=\"13\" height=\"13\" viewBox=\"0 0 16 16\" fill=\"none\"><circle cx=\"7\" cy=\"7\" r=\"4.5\" stroke=\"currentColor\" stroke-width=\"1.6\"/><path d=\"M10.5 10.5l3.5 3.5\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\"/></svg><input placeholder=\"Search settings\" aria-label=\"Search settings\"><kbd>⌘F</kbd></label><nav class=\"ds-set-index\"><button class=\"ds-set-on\">General</button><button>GitHub</button><button>Keywords</button><button>Extensions</button><button>Browsing Data</button></nav><hr><section><h2>General</h2><p class=\"ds-set-sum\">How the address field searches, and which browser opens links.</p><div class=\"ds-set-row\"><div><b>Suggestions while typing</b><small>Sends what you type in the address field and command bar to your search engine.</small></div><span class=\"ds-set-switch\" role=\"switch\" aria-checked=\"true\"></span></div><div class=\"ds-set-row\"><div><b>Not signed in</b><small>Sign in to see PR and CI status in tabs.</small></div><button class=\"ds-set-primary\">Sign In…</button></div><div class=\"ds-set-row\"><span class=\"ds-set-kw\">gh</span><div><b>GitHub</b><code><span>github.com</span>/search?q=%s</code></div></div></section><footer>Koala 0.1 (1)</footer></div>",
+      "css": ".ds-set{max-width:680px;margin:0 auto;padding:24px 20px 40px;background:#FAFAFA;color:#18181B;font:13px -apple-system,system-ui,sans-serif}.ds-set h1{margin:0 0 14px;font-size:20px;font-weight:600}.ds-set-search{display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;border-radius:6px;background:#EBEBED;color:#6C6C75}.ds-set-search:focus-within{background:#FFFFFF;box-shadow:inset 0 0 0 1.5px #0E8F80}.ds-set-search input{flex:1;border:0;background:transparent;font:inherit;color:#18181B;outline:none}.ds-set-search kbd{font:11px -apple-system,system-ui,sans-serif;font-variant-numeric:tabular-nums;color:#6C6C75}.ds-set-index{display:flex;gap:2px;margin:10px 0 8px}.ds-set-index button{height:26px;padding:0 9px;border:0;border-radius:5px;background:transparent;font:12px -apple-system,system-ui,sans-serif;color:#4E4E56}.ds-set-index button:hover{background:#DEDEE1}.ds-set-index .ds-set-on{background:#DEDEE1;color:#18181B;font-weight:600}.ds-set-index button:focus-visible,.ds-set-primary:focus-visible{outline:2px solid #0B7A6D;outline-offset:1px}.ds-set hr{margin:0 -20px 24px;border:0;border-top:1px solid #DEDEE1}.ds-set h2{margin:0 0 4px;font-size:14px;font-weight:600}.ds-set-sum{margin:0 0 12px;font-size:12px;color:#6C6C75}.ds-set-row{display:flex;align-items:center;gap:12px;min-height:44px;padding:12px 0;border-top:1px solid #DEDEE1}.ds-set-row>div{flex:1;display:flex;flex-direction:column;gap:3px}.ds-set-row b{font-weight:400}.ds-set-row small{font-size:11px;color:#6C6C75}.ds-set-switch{width:32px;height:18px;border-radius:9px;background:#4E4E56;position:relative}.ds-set-switch::after{content:'';position:absolute;right:2px;top:2px;width:14px;height:14px;border-radius:50%;background:#FFFFFF}.ds-set-primary{height:24px;padding:0 12px;border:0;border-radius:6px;background:#0B7A6D;color:#FFFFFF;font:500 13px -apple-system,system-ui,sans-serif}.ds-set-primary:active{background:#084F46}.ds-set-kw{flex:none;width:52px;height:22px;line-height:22px;padding:0 6px;border-radius:5px;background:#EBEBED;font:500 12px ui-monospace,SFMono-Regular,monospace}.ds-set-row code{font:11px ui-monospace,SFMono-Regular,monospace;color:#6C6C75}.ds-set-row code span{color:#4E4E56}.ds-set footer{margin-top:40px;font:11px ui-monospace,SFMono-Regular,monospace;color:#6C6C75}"
     }
   ],
   "narrative": {
     "northStar": "The Editor Pane",
-    "overview": "Koala's chrome is built like a pro editor's frame: neutral, opaque, dense, and exact, at Linear's typographic care and Zed's density. Every surface, hairline, and text color is a step on one 11-step neutral ramp; chroma appears only where it carries meaning (focus, selection, the primary action, and engineering state). The chrome is two thin rows (40pt tab strip, 36pt toolbar) and then the page runs edge to edge below one hairline. Nothing in the chrome is decorative.\n\nThe world is native first. SF Pro Text sets the chrome at 11 to 13pt, SF Mono carries anything an engineer would copy (URLs, paths, refs, counts, timings), SF Symbols are the only icon set, and system-owned containers (menus, NSPopover, the Settings window, alerts) keep their platform material. Depth comes from tonal steps and 1px hairlines; shadow exists only where a surface floats above the page. Motion is short and never on the input path. It rejects Safari's soft glass toolbar and Arc's color-drenched sidebar.",
+    "overview": "Koala's chrome is built like a pro editor's frame: neutral, opaque, dense, and exact, at Linear's typographic care and Zed's density. Every surface, hairline, and text color is a step on one 11-step neutral ramp; chroma appears only where it carries meaning (focus, selection, the primary action, and engineering state). The chrome is two thin rows (40pt tab strip, 36pt toolbar) and then the page runs edge to edge below one hairline. Nothing in the chrome is decorative.\n\nThe world is native first. SF Pro Text sets the chrome at 11 to 13pt, SF Mono carries anything an engineer would copy (URLs, paths, refs, counts, timings), SF Symbols are the only icon set, and system-owned containers (menus, NSPopover, alerts) keep their platform material. Settings is not one of them: it is a Koala-drawn page in a tab, on chrome surface. Depth comes from tonal steps and 1px hairlines; shadow exists only where a surface floats above the page. Motion is short and never on the input path. It rejects Safari's soft glass toolbar and Arc's color-drenched sidebar.",
     "keyCharacteristics": [
       "One neutral ramp, light and dark derived, is the only tonal scale.",
       "One accent (Koala teal) for focus, selection, and the primary action only.",
@@ -648,7 +671,7 @@
       "Do use 6pt radius on controls and 10pt on floating panels, continuous curve.",
       "Do animate hover at 80ms and panels at 120ms ease-out, and drop to zero under Reduce Motion.",
       "Do tint dark monochrome favicons in dark appearance rather than leaving them invisible.",
-      "Do let system containers (menus, popovers, Settings, alerts) keep their native macOS material."
+      "Do let system containers (menus, popovers, alerts) keep their native macOS material; Settings is a Koala-drawn page on chrome surface."
     ],
     "donts": [
       "Don't add gradients, glass, blur, or translucency to Koala-drawn chrome.",

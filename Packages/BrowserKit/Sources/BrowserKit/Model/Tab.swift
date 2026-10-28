@@ -80,6 +80,8 @@ public final class Tab: NSObject, Identifiable {
         self.url = url
         self.title = title
         self.openerID = openerID
+        super.init()
+        if let page { showNative(page) }
     }
 
     public convenience init(snapshot: TabSnapshot) {
@@ -107,7 +109,14 @@ public final class Tab: NSObject, Identifiable {
         (webView?.interactionState as? Data) ?? restoredState
     }
 
-    public func setFavicon(_ image: NSImage?) { favicon = image }
+    /// Native pages keep their own icon.
+    public func setFavicon(_ image: NSImage?) {
+        guard page == nil else { return }
+        favicon = image
+    }
+
+    /// The native page this tab shows instead of a web view, if any.
+    public var page: KoalaPage? { KoalaPage(url: url) }
 
     /// When the tab was last shown; background tabs idle long enough are put to sleep.
     @ObservationIgnored public private(set) var lastActiveAt = Date()
@@ -209,7 +218,12 @@ public final class Tab: NSObject, Identifiable {
 
     public func load(_ url: URL) {
         self.url = url
-        if let webView, !needsNewWebView(for: url) {
+        if let page = KoalaPage(url: url) {
+            // Native pages have no web view; back/forward history goes with the old one.
+            restoredState = nil
+            detachWebView()
+            showNative(page)
+        } else if let webView, !needsNewWebView(for: url) {
             webView.load(URLRequest(url: url))
         } else {
             // Moving between the web and an extension's pages needs a web view with the other
@@ -218,6 +232,16 @@ public final class Tab: NSObject, Identifiable {
             detachWebView()
             materialize()
         }
+    }
+
+    private func showNative(_ page: KoalaPage) {
+        title = page.title
+        favicon = page.icon
+        canGoBack = false
+        canGoForward = false
+        isJSONDocument = false
+        isShowingErrorPage = false
+        webViewExtension = .some(nil)
     }
 
     private func needsNewWebView(for url: URL) -> Bool {
@@ -237,6 +261,7 @@ public final class Tab: NSObject, Identifiable {
     public func stop() { webView?.stopLoading() }
 
     public func reload(fromOrigin: Bool = false) {
+        guard page == nil else { return }
         guard let webView else {
             materialize()
             return
@@ -270,6 +295,8 @@ public final class Tab: NSObject, Identifiable {
 extension Tab: WKNavigationDelegate {
     public func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
                         preferences: WKWebpagePreferences) async -> (WKNavigationActionPolicy, WKWebpagePreferences) {
+        // Only the app opens native pages; a web page linking to one must not reach them.
+        if action.request.url?.scheme?.lowercased() == KoalaPage.scheme { return (.cancel, preferences) }
         if action.targetFrame?.isMainFrame == true, let url = action.request.url, needsNewWebView(for: url) {
             load(url)
             return (.cancel, preferences)

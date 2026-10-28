@@ -9,6 +9,9 @@ colors:
   dev-accent-text-dark: "#2CC3AE"
   dev-control-selection: "#4E4E56"
   dev-control-selection-dark: "#3E3E44"
+  switch-tint: "#4E4E56"
+  switch-tint-dark: "#8A8A93"
+  on-accent: "#FFFFFF"
   on-accent-dark: "#0B1F1C"
   pass: "#248A57"
   pass-dark: "#3DD68C"
@@ -186,6 +189,41 @@ components:
     textColor: "{colors.field-editing}"
     rounded: "{rounded.control}"
     padding: "5px 12px"
+  settings-page:
+    backgroundColor: "{colors.chrome-surface}"
+    width: "680pt"
+    padding: "24pt 20pt 40pt"
+  settings-search:
+    backgroundColor: "{colors.field-fill}"
+    textColor: "{colors.text-primary}"
+    typography: "{typography.field}"
+    rounded: "{rounded.control}"
+    height: "32pt"
+    padding: "0 10pt"
+  settings-search-focused:
+    backgroundColor: "{colors.field-editing}"
+  settings-row:
+    textColor: "{colors.text-primary}"
+    typography: "{typography.field}"
+    height: "44pt"
+    padding: "12pt 0"
+  settings-section-heading:
+    textColor: "{colors.text-primary}"
+    typography: "{typography.panel-heading}"
+  settings-button-primary:
+    backgroundColor: "{colors.dev-accent-text}"
+    textColor: "{colors.on-accent}"
+    rounded: "{rounded.control}"
+    height: "24pt"
+    padding: "0 12pt"
+  settings-keyword-chip:
+    backgroundColor: "{colors.field-fill}"
+    textColor: "{colors.text-primary}"
+    typography: "{typography.mono}"
+    rounded: "{rounded.inner}"
+    height: "22pt"
+    width: "64pt"
+    padding: "0 6pt"
 ---
 
 # Design System: Koala
@@ -196,7 +234,7 @@ components:
 
 Koala's chrome is built like a pro editor's frame: neutral, opaque, dense, and exact, at Linear's typographic care and Zed's density. Every surface, hairline, and text color is a step on one 11-step neutral ramp; chroma appears only where it carries meaning (focus, selection, the primary action, and engineering state). The chrome is two thin rows (40pt tab strip, 36pt toolbar) and then the page runs edge to edge below one hairline. Nothing in the chrome is decorative.
 
-The world is native first. SF Pro Text sets the chrome at 11 to 13pt, SF Mono carries anything an engineer would copy (URLs, paths, refs, counts, timings), SF Symbols are the only icon set, and system-owned containers (menus, NSPopover, the Settings window, alerts) keep their platform material. Depth comes from tonal steps and 1px hairlines; shadow exists only where a surface floats above the page. Motion is short and never on the input path. It rejects Safari's soft glass toolbar and Arc's color-drenched sidebar.
+The world is native first. SF Pro Text sets the chrome at 11 to 13pt, SF Mono carries anything an engineer would copy (URLs, paths, refs, counts, timings), SF Symbols are the only icon set, and system-owned containers (menus, NSPopover, alerts) keep their platform material. Settings is not one of them: it is a Koala-drawn page in a tab, on chrome surface. Depth comes from tonal steps and 1px hairlines; shadow exists only where a surface floats above the page. Motion is short and never on the input path. It rejects Safari's soft glass toolbar and Arc's color-drenched sidebar.
 
 **Key Characteristics:**
 - One neutral ramp, light and dark derived, is the only tonal scale.
@@ -213,7 +251,7 @@ A cool, nearly achromatic zinc ramp with one teal and four conventional state hu
 
 ### Primary
 - **Koala Teal** (accent / accent-dark): the editing ring on the address field (1.5pt), the split view focus line (2pt), the page-load progress bar (2pt), the filled bookmark star, the downloads badge, and command glyphs in the command bar. In light appearance it is a non-text color (3.8:1 on chrome surface); it does not set small text.
-- **Deep Teal** (accent-deep): the light-appearance accent wherever accent fills a control behind white text, as on the error page's retry button (5.2:1). Dark appearance uses accent-dark with on-accent-dark text.
+- **Deep Teal** (accent-deep): the light-appearance accent wherever accent fills a control behind white text, as on the error page's retry button (5.2:1). Dark appearance uses accent-dark with on-accent-dark text. The Settings page's filled primary button takes the same pair through Theme.accentText (dev-accent-text) as its fill and Theme.onAccent (on-accent / on-accent-dark) as its text.
 
 ### Secondary
 - **Pass Green** (pass / pass-dark): open PRs and issues, passing checks.
@@ -226,7 +264,7 @@ State colors draw glyphs, 7pt dots, timing bars, and badge numerals. In light ap
 ### Neutral
 The ramp, step 0 to 10. Light: #FFFFFF, #FAFAFA, #F4F4F5, #EBEBED, #DEDEE1, #C8C8CD, #A0A0A8, #6C6C75, #4E4E56, #2E2E33, #18181B. Dark: #111113, #18181B, #1E1E21, #26262A, #303035, #3E3E44, #5A5A62, #8A8A93, #A6A6AE, #D4D4D8, #F4F4F5.
 - **Strip Ground** (strip-ground, step 3 light / 0 dark): behind the tab strip and the page content area.
-- **Chrome Surface** (chrome-surface, step 1 / 2): toolbar, selected tab, bookmarks bar, find bar, dev panel, command bar, Peek card, Koala-authored web pages.
+- **Chrome Surface** (chrome-surface, step 1 / 2): toolbar, selected tab, bookmarks bar, find bar, dev panel, command bar, Peek card, the Settings page, Koala-authored web pages.
 - **Field Well** (field-fill, step 3 / 1): the resting address field and the context chip.
 - **Editing Field** (field-editing, step 0 / 0): the address field while focused.
 - **Hover** (hover-fill, step 4 / 3) and **Pressed** (pressed-fill, step 5 / 4): tabs, icon buttons, bookmarks, chips, selected command row.
@@ -249,7 +287,8 @@ The ramp, step 0 to 10. Light: #FFFFFF, #FAFAFA, #F4F4F5, #EBEBED, #DEDEE1, #C8C
 
 ### Hierarchy
 - **Command input** (400, 16pt): the command bar's query field only.
-- **Panel heading** (600, 14pt): the PR title in the GitHub context popover. The GitHub sign-in panel's heading is 15pt semibold and its device code 28pt semibold mono.
+- **Page title** (600, 20pt): the Settings page title, matching the Koala web page heading.
+- **Panel heading** (600, 14pt): the PR title in the GitHub context popover, and Settings section headings. The GitHub sign-in panel's heading is 15pt semibold and its device code 28pt semibold mono.
 - **Title** (600, 13pt): popover titles (Downloads, Review queue).
 - **Field** (400, 13pt): address field text and placeholder, command row titles (500 when selected).
 - **Body** (400, 12pt): tab titles, dev panel section tabs, popover body copy, bookmarks, find field.
@@ -271,7 +310,7 @@ The window is a fixed vertical stack: tab strip (40pt, the native compact titleb
 
 Tabs run 120 to 200pt wide with 4pt gaps and a centered 16pt hairline separator between unselected neighbors; pinned tabs are 40pt icon-only. Past the minimum width the strip scrolls whole tabs and shows a guide word at each overflowing edge. The toolbar holds back, forward, reload at left (28pt buttons, 2pt apart, 8pt from the edge), the flexing address field, then the right cluster.
 
-Spacing is a 4pt grid for structure (row heights, gaps, insets of 4, 8, 12, 16, 20pt) with 2pt half steps inside controls (2pt between buttons, 6pt list padding, 10pt and 14pt control insets). Popovers pad 14pt; sheets and Settings pad 20pt. The command bar is 640pt wide (window width minus 48pt when narrower), centered, 12pt below the chrome. Peek insets its card 7% of width (min 24pt) and 5% of height (min 16pt). Split view divides the content with a 1pt hairline.
+Spacing is a 4pt grid for structure (row heights, gaps, insets of 4, 8, 12, 16, 20pt) with 2pt half steps inside controls (2pt between buttons, 6pt list padding, 10pt and 14pt control insets). Popovers pad 14pt; sheets pad 20pt. The Settings page is a centered 680pt column with a 20pt minimum gutter: 24pt above the title and above the first section, 40pt between sections and before the footer, 40pt at the end. The command bar is 640pt wide (window width minus 48pt when narrower), centered, 12pt below the chrome. Peek insets its card 7% of width (min 24pt) and 5% of height (min 16pt). Split view divides the content with a 1pt hairline.
 
 ## Elevation & Depth
 
@@ -343,6 +382,20 @@ Two pages share the content area divided by a 1pt hairline (5pt drag target). Th
 ### Koala Web Pages
 The error page, JSON viewer, and view source mirror the chrome tokens through CSS variables with light and dark sets: chrome surface background, primary text, tertiary muted text, hairline rules, accent for focus and selection (30% mix for `::selection`). The error page is a 520px column with a 20px heading, muted body, the URL in mono above a hairline, and one filled retry button (deep teal light, accent dark) with a 2px accent focus outline. Viewer controls are 6px-radius hairline-bordered inputs and buttons with hover fill and an accent border on focus.
 
+### Settings Page
+A searchable native page (koala://settings) in a browser tab, not a window: one column you filter by typing, on chrome surface, flat rows between hairlines, no cards.
+- **Column:** 680pt maximum with a 20pt minimum gutter. It centers on the full page width even while a scroller is visible, so nothing shifts as results change.
+- **Pinned header:** "Settings" in 20pt semibold primary; a 32pt search field (field well, 6pt, 10pt inset, 13pt magnifying glass and text) that takes editing fill and a 1.5pt teal ring when focused, with a trailing 11pt tertiary hint, ⌘F at rest and esc plus a clear button while a query is present. Below it the section index (General, GitHub, Keywords, Extensions, Browsing Data) in dev-section-tab grammar: 26pt, 5pt corners, 9pt insets, 12pt text, current section in hover fill and semibold primary. While searching, each chip shows its match count in 10pt medium mono tertiary and a zero-match chip is disabled. A hairline closes the header; the search field is focused when the page appears.
+- **Sections:** 14pt semibold heading, 12pt tertiary one-line summary 4pt below, 12pt to the first row; 40pt between sections.
+- **Rows:** flat, at least 44pt, 12pt vertical insets, a 1px hairline above each. 13pt primary title, 11pt tertiary detail 3pt below, the native control trailing with a 16pt minimum gap.
+- **Search:** every query word must start a word in the row's section, title, detail, or terms (as in the command bar); non-matching rows and empty sections disappear, and matched word starts are set semibold at the text's own size and face. No matches shows a centered message and a Clear Search button.
+- **Controls:** native pickers, bordered buttons, and small switches; switches are tinted switch-tint (Theme.switchTint: ramp step 8 light, step 7 dark, so the on track stays above 3:1 on chrome surface), never teal. The one filled primary button (Sign In…) is 24pt, 6pt, 12pt insets, 13pt medium, accentText fill with onAccent text.
+- **GitHub account:** a row, not a card: a 40pt circular avatar with a hairline ring, semibold name, mono `@login` in secondary and a tabular review-queue count in tertiary.
+- **Keywords:** a 64pt column holding the keyword chip (field well, 5pt, 22pt, 12pt medium mono), then the name and the template read host first in 11pt mono (host secondary, remainder tertiary, scheme and "www." dropped). A row expands in place to a native field grid; problems show as a fail-red glyph and line.
+- **Extensions:** 32pt icon, semibold name with the version in 11pt mono tertiary, 12pt secondary description, 11pt tertiary access summary, then inline 11pt borderless Pin to Toolbar, Options…, and Remove… (Remove in tertiary) tinted accentText. A disabled extension dims its icon and content; its switch stays at full strength.
+- **Footer:** the version and build in 11pt mono tertiary, selectable.
+- **Tab integration:** the tab and command rows show the `gearshape` SF Symbol in place of a favicon; the address field reads "Settings" at rest and shows the koala:// URL while editing; reload is disabled; ⌘F focuses the page search instead of the find bar; ⌘, reveals the one settings tab (focusing its search) or opens it.
+
 ## Do's and Don'ts
 
 ### Do:
@@ -354,7 +407,7 @@ The error page, JSON viewer, and view source mirror the chrome tokens through CS
 - **Do** use 6pt radius on controls and 10pt on floating panels, continuous curve.
 - **Do** animate hover at 80ms and panels at 120ms ease-out, and drop to zero under Reduce Motion.
 - **Do** tint dark monochrome favicons in dark appearance rather than leaving them invisible.
-- **Do** let system containers (menus, popovers, Settings, alerts) keep their native macOS material.
+- **Do** let system containers (menus, popovers, alerts) keep their native macOS material; Settings is a Koala-drawn page on chrome surface.
 
 ### Don't:
 - **Don't** add gradients, glass, blur, or translucency to Koala-drawn chrome.

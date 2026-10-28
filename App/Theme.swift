@@ -44,8 +44,12 @@ enum Theme {
     /// Koala teal: focus, selection, and primary actions only.
     static let accent = dynamic(light: 0x0E8F80, dark: 0x2CC3AE, name: "accent")
     static let accentText = dynamic(light: 0x0B7A6D, dark: 0x2CC3AE, name: "accentText")
+    /// Text on a filled primary button, whose fill is `accentText` (deep teal light, teal dark).
+    static let onAccent = dynamic(light: 0xFFFFFF, dark: 0x0B1F1C, name: "onAccent")
     /// Native selected segments use white labels in both appearances.
     static let controlSelectionTint = dynamic(light: 0x4E4E56, dark: 0x3E3E44, name: "controlSelectionTint")
+    /// A switch's on track: ramp step 8 light, step 7 dark, so on stays above 3:1 against chrome surface.
+    static let switchTint = dynamic(light: lightRamp[8], dark: darkRamp[7], name: "switchTint")
     static let pass = dynamic(light: 0x248A57, dark: 0x3DD68C, name: "pass")
     static let pending = dynamic(light: 0xB07A0A, dark: 0xF5A524, name: "pending")
     static let fail = dynamic(light: 0xD1343A, dark: 0xF2555A, name: "fail")

@@ -11,7 +11,8 @@ enum FaviconContrast {
     /// The image to show for `icon` under `appearance`.
     static func displayImage(_ icon: NSImage, for appearance: NSAppearance) -> NSImage {
         let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        guard isDark else { return icon }
+        // Template icons (native pages) are already tinted by the view.
+        guard isDark, !icon.isTemplate else { return icon }
         // SVG favicons can carry their own dark variant (docs.rs draws only a thin ring);
         // judge and tint the light rendering so every icon keeps its full shape.
         let light = lightRaster(icon)

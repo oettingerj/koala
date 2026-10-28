@@ -18,7 +18,7 @@ public enum AddressInput {
         return URL(string: template.replacingOccurrences(of: "%s", with: encoded))
     }
 
-    private static let knownSchemes: Set<String> = ["http", "https", "file", "about", "data", "view-source"]
+    private static let knownSchemes: Set<String> = ["http", "https", "file", "about", "data", "view-source", KoalaPage.scheme]
 
     private static func explicitURL(_ text: String) -> URL? {
         guard let colon = text.firstIndex(of: ":") else { return nil }

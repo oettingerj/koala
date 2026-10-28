@@ -115,6 +115,10 @@ final class AddressField: NSView {
     }
 
     private static func restingString(for url: URL?) -> NSAttributedString {
+        // Native pages read by name at rest; editing shows the koala:// URL.
+        if let page = KoalaPage(url: url) {
+            return NSAttributedString(string: page.title, attributes: [.font: Theme.field, .foregroundColor: Theme.textPrimary])
+        }
         guard let url, url.absoluteString != "about:blank", let display = DisplayURL(url) else {
             return NSAttributedString(string: "")
         }

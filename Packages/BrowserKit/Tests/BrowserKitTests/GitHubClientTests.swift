@@ -47,6 +47,12 @@ import Testing
         #expect(queue.map(\.id) == ["a/b#1", "a/b#3"])
         #expect(queue.map(\.reason) == [.reviewRequested, .failingChecks])
     }
+
+    @Test func decodesViewer() {
+        let account = GitHubClient.decodeViewer(json(#"{"viewer":{"login":"octocat","name":"","avatarUrl":"https://avatars.githubusercontent.com/u/1"}}"#))
+        #expect(account == GitHubAccount(login: "octocat", name: nil, avatarURL: URL(string: "https://avatars.githubusercontent.com/u/1")))
+        #expect(GitHubClient.decodeViewer(json(#"{"viewer":null}"#)) == nil)
+    }
 }
 
 @Suite struct LocalClonesTests {

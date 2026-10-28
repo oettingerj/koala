@@ -39,6 +39,13 @@ public struct GitHubQueueItem: Equatable, Sendable, Identifiable {
     public var id: String { "\(repo)#\(number)" }
 }
 
+/// The signed-in user, shown in Settings.
+public struct GitHubAccount: Equatable, Sendable {
+    public var login: String
+    public var name: String?
+    public var avatarURL: URL?
+}
+
 public struct GitHubRepository: Equatable, Sendable {
     public var nameWithOwner: String
     public var description: String?
@@ -201,6 +208,20 @@ public actor GitHubClient {
             return state == "FAILURE" || state == "ERROR"
         }
         return items("review", reason: .reviewRequested) { _ in true } + items("mine", reason: .failingChecks, filter: failing)
+    }
+
+    // MARK: Account
+
+    public func viewer() async throws -> GitHubAccount {
+        let data = try await graphQL("query { viewer { login name avatarUrl } }", variables: [:])
+        guard let account = Self.decodeViewer(data) else { throw Failure.graphQL("No viewer in response") }
+        return account
+    }
+
+    static func decodeViewer(_ data: [String: Any]) -> GitHubAccount? {
+        guard let viewer = data["viewer"] as? [String: Any], let login = viewer["login"] as? String else { return nil }
+        let name = (viewer["name"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        return GitHubAccount(login: login, name: name, avatarURL: (viewer["avatarUrl"] as? String).flatMap(URL.init(string:)))
     }
 
     // MARK: Search and refs

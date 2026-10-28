@@ -293,6 +293,8 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     }
 
     @objc func showFindBar(_ sender: Any?) {
+        // A native page has nothing to find in; Settings searches its own rows.
+        if tabs.focused?.page != nil { return focusPage() }
         rootView.findBar.show()
     }
 
@@ -659,7 +661,28 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     }
 
     @objc func toggleBookmarksBar(_ sender: Any?) {
-        rootView.showsBookmarksBar.toggle()
+        Self.setBookmarksBar(!rootView.showsBookmarksBar)
+    }
+
+    /// The bookmarks bar is one app-wide preference, so every window follows.
+    static func setBookmarksBar(_ shown: Bool) {
+        for controller in NSApp.windows.compactMap({ $0.windowController as? BrowserWindowController }) {
+            controller.rootView.showsBookmarksBar = shown
+        }
+        UserDefaults.standard.set(shown, forKey: "ShowBookmarksBar")
+    }
+
+    /// Brings forward the tab showing `page` in any window, including a split pane. Returns false when none does.
+    static func reveal(_ page: KoalaPage) -> Bool {
+        for controller in NSApp.orderedWindows.compactMap({ $0.windowController as? BrowserWindowController }) {
+            guard let tab = controller.tabs.tabs.first(where: { $0.page == page || $0.splitTab?.page == page }) else { continue }
+            controller.tabs.select(tab)
+            if tab.page != page { controller.tabs.focusesSplit = true }
+            controller.window?.makeKeyAndOrderFront(nil)
+            controller.focusPage()
+            return true
+        }
+        return false
     }
 
     /// Reads every field the session persists, so any change schedules a save.
@@ -716,9 +739,28 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
 
     private weak var shownTab: Tab?
     private weak var shownSplit: Tab?
-    /// A tab swaps its web view when it moves between the web and an extension's pages.
-    private weak var shownWebView: WKWebView?
-    private weak var shownSplitWebView: WKWebView?
+    /// A tab swaps its web view when it moves between the web and an extension's pages, or to a native page.
+    private weak var shownWebView: NSView?
+    private weak var shownSplitWebView: NSView?
+    /// Hosting views for tabs showing a native page (Settings), kept while the tab shows it.
+    private var nativeViews: [Tab.ID: NSView] = [:]
+
+    /// The view that shows `tab`: its native page, or its web view (created on first use).
+    private func pageView(for tab: Tab) -> NSView {
+        guard let page = tab.page else {
+            nativeViews[tab.id] = nil
+            return tab.materialize()
+        }
+        if let view = nativeViews[tab.id] { return view }
+        // Drop views of native tabs that closed or moved to another window.
+        let live = Set(tabs.tabs.flatMap { [$0.id, $0.splitTab?.id].compactMap(\.self) })
+        nativeViews = nativeViews.filter { live.contains($0.key) }
+        let view: NSView = switch page {
+        case .settings: SettingsPage.host()
+        }
+        nativeViews[tab.id] = view
+        return view
+    }
 
     private func showSelectedTab() {
         guard let tab = tabs.selected else { return }
@@ -726,10 +768,10 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         // No page loads until enabled extensions are in place; this re-runs when they are.
         guard ExtensionsHost.shared.isReady else { return }
         tab.markActive()
-        let webView = tab.materialize()
+        let webView = pageView(for: tab)
         let partner = tab.splitTab
         partner?.delegate = self
-        let partnerView = partner?.materialize()
+        let partnerView = partner.map(pageView(for:))
         // Page tools read here so changing them re-runs this and applies immediately.
         for (pane, view) in [(tab, webView), (partner, partnerView)] {
             guard let pane, let view else { continue }
@@ -788,7 +830,13 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func focusPage() {
-        if let webView = tabs.focused?.webView { window?.makeFirstResponder(webView) }
+        guard let tab = tabs.focused else { return }
+        if tab.page != nil {
+            // The page focuses its search field once it is in the window.
+            (pageView(for: tab) as? SettingsHostingView)?.focusSearch()
+        } else if let webView = tab.webView {
+            window?.makeFirstResponder(webView)
+        }
     }
 
     // MARK: Tab context menu
@@ -951,6 +999,9 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         case #selector(goBack(_:)): return tabs.focused?.canGoBack ?? false
         case #selector(goForward(_:)): return tabs.focused?.canGoForward ?? false
         case #selector(stopLoading(_:)): return tabs.focused?.isLoading ?? false
+        case #selector(reloadPage(_:)), #selector(hardReload(_:)), #selector(zoomIn(_:)), #selector(zoomOut(_:)),
+             #selector(actualSize(_:)), #selector(printPage(_:)), #selector(viewSource(_:)):
+            return tabs.focused?.page == nil
         case #selector(selectTabByNumber(_:)): return item.tag == 9 ? !tabs.tabs.isEmpty : item.tag <= tabs.tabs.count
         case #selector(copyPermalink(_:)):
             if case .blob = GitHubURL(tabs.focused?.url)?.kind { return true }
@@ -980,7 +1031,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         case #selector(toggleBookmark(_:)):
             let bookmarked = tabs.focused?.url.flatMap { services.bookmarks.bookmark(for: $0) } != nil
             item.title = bookmarked ? "Remove Bookmark" : "Bookmark This Page"
-            return tabs.focused?.url != nil
+            return tabs.focused?.url != nil && tabs.focused?.page == nil
         default: return true
         }
     }
@@ -1191,7 +1242,8 @@ final class BrowserRootView: NSView {
     private lazy var devPanel = DevPanel.host(model: devPanelModel)
     private let devPanelHandle = DragHandle()
     private let content = NSView()
-    private weak var current: WKWebView?
+    /// The primary pane's page: a web view, or a native page's hosting view.
+    private weak var current: NSView?
     private weak var currentTab: Tab?
 
     /// Off by default: the page gets the space; ⇧⌘B or View › Show Bookmarks Bar turns it on.
@@ -1282,7 +1334,7 @@ final class BrowserRootView: NSView {
 
     // MARK: Page and split panes
 
-    private weak var splitView: WKWebView?
+    private weak var splitView: NSView?
     private weak var splitTab: Tab?
     private let splitDivider = DragHandle(vertical: true)
     private let focusLine = CALayer()
@@ -1325,20 +1377,20 @@ final class BrowserRootView: NSView {
         peek.frame = content.bounds
     }
 
-    private func place(_ webView: WKWebView, in frame: NSRect, width: CGFloat?) {
+    private func place(_ page: NSView, in frame: NSRect, width: CGFloat?) {
         if let width, width < frame.width {
-            webView.frame = NSRect(x: (frame.minX + (frame.width - width) / 2).rounded(), y: 0, width: width, height: frame.height)
+            page.frame = NSRect(x: (frame.minX + (frame.width - width) / 2).rounded(), y: 0, width: width, height: frame.height)
         } else {
-            webView.frame = frame
+            page.frame = frame
         }
     }
 
-    func show(_ webView: WKWebView, for tab: Tab, split: (WKWebView, Tab)?) {
+    func show(_ page: NSView, for tab: Tab, split: (NSView, Tab)?) {
         currentTab = tab
-        if current !== webView {
+        if current !== page {
             current?.removeFromSuperview()
-            content.addSubview(webView, positioned: .below, relativeTo: splitDivider)
-            current = webView
+            content.addSubview(page, positioned: .below, relativeTo: splitDivider)
+            current = page
         }
         if splitView !== split?.0 {
             splitView?.removeFromSuperview()

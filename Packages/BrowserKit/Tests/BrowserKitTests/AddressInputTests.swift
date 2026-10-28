@@ -13,6 +13,7 @@ import Testing
         ("api.dev.test", "http://api.dev.test"),
         ("about:blank", "about:blank"),
         ("koala.dev", "https://koala.dev"),
+        ("koala://settings", "koala://settings"),
         ("docs.rs/tokio", "https://docs.rs/tokio"),
     ])
     func resolvesURLs(input: String, expected: String) {

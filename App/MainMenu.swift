@@ -140,6 +140,7 @@ enum MainMenu {
         menu.addItem(.separator())
         let review = NSMenu(title: "Review Tools")
         review.addItem(closureMenuItem("Save Devtools Snapshot") { DevToolsReview.saveSnapshot() })
+        review.addItem(closureMenuItem("Save Settings Snapshot") { SettingsReview.saveSnapshot() })
         review.addItem(.separator())
         review.addItem(closureMenuItem("Light Appearance") { NSApp.appearance = NSAppearance(named: .aqua) })
         review.addItem(closureMenuItem("Dark Appearance") { NSApp.appearance = NSAppearance(named: .darkAqua) })
