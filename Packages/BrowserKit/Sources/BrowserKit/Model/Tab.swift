@@ -12,6 +12,8 @@ public protocol TabUIHost: AnyObject {
     func tab(_ tab: Tab, chooseFiles parameters: WKOpenPanelParameters) async -> [URL]?
     func tab(_ tab: Tab, allowMediaCapture type: WKMediaCaptureType, from origin: String) async -> Bool
     func tab(_ tab: Tab, didStart download: WKDownload)
+    /// The PDF viewer's download button handed over the document's bytes to save.
+    func tab(_ tab: Tab, save data: Data, suggestedFilename: String, from source: URL?)
 }
 
 @MainActor
@@ -370,5 +372,12 @@ extension Tab: WKUIDelegate {
                         initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType) async -> WKPermissionDecision {
         let name = origin.port == 0 ? origin.host : "\(origin.host):\(origin.port)"
         return await uiHost?.tab(self, allowMediaCapture: type, from: name) == true ? .grant : .deny
+    }
+
+    /// WebKit SPI: the built-in PDF viewer's download button. Without it the button does nothing.
+    @objc(_webView:saveDataToFile:suggestedFilename:mimeType:originatingURL:)
+    public func webViewSaveData(_ webView: WKWebView, data: Data, suggestedFilename: String,
+                                mimeType: String?, originatingURL: URL?) {
+        uiHost?.tab(self, save: data, suggestedFilename: suggestedFilename, from: originatingURL)
     }
 }

@@ -51,6 +51,24 @@ final class DownloadManager: NSObject {
         items.insert(item, at: 0)
     }
 
+    /// Bytes WebKit already holds, such as a PDF the viewer shows; written straight to the folder.
+    func save(_ data: Data, suggestedFilename: String, from source: URL?) {
+        let item = Item(source: source)
+        let url = DownloadNaming.uniqueURL(for: DownloadNaming.sanitize(suggestedFilename), in: Self.folder)
+        item.filename = url.lastPathComponent
+        item.destination = url
+        item.totalBytes = Int64(data.count)
+        items.insert(item, at: 0)
+        do {
+            try data.write(to: url, options: .withoutOverwriting)
+            item.fraction = 1
+            item.state = .finished
+            DistributedNotificationCenter.default().post(name: .init("com.apple.DownloadFileFinished"), object: url.path)
+        } catch {
+            item.state = .failed(error.localizedDescription)
+        }
+    }
+
     func cancel(_ item: Item) {
         item.download?.cancel { [weak item] data in
             Task { @MainActor in item?.resumeData = data }

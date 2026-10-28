@@ -977,6 +977,11 @@ extension BrowserWindowController: TabUIHost {
             close(tab)
         }
     }
+
+    func tab(_ tab: Tab, save data: Data, suggestedFilename: String, from source: URL?) {
+        DownloadManager.shared.save(data, suggestedFilename: suggestedFilename, from: source)
+        rootView.toolbar.flashDownloads()
+    }
 }
 
 extension BrowserWindowController: TabDelegate {
