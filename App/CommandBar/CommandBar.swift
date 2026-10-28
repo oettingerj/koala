@@ -2,7 +2,7 @@ import AppKit
 import BrowserKit
 import SwiftUI
 
-/// ⌘T: a floating bar over the page that opens URLs, searches, switches tabs, and runs any
+/// ⌘K: a floating bar over the page that opens URLs, searches, switches tabs, and runs any
 /// menu command. Built once per window and kept hidden so opening it costs one order-front.
 @MainActor
 final class CommandBar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
@@ -195,7 +195,7 @@ final class CommandBarContainer: NSView {
 @MainActor
 enum MenuCommands {
     private static let excluded: Set<String> = [
-        "openHistoryItem:", "reopenClosedItem:", "run", "newTab:", "openLocation:", "submenuAction:",
+        "openHistoryItem:", "reopenClosedItem:", "run", "toggleCommandBar:", "openLocation:", "submenuAction:",
         // The Window menu's list of open windows; tabs already appear as "Switch to Tab".
         "makeKeyAndOrderFront:",
     ]

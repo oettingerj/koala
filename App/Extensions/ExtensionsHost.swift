@@ -233,6 +233,16 @@ final class ExtensionsHost: NSObject {
         }
     }
 
+    func setPinned(_ pinned: Bool, for id: String) {
+        guard let index = installed.firstIndex(where: { $0.id == id }) else { return }
+        installed[index].isPinned = pinned
+        try? store?.save(installed)
+    }
+
+    func isPinned(_ id: String) -> Bool {
+        installed.first { $0.id == id }?.isPinned ?? false
+    }
+
     func remove(_ item: InstalledExtension) {
         unload(item)
         installed.removeAll { $0.id == item.id }
@@ -286,7 +296,7 @@ final class ExtensionsHost: NSObject {
         windows.first { $0.tabs.tabs.contains { $0 === tab } }
     }
 
-    /// Popups anchor to the toolbar button of the extension in the key window.
+    /// Popups anchor to the extension's toolbar button in the key window, or its extensions menu button when unpinned.
     @ObservationIgnored var anchorForAction: ((WKWebExtensionContext) -> NSView?)?
 
     // MARK: Native messaging

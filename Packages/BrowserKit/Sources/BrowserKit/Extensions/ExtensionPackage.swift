@@ -79,9 +79,11 @@ public struct InstalledExtension: Codable, Equatable, Identifiable, Sendable {
     public var chromeID: String?
     /// The bundle identifier of the Safari app extension this loads from, for extensions that come with an app.
     public var safariID: String?
+    /// Shown in the toolbar; unpinned extensions are in the toolbar's extensions menu.
+    public var isPinned: Bool
 
     public init(id: String, name: String, version: String, bundleName: String, isEnabled: Bool = true,
-                installedAt: Date = Date(), chromeID: String? = nil, safariID: String? = nil) {
+                installedAt: Date = Date(), chromeID: String? = nil, safariID: String? = nil, isPinned: Bool = false) {
         self.id = id
         self.name = name
         self.version = version
@@ -90,6 +92,21 @@ public struct InstalledExtension: Codable, Equatable, Identifiable, Sendable {
         self.installedAt = installedAt
         self.chromeID = chromeID
         self.safariID = safariID
+        self.isPinned = isPinned
+    }
+
+    /// Lists saved before pinning existed decode with every extension unpinned.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        version = try container.decode(String.self, forKey: .version)
+        bundleName = try container.decode(String.self, forKey: .bundleName)
+        isEnabled = try container.decode(Bool.self, forKey: .isEnabled)
+        installedAt = try container.decode(Date.self, forKey: .installedAt)
+        chromeID = try container.decodeIfPresent(String.self, forKey: .chromeID)
+        safariID = try container.decodeIfPresent(String.self, forKey: .safariID)
+        isPinned = try container.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
     }
 }
 

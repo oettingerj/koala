@@ -175,6 +175,10 @@ final class TabItemView: NSView {
         checksDot.isHidden = checks == .none
         checksDot.backgroundColor = GitHubStyle.color(checks).map(resolved)
         checksDot.borderColor = resolved(isSelected ? Theme.chromeSurface : isHovered ? Theme.hoverFill : Theme.stripGround)
+        // An unselected tab shows its close button only on hover, over the hover fill. The ramp's
+        // next steps read too heavy there, so the button tints that fill with text-primary instead.
+        closeButton.hoverFill = isSelected ? Theme.hoverFill : Theme.textPrimary.withAlphaComponent(0.1)
+        closeButton.pressedFill = isSelected ? Theme.pressedFill : Theme.textPrimary.withAlphaComponent(0.16)
         CATransaction.commit()
     }
 

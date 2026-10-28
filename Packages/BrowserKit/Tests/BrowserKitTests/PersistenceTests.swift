@@ -100,6 +100,17 @@ import Testing
     }
 }
 
+@Suite struct FaviconStoreTests {
+    @Test func skipsCandidatesThatDontDecode() async throws {
+        let store = FaviconStore(database: try .inMemory())
+        let html = try #require(URL(string: "data:text/html;base64," + Data("<html>Sign in</html>".utf8).base64EncodedString()))
+        let png = try #require(URL(string: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="))
+        let data = await store.icon(host: "example.com", candidates: [html, png])
+        #expect(data?.count == 70)
+        #expect(await store.cached(host: "example.com") == data)
+    }
+}
+
 @Suite struct FaviconRankingTests {
     @Test func prefersSVGThenSmallestAtLeast32() {
         let page = URL(string: "https://example.com/a/b")!
@@ -112,5 +123,22 @@ import Testing
         ]
         let ranked = FaviconCandidates.rank(links, pageURL: page).map(\.lastPathComponent)
         #expect(ranked == ["icon.svg", "32.png", "64.png", "16.png", "favicon.ico"])
+    }
+
+    @Test func reencodesDataHrefsAsBase64() throws {
+        let page = URL(string: "https://example.com/")!
+        // As WebKit serializes it: raw spaces beside percent-escapes.
+        let svg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3C/svg%3E"
+        let png = "data:image/png;base64,iVBORw0KGgo="
+        let ranked = FaviconCandidates.rank([
+            .init(href: png, rel: "icon", sizes: "32x32", type: ""),
+            .init(href: svg, rel: "icon", sizes: "", type: ""),
+        ], pageURL: page)
+        #expect(ranked.count == 3)
+        #expect(ranked[0].absoluteString.hasPrefix("data:image/svg+xml;base64,"))
+        let payload = try #require(ranked[0].absoluteString.split(separator: ",").last)
+        #expect(Data(base64Encoded: String(payload)) == Data("<svg xmlns='http://www.w3.org/2000/svg'></svg>".utf8))
+        #expect(ranked[1].absoluteString == png)
+        #expect(ranked[2].lastPathComponent == "favicon.ico")
     }
 }

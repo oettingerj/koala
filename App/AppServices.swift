@@ -117,8 +117,14 @@ final class AppServices {
                 links = []
             }
             let candidates = FaviconCandidates.rank(links, pageURL: pageURL)
+            let store = webView.configuration.websiteDataStore.httpCookieStore
             Task { @MainActor in
-                let data = await favicons.icon(host: host, candidates: candidates)
+                // Cookies go only to the page's own host: enough for icons behind a sign-in,
+                // without handing a CDN or another site cookies a tab icon doesn't need.
+                let data = await favicons.icon(host: host, candidates: candidates) { @MainActor url in
+                    guard url.host() == pageURL.host() else { return [] }
+                    return BackgroundFetch.cookies(await store.allCookies(), for: url)
+                }
                 guard DisplayURL(tab.url)?.host == host, let data else { return }
                 tab.setFavicon(Self.image(data))
             }

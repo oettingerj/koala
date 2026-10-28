@@ -374,6 +374,14 @@ extension Tab: WKUIDelegate {
         return await uiHost?.tab(self, allowMediaCapture: type, from: name) == true ? .grant : .deny
     }
 
+    /// WebKit SPI: the window frame behind `window.outerWidth`, `outerHeight`, `screenX` and `screenY`.
+    /// Without it they are all 0, and pages that read zoom from `outerWidth / innerWidth` (Google
+    /// Docs) think the page is zoomed out and draw their canvas at a fraction of its resolution.
+    @objc(_webView:getWindowFrameWithCompletionHandler:)
+    public func webViewGetWindowFrame(_ webView: WKWebView, completionHandler: @escaping (CGRect) -> Void) {
+        completionHandler(webView.window?.frame ?? .zero)
+    }
+
     /// WebKit SPI: the built-in PDF viewer's download button. Without it the button does nothing.
     @objc(_webView:saveDataToFile:suggestedFilename:mimeType:originatingURL:)
     public func webViewSaveData(_ webView: WKWebView, data: Data, suggestedFilename: String,

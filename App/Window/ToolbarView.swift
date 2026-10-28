@@ -17,7 +17,10 @@ final class ToolbarView: NSView {
     private(set) lazy var downloadsButton = IconButton(symbol: "arrow.down.circle", label: "Downloads", pointSize: 13,
                                                   action: #selector(BrowserWindowController.showDownloads(_:)))
     private let downloadsBadge = NSTextField(labelWithString: "")
+    /// Pinned extensions; the rest are in the extensions menu.
     private(set) var extensionButtons: [ExtensionButton] = []
+    private(set) lazy var extensionsMenuButton = IconButton(symbol: "ellipsis", label: "Extensions", pointSize: 13,
+                                                       action: #selector(showExtensionsMenu(_:)), target: self)
     private(set) lazy var queueButton = IconButton(symbol: "tray", label: "Review Queue", pointSize: 12,
                                               action: #selector(BrowserWindowController.showReviewQueue(_:)))
     private let queueBadge = NSTextField(labelWithString: "")
@@ -45,7 +48,7 @@ final class ToolbarView: NSView {
         downloadsBadge.textColor = Theme.accent
         downloadsButton.isHidden = true
         [backButton, forwardButton, reloadButton, addressField, githubChip, downloadsButton, downloadsBadge,
-         queueButton, queueBadge, devButton, errorBadge].forEach(addSubview)
+         extensionsMenuButton, queueButton, queueBadge, devButton, errorBadge].forEach(addSubview)
         setAccessibilityElement(true)
         setAccessibilityRole(.toolbar)
         observation = ObservationLoop { [weak self] in self?.sync() }
@@ -81,6 +84,10 @@ final class ToolbarView: NSView {
         queueButton.frame = NSRect(x: trailing, y: y, width: Theme.iconButtonSize, height: Theme.iconButtonSize)
         queueBadge.sizeToFit()
         queueBadge.frame.origin = NSPoint(x: queueButton.frame.maxX - 9, y: queueButton.frame.maxY - 11)
+        if !extensionsMenuButton.isHidden {
+            trailing -= Theme.iconButtonSize + 2
+            extensionsMenuButton.frame = NSRect(x: trailing, y: y, width: Theme.iconButtonSize, height: Theme.iconButtonSize)
+        }
         for button in extensionButtons.reversed() {
             trailing -= Theme.iconButtonSize + 2
             button.frame = NSRect(x: trailing, y: y, width: Theme.iconButtonSize, height: Theme.iconButtonSize)
@@ -109,13 +116,41 @@ final class ToolbarView: NSView {
     private func syncExtensionButtons(for tab: Tab?) {
         let host = ExtensionsHost.shared
         _ = host.actionsVersion
-        let ids = host.contexts.map(\.id)
+        extensionsMenuButton.isHidden = host.contexts.isEmpty
+        let ids = host.contexts.map(\.id).filter(host.isPinned)
         if extensionButtons.map(\.extensionID) != ids {
             extensionButtons.forEach { $0.removeFromSuperview() }
             extensionButtons = ids.map(ExtensionButton.init)
             extensionButtons.forEach { addSubview($0) }
         }
         extensionButtons.forEach { $0.update(for: tab) }
+    }
+
+    /// Every loaded extension's action, and which ones the toolbar shows.
+    @objc private func showExtensionsMenu(_ sender: NSButton) {
+        let host = ExtensionsHost.shared
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        let pins = NSMenu()
+        for (id, context) in host.contexts {
+            let action = context.action(for: tabs.focused)
+            let name = context.webExtension.displayName ?? "Extension"
+            let item = closureMenuItem(name) { [weak self] in context.performAction(for: self?.tabs.focused) }
+            if let icon = action?.icon(for: CGSize(width: 16, height: 16)) ?? context.webExtension.icon(for: CGSize(width: 16, height: 16)) {
+                icon.size = NSSize(width: 16, height: 16)
+                item.image = icon
+            }
+            item.isEnabled = action?.isEnabled ?? true
+            menu.addItem(item)
+            let pin = closureMenuItem(name) { host.setPinned(!host.isPinned(id), for: id) }
+            pin.state = host.isPinned(id) ? .on : .off
+            pins.addItem(pin)
+        }
+        menu.addItem(.separator())
+        let pinItem = NSMenuItem(title: "Pin to Toolbar", action: nil, keyEquivalent: "")
+        pinItem.submenu = pins
+        menu.addItem(pinItem)
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: sender.isFlipped ? sender.bounds.maxY + 4 : -4), in: sender)
     }
 
     /// A brief pulse so a new download is noticed without a popup.

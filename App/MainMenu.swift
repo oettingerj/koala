@@ -63,10 +63,10 @@ enum MainMenu {
     private static func fileMenu() -> NSMenu {
         let menu = NSMenu(title: "File")
         menu.addItem(item("New Tab", #selector(BrowserWindowController.newTab(_:)), "t"))
-        menu.addItem(item("New Blank Tab", #selector(BrowserWindowController.newBlankTab(_:)), "t", [.command, .option]))
         menu.addItem(item("New Window", #selector(AppDelegate.newWindow(_:)), "n"))
         menu.addItem(.separator())
         menu.addItem(item("Open Location…", #selector(BrowserWindowController.openLocation(_:)), "l"))
+        menu.addItem(item("Command Bar", #selector(BrowserWindowController.toggleCommandBar(_:)), "k"))
         menu.addItem(.separator())
         menu.addItem(item("Close Tab", #selector(BrowserWindowController.closeTab(_:)), "w"))
         menu.addItem(item("Close Window", #selector(NSWindow.performClose(_:)), "w", [.command, .shift]))

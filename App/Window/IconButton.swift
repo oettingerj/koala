@@ -2,6 +2,9 @@ import AppKit
 
 /// Borderless SF Symbol button with Nano's hover and pressed fills.
 class IconButton: NSButton {
+    /// Fills for hover and press; a button on a hovered surface needs steps stronger than the surface.
+    var hoverFill = Theme.hoverFill { didSet { updateFill() } }
+    var pressedFill = Theme.pressedFill { didSet { updateFill() } }
     private var isHovered = false { didSet { updateFill() } }
     private var tracking: NSTrackingArea?
 
@@ -48,7 +51,7 @@ class IconButton: NSButton {
     }
 
     private func updateFill() {
-        let fill: NSColor? = !isEnabled ? nil : isHighlighted ? Theme.pressedFill : isHovered ? Theme.hoverFill : nil
+        let fill: NSColor? = !isEnabled ? nil : isHighlighted ? pressedFill : isHovered ? hoverFill : nil
         layer?.backgroundColor = fill.map(resolved) ?? .clear
     }
 }

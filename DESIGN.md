@@ -235,7 +235,7 @@ The ramp, step 0 to 10. Light: #FFFFFF, #FAFAFA, #F4F4F5, #EBEBED, #DEDEE1, #C8C
 
 ### Hierarchy
 - **Command input** (400, 16pt): the command bar's query field only.
-- **Panel heading** (600, 14pt): the PR title in the GitHub context popover. The GitHub sign-in sheet's heading is 15pt semibold and its device code 28pt semibold mono.
+- **Panel heading** (600, 14pt): the PR title in the GitHub context popover. The GitHub sign-in panel's heading is 15pt semibold and its device code 28pt semibold mono.
 - **Title** (600, 13pt): popover titles (Downloads, Review queue).
 - **Field** (400, 13pt): address field text and placeholder, command row titles (500 when selected).
 - **Body** (400, 12pt): tab titles, dev panel section tabs, popover body copy, bookmarks, find field.

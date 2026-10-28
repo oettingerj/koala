@@ -149,8 +149,8 @@ private struct ConsoleView: View {
                         .frame(width: 24, height: 22).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .help("Clear Console (⌘K)")
-                .keyboardShortcut("k", modifiers: .command)
+                .help("Clear Console (⇧⌘K)")
+                .keyboardShortcut("k", modifiers: [.command, .shift])
             }
             .padding(8)
             ScrollViewReader { proxy in

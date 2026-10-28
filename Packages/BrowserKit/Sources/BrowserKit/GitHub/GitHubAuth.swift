@@ -43,8 +43,9 @@ public enum GitHubKeychain {
     }
 }
 
-/// GitHub's OAuth device flow: show a code, the user approves it on github.com, Nano polls
-/// for the token. Needs only a client ID (no secret), so nothing sensitive ships in the app.
+/// GitHub's device flow for Nano's GitHub App: show a code, the user approves it on github.com,
+/// Nano polls for the token. Needs only the client ID (no secret), so nothing sensitive ships in
+/// the app. The app's permissions, not OAuth scopes, decide what the token can read.
 public struct GitHubDeviceFlow: Sendable {
     public struct Code: Decodable, Sendable, Equatable {
         public let deviceCode: String
@@ -63,17 +64,15 @@ public struct GitHubDeviceFlow: Sendable {
         case denied, expired, misconfigured(String), network
     }
 
-    public let clientID: String
-    public static let scopes = "repo read:org"
+    public static let clientID = "Iv23lioS0vGo6UDwmuPr"
     private let session: URLSession
 
-    public init(clientID: String, session: URLSession = .shared) {
-        self.clientID = clientID
+    public init(session: URLSession = .shared) {
         self.session = session
     }
 
     public func requestCode() async throws -> Code {
-        let data = try await post("https://github.com/login/device/code", ["client_id": clientID, "scope": Self.scopes])
+        let data = try await post("https://github.com/login/device/code", ["client_id": Self.clientID])
         if let error = try? JSONDecoder().decode(ErrorBody.self, from: data) {
             throw Failure.misconfigured(error.errorDescription ?? error.error)
         }
@@ -87,7 +86,7 @@ public struct GitHubDeviceFlow: Sendable {
         while Date() < deadline {
             try await Task.sleep(for: .seconds(interval))
             let data = try await post("https://github.com/login/oauth/access_token", [
-                "client_id": clientID, "device_code": code.deviceCode,
+                "client_id": Self.clientID, "device_code": code.deviceCode,
                 "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
             ])
             if let token = try? JSONDecoder().decode(TokenBody.self, from: data) { return token.accessToken }

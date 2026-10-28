@@ -189,21 +189,19 @@ struct ReviewQueuePopover: View {
     }
 }
 
-// MARK: Sign-in sheet
+// MARK: Sign-in panel
 
 @MainActor
 @Observable
 final class GitHubSignIn {
-    enum Phase: Equatable { case needsClientID, requesting, waiting(GitHubDeviceFlow.Code), failed(String), done }
+    enum Phase: Equatable { case requesting, waiting(GitHubDeviceFlow.Code), failed(String), done }
     var phase: Phase = .requesting
     @ObservationIgnored private var task: Task<Void, Never>?
 
     func start() {
-        let clientID = GitHubService.shared.clientID
-        guard !clientID.isEmpty else { phase = .needsClientID; return }
         phase = .requesting
         task = Task {
-            let flow = GitHubDeviceFlow(clientID: clientID)
+            let flow = GitHubDeviceFlow()
             do {
                 let code = try await flow.requestCode()
                 phase = .waiting(code)
@@ -216,7 +214,7 @@ final class GitHubSignIn {
             } catch GitHubDeviceFlow.Failure.expired {
                 phase = .failed("The code expired. Try again.")
             } catch GitHubDeviceFlow.Failure.misconfigured(let message) {
-                phase = .failed("GitHub rejected the request: \(message). Check the client ID and that device flow is enabled for the OAuth app.")
+                phase = .failed("GitHub rejected the request: \(message). Check that device flow is enabled for Nano’s GitHub App.")
             } catch {
                 phase = .failed("Couldn’t reach GitHub. Check your connection and try again.")
             }
@@ -235,9 +233,6 @@ struct GitHubSignInView: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Sign in to GitHub").font(.system(size: 15, weight: .semibold))
             switch model.phase {
-            case .needsClientID:
-                Text("Add your GitHub OAuth app’s client ID in Settings › GitHub first. Device flow must be enabled on the app.")
-                    .font(.system(size: 12)).foregroundStyle(Color(nsColor: Theme.textSecondary)).fixedSize(horizontal: false, vertical: true)
             case .requesting:
                 ProgressView().controlSize(.small)
             case .waiting(let code):
@@ -281,5 +276,5 @@ struct GitHubSignInView: View {
 enum GitHubHosting {
     static func contextPopover(_ view: GitHubContextPopover) -> NSViewController { popoverController(view) }
     static func queuePopover(_ view: ReviewQueuePopover) -> NSViewController { popoverController(view) }
-    static func signInSheet(_ view: GitHubSignInView) -> NSViewController { NSHostingController(rootView: view) }
+    static func signInPanel(_ view: GitHubSignInView) -> NSViewController { NSHostingController(rootView: view) }
 }

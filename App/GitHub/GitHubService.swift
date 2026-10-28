@@ -16,11 +16,6 @@ final class GitHubService {
     private(set) var clones = LocalClones()
     private(set) var lastError: String?
 
-    var clientID: String {
-        get { UserDefaults.standard.string(forKey: "GitHubClientID") ?? "" }
-        set { UserDefaults.standard.set(newValue.trimmingCharacters(in: .whitespaces), forKey: "GitHubClientID") }
-    }
-
     var editor: CodeEditor {
         get { CodeEditor(rawValue: UserDefaults.standard.string(forKey: "CodeEditor") ?? "") ?? .vscode }
         set { UserDefaults.standard.set(newValue.rawValue, forKey: "CodeEditor") }

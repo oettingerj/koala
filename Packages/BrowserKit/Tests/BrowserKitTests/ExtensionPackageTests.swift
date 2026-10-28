@@ -151,4 +151,15 @@ import Testing
         store.removeBundle(named: name)
         #expect(!FileManager.default.fileExists(atPath: store.bundleURL(for: item).path))
     }
+
+    @Test func listsFromBeforePinningLoadUnpinned() throws {
+        let store = ExtensionStore(directory: try temporaryDirectory())
+        let pinned = InstalledExtension(id: "x", name: "X", version: "1", bundleName: "b", isPinned: true)
+        try store.save([pinned])
+        #expect(store.load() == [pinned])
+        var entry = try JSONSerialization.jsonObject(with: JSONEncoder().encode(pinned)) as! [String: Any]
+        entry["isPinned"] = nil
+        try JSONSerialization.data(withJSONObject: [entry]).write(to: store.directory.appendingPathComponent("extensions.json"))
+        #expect(store.load().map(\.isPinned) == [false])
+    }
 }

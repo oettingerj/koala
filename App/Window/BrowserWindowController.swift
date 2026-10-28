@@ -139,6 +139,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
 
     private var github: GitHubService { .shared }
     private var popover: NSPopover?
+    private var signInPanel: NSPanel?
 
     private func showPopover(_ controller: NSViewController, from view: NSView) {
         popover?.close()
@@ -166,15 +167,31 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         showPopover(GitHubHosting.queuePopover(view), from: rootView.toolbar.queueButton)
     }
 
+    /// A child panel rather than a sheet: the verification page opens as a tab in this window,
+    /// and a sheet would block it while the code still has to be entered.
     @objc func signInToGitHub(_ sender: Any?) {
         guard let window else { return }
-        let model = GitHubSignIn()
-        var sheet: NSWindow?
-        let view = GitHubSignInView(model: model, openURL: { [weak self] url in self?.openTab(url: url, select: true) },
-                                    dismiss: { if let sheet { window.endSheet(sheet) } })
-        let controller = GitHubHosting.signInSheet(view)
-        sheet = NSWindow(contentViewController: controller)
-        if let sheet { window.beginSheet(sheet) }
+        if let signInPanel { signInPanel.makeKeyAndOrderFront(nil); return }
+        let view = GitHubSignInView(model: GitHubSignIn(), openURL: { [weak self] url in self?.openTab(url: url, select: true) },
+                                    dismiss: { [weak self] in self?.closeSignInPanel() })
+        let panel = NSPanel(contentViewController: GitHubHosting.signInPanel(view))
+        panel.styleMask = [.titled, .fullSizeContentView]
+        panel.titleVisibility = .hidden
+        panel.titlebarAppearsTransparent = true
+        panel.isMovableByWindowBackground = true
+        panel.becomesKeyOnlyIfNeeded = false
+        let frame = window.frame
+        panel.setFrameTopLeftPoint(NSPoint(x: frame.midX - panel.frame.width / 2, y: frame.maxY - 90))
+        window.addChildWindow(panel, ordered: .above)
+        panel.makeKeyAndOrderFront(nil)
+        signInPanel = panel
+    }
+
+    private func closeSignInPanel() {
+        guard let signInPanel else { return }
+        window?.removeChildWindow(signInPanel)
+        signInPanel.orderOut(nil)
+        self.signInPanel = nil
     }
 
     @objc func signOutOfGitHub(_ sender: Any?) { github.signOut() }
@@ -254,7 +271,8 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     // MARK: Downloads, find, zoom, import
 
     func extensionButton(for id: String?) -> NSView? {
-        rootView.toolbar.extensionButtons.first { $0.extensionID == id }
+        let toolbar = rootView.toolbar
+        return toolbar.extensionButtons.first { $0.extensionID == id } ?? toolbar.extensionsMenuButton
     }
 
     @objc func showDownloads(_ sender: Any?) {
@@ -736,18 +754,18 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         if let tab = tabs.selected { duplicate(tab) }
     }
 
-    /// ⌘T opens the command bar; picking a page opens it in a new tab.
+    /// ⌘T and the strip's + button: a blank tab with the address field focused.
     @objc func newTab(_ sender: Any?) {
+        openTab(url: nil, select: true)
+        focusAddressField()
+    }
+
+    /// ⌘K opens the command bar; picking a page opens it in a new tab.
+    @objc func toggleCommandBar(_ sender: Any?) {
         guard let window else { return }
         if commandBar.isVisible { return commandBar.hide() }
         services.commands = MenuCommands.collect()
         commandBar.show(over: window, chromeHeight: rootView.chromeHeight)
-    }
-
-    /// A blank tab, for when a page should start empty (also the strip's + button with ⌥).
-    @objc func newBlankTab(_ sender: Any?) {
-        openTab(url: nil, select: true)
-        focusAddressField()
     }
 
     func activate(_ row: Suggestion, inNewTab: Bool) {
@@ -878,6 +896,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     func windowWillExitFullScreen(_ notification: Notification) { rootView.isFullScreen = false }
 
     func windowWillClose(_ notification: Notification) {
+        closeSignInPanel()
         if !isDisposable, tabs.tabs.count > 0 {
             if tabs.tabs.count == 1, let tab = tabs.tabs.first {
                 services.remember(.tab(tab.snapshot, index: 0))
@@ -1038,11 +1057,13 @@ extension BrowserWindowController: TabDelegate {
 /// The compact toolbar makes the whole titlebar a window-server drag region that ignores the
 /// content views drawn under it, so a drag on a tab would move the window. The window server
 /// can't be told otherwise per press, so the window is not movable there and instead moves
-/// itself, and zooms on double-click, from any press on a view that allows window moves.
+/// itself, and zooms on double-click, from any press on a content view that allows window moves.
+/// Presses on the frame itself (the resize edges) go to AppKit.
 final class BrowserWindow: NSWindow {
     override func sendEvent(_ event: NSEvent) {
-        guard event.type == .leftMouseDown, !styleMask.contains(.fullScreen),
-              let hit = contentView?.superview?.hitTest(event.locationInWindow), hit.mouseDownCanMoveWindow
+        guard event.type == .leftMouseDown, !styleMask.contains(.fullScreen), let contentView,
+              let hit = contentView.superview?.hitTest(event.locationInWindow),
+              hit.isDescendant(of: contentView), hit.mouseDownCanMoveWindow
         else { return super.sendEvent(event) }
         if event.clickCount == 2 {
             switch UserDefaults.standard.string(forKey: "AppleActionOnDoubleClick") ?? "Maximize" {

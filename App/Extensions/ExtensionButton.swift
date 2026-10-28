@@ -53,6 +53,12 @@ final class ExtensionButton: IconButton {
         badge.frame = NSRect(x: bounds.width - width, y: bounds.height - 11, width: width, height: 10)
     }
 
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let menu = NSMenu()
+        menu.addItem(closureMenuItem("Unpin from Toolbar") { [extensionID] in ExtensionsHost.shared.setPinned(false, for: extensionID) })
+        return menu
+    }
+
     @objc private func pressed() {
         guard let context, let controller = window?.windowController as? BrowserWindowController else { return }
         context.performAction(for: controller.tabs.focused)

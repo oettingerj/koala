@@ -112,26 +112,16 @@ private struct GeneralSettings: View {
 
 private struct GitHubSettings: View {
     @Bindable private var github = GitHubService.shared
-    @State private var clientID = GitHubService.shared.clientID
     @State private var editor = GitHubService.shared.editor
 
     var body: some View {
         Form {
             Section {
-                TextField("OAuth client ID", text: $clientID, prompt: Text("Ov23li…"))
-                    .font(.system(.body, design: .monospaced))
-                    .onChange(of: clientID) { _, value in github.clientID = value }
-                Text("Register an OAuth app on GitHub with Device Flow enabled, then paste its client ID. Nano never needs the client secret.")
-                    .font(.caption).foregroundStyle(.secondary)
-                Button("Register an OAuth App on GitHub…") {
-                    NSWorkspace.shared.open(URL(string: "https://github.com/settings/applications/new")!)
-                }
                 LabeledContent("Account") {
                     if github.isSignedIn {
                         Button("Sign Out") { github.signOut() }
                     } else {
                         Button("Sign In…") { NSApp.sendAction(#selector(BrowserWindowController.signInToGitHub(_:)), to: nil, from: nil) }
-                            .disabled(clientID.isEmpty)
                     }
                 }
                 if let error = github.lastError {
@@ -342,10 +332,13 @@ private struct ExtensionRow: View {
             Toggle("Enabled", isOn: Binding(get: { item.isEnabled }, set: { host.setEnabled($0, for: item) }))
                 .labelsHidden().toggleStyle(.switch).controlSize(.small)
             Menu {
+                if context != nil {
+                    Button(item.isPinned ? "Unpin from Toolbar" : "Pin to Toolbar") { host.setPinned(!item.isPinned, for: item.id) }
+                }
                 if let options = context?.optionsPageURL {
                     Button("Options…") { (NSApp.delegate as? AppDelegate)?.open(options) }
-                    Divider()
                 }
+                if context != nil { Divider() }
                 Button("Remove…", role: .destructive, action: onRemove)
             } label: {
                 Image(systemName: "ellipsis.circle")
