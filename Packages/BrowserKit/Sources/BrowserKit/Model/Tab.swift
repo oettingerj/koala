@@ -1,5 +1,6 @@
 import AppKit
 import Observation
+import os
 import WebKit
 
 /// Window-level UI a page can ask for: JavaScript dialogs, permission prompts, file pickers,
@@ -333,8 +334,16 @@ extension Tab: WKNavigationDelegate {
             isJSONDocument = mime == "application/json" || mime.hasSuffix("+json")
         }
         // Attachments and types WebKit cannot render are downloads.
-        let disposition = (response.response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Disposition") ?? ""
-        if disposition.lowercased().hasPrefix("attachment") || !response.canShowMIMEType { return .download }
+        let http = response.response as? HTTPURLResponse
+        let disposition = http?.value(forHTTPHeaderField: "Content-Disposition") ?? ""
+        if disposition.lowercased().hasPrefix("attachment") || !response.canShowMIMEType {
+            Logger(subsystem: "com.joshoettinger.koala", category: "navigation").info("""
+                download mainFrame=\(response.isForMainFrame) status=\(http?.statusCode ?? -1) \
+                mime=\(response.response.mimeType ?? "nil", privacy: .public) canShow=\(response.canShowMIMEType) \
+                disposition=\(disposition, privacy: .public) url=\(response.response.url?.absoluteString ?? "", privacy: .public)
+                """)
+            return .download
+        }
         return .allow
     }
 
