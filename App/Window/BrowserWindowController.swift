@@ -9,7 +9,6 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     private var selectionObservation: ObservationLoop?
     private var sessionObservation: ObservationLoop?
     private var bookmarkObservation: ObservationLoop?
-    private var mediaDecisions: [String: Bool] = [:]
     private var extensionObservation: ObservationLoop?
     private var sleepTimer: Timer?
     private var devSessions: [UUID: DevPanelModel] = [:]
@@ -369,14 +368,9 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     }
 
     /// Zoom is remembered per site.
-    private static var siteZoom: [String: Double] {
-        get { UserDefaults.standard.dictionary(forKey: "SiteZoom") as? [String: Double] ?? [:] }
-        set { UserDefaults.standard.set(newValue, forKey: "SiteZoom") }
-    }
-
     private func applySiteZoom(to tab: Tab) {
         guard let host = DisplayURL(tab.url)?.host, let webView = tab.webView else { return }
-        let zoom = CGFloat(Self.siteZoom[host] ?? 1)
+        let zoom = CGFloat(SiteZoom.shared[host])
         if webView.pageZoom != zoom { webView.pageZoom = zoom }
     }
 
@@ -976,7 +970,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         guard let tab = tabs.focused, let webView = tab.webView else { return }
         webView.pageZoom = (transform(webView.pageZoom) * 10).rounded() / 10
         if let host = DisplayURL(tab.url)?.host {
-            Self.siteZoom[host] = webView.pageZoom == 1 ? nil : Double(webView.pageZoom)
+            SiteZoom.shared[host] = Double(webView.pageZoom)
         }
     }
 
@@ -1138,21 +1132,15 @@ extension BrowserWindowController: TabUIHost {
     }
 
     func tab(_ tab: Tab, allowMediaCapture type: WKMediaCaptureType, from origin: String) async -> Bool {
-        let key = "\(origin)|\(type.rawValue)"
-        if let decision = mediaDecisions[key] { return decision }
-        let what = switch type {
-        case .camera: "your camera"
-        case .microphone: "your microphone"
-        case .cameraAndMicrophone: "your camera and microphone"
-        @unknown default: "a media device"
-        }
+        let permissions = SitePermissions.shared
+        if let decision = permissions.decision(origin: origin, type: type) { return decision }
         let alert = NSAlert()
-        alert.messageText = "Allow \(origin) to use \(what)?"
-        alert.informativeText = "Koala remembers your choice for this site until you quit."
+        alert.messageText = "Allow \(origin) to use your \(SitePermissions.deviceName(type).lowercased())?"
+        alert.informativeText = "Koala remembers your choice for this site. You can change it in Settings › Sites."
         alert.addButton(withTitle: "Allow")
         alert.addButton(withTitle: "Don’t Allow")
         let allowed = await sheet(alert) == .alertFirstButtonReturn
-        mediaDecisions[key] = allowed
+        permissions.set(allowed, origin: origin, type: type)
         return allowed
     }
 

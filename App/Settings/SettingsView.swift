@@ -60,7 +60,7 @@ let settingsTertiary = Color(nsColor: Theme.textTertiary)
 let settingsFail = Color(nsColor: Theme.fail)
 
 enum SettingsSection: String, CaseIterable, Identifiable {
-    case general, github, keywords, extensions, data
+    case general, github, keywords, extensions, sites, data
 
     var id: String { rawValue }
 
@@ -70,6 +70,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .github: "GitHub"
         case .keywords: "Search Keywords"
         case .extensions: "Extensions"
+        case .sites: "Sites"
         case .data: "Browsing Data"
         }
     }
@@ -82,6 +83,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .github: "Pull request and CI status in tabs, and where Open in Editor finds your clones."
         case .keywords: "Type a keyword and a space in the address field or command bar to search that site."
         case .extensions: "Safari-compatible web extensions, including most Manifest V3 Chrome extensions."
+        case .sites: "What each site may use, and what Koala keeps for it."
         case .data: "Bring in bookmarks and history from another browser, or clear what Koala remembers."
         }
     }
@@ -166,6 +168,7 @@ final class SettingsModel {
         case .github: SettingEntries.github
         case .keywords: keywords.map(KeywordSettings.entry(for:))
         case .extensions: ExtensionSettings.entries()
+        case .sites: SettingEntries.sites
         case .data: SettingEntries.data
         }
     }
@@ -327,6 +330,7 @@ struct SettingsPage: View {
             case .github: GitHubSettings()
             case .keywords: KeywordSettings(model: model)
             case .extensions: ExtensionSettings()
+            case .sites: SitesSettings()
             case .data: BrowsingDataSettings()
             }
         }
