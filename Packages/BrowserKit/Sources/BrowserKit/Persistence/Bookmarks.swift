@@ -71,7 +71,8 @@ public final class BookmarkLibrary {
         var updated = bookmark
         updated.title = title
         let row = updated
-        try await database.writer.write { db in try row.update(db) }
+        // Title only, so a stale copy of the bookmark can't undo a move made since it was read.
+        try await database.writer.write { db in try row.update(db, columns: ["title"]) }
     }
 
     public func remove(_ bookmark: Bookmark) async throws {
@@ -101,6 +102,25 @@ public final class BookmarkLibrary {
             }
             for row in rows { try row.update(db) }
         }
+    }
+
+    /// Moves `bookmark` just before `sibling` among the children of `parentID`, or to their end when
+    /// `sibling` is nil. Moving a bookmark before itself leaves it where it is.
+    public func move(_ bookmark: Bookmark, before sibling: Bookmark?, in parentID: Int64?) async throws {
+        guard sibling?.id != bookmark.id else { return }
+        let siblings = children(of: parentID).filter { $0.id != bookmark.id }
+        let index = sibling.flatMap { sibling in siblings.firstIndex { $0.id == sibling.id } } ?? siblings.count
+        try await move(bookmark, to: index, in: parentID)
+    }
+
+    /// Whether `bookmark` can go into `parentID`: false when that is the bookmark or lies inside it.
+    public func canMove(_ bookmark: Bookmark, into parentID: Int64?) -> Bool {
+        var ancestor = parentID
+        while let id = ancestor {
+            if id == bookmark.id { return false }
+            ancestor = all.first { $0.id == id }?.parentID
+        }
+        return true
     }
 
     /// Bulk insert used by importers. `items` are created in order; folders before their children.

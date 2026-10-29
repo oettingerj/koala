@@ -657,9 +657,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     /// Adds an empty folder at the end of the bookmarks bar.
     @objc func newBookmarkFolder(_ sender: Any?) {
         guard let window else { return }
-        BookmarkMenus.promptForTitle("New folder", initial: "", button: "Create", in: window) { [services] title in
-            Task { try? await services.bookmarks.add(title: title, url: nil) }
-        }
+        BookmarkMenus.newFolder(in: nil, library: services.bookmarks, in: window)
     }
 
     @objc func toggleBookmarksBar(_ sender: Any?) {

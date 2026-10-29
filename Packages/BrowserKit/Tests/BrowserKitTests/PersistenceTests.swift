@@ -84,6 +84,38 @@ import Testing
         #expect(library.children(of: inner.id).map(\.title) == ["A"])
         await #expect(throws: BookmarkLibrary.Failure.folderIntoItself) { try await library.move(outer, to: 0, in: outer.id) }
         await #expect(throws: BookmarkLibrary.Failure.folderIntoItself) { try await library.move(outer, to: 0, in: inner.id) }
+        #expect(!library.canMove(outer, into: outer.id))
+        #expect(!library.canMove(outer, into: inner.id))
+        #expect(library.canMove(inner, into: nil))
+        #expect(library.canMove(page, into: outer.id))
+    }
+
+    @Test func moveBeforeSibling() async throws {
+        let library = BookmarkLibrary(database: try .inMemory())
+        let a = try await library.add(title: "A", url: URL(string: "https://a.com"))
+        let b = try await library.add(title: "B", url: URL(string: "https://b.com"))
+        let c = try await library.add(title: "C", url: URL(string: "https://c.com"))
+        try await Task.sleep(for: .milliseconds(50))
+        try await library.move(c, before: a, in: nil)
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(library.children(of: nil).map(\.title) == ["C", "A", "B"])
+        try await library.move(library.children(of: nil)[0], before: nil, in: nil)
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(library.children(of: nil).map(\.title) == ["A", "B", "C"])
+        try await library.move(b, before: b, in: nil)
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(library.children(of: nil).map(\.title) == ["A", "B", "C"])
+    }
+
+    @Test func renameKeepsLaterMove() async throws {
+        let library = BookmarkLibrary(database: try .inMemory())
+        let folder = try await library.add(title: "Folder", url: nil)
+        let page = try await library.add(title: "A", url: URL(string: "https://a.com"))
+        try await Task.sleep(for: .milliseconds(50))
+        try await library.move(page, to: 0, in: folder.id)
+        try await library.rename(page, to: "Renamed")
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(library.children(of: folder.id).map(\.title) == ["Renamed"])
     }
 }
 

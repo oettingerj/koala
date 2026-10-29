@@ -10,6 +10,9 @@ final class BookmarksBarView: NSView {
     private lazy var overflowButton = IconButton(symbol: "chevron.right.2", label: "More Bookmarks", pointSize: 10,
                                                  action: #selector(showOverflow), target: self)
     private let hairline = CALayer()
+    /// The insertion line shown while a bookmark is dragged over the bar.
+    private let dropIndicator = CALayer()
+    private var dropTarget: BookmarkDrag.Target? { didSet { showDropTarget() } }
     private let emptyLabel = NSTextField(labelWithString: "Bookmark pages with ⌘D to keep them here")
     private var observation: ObservationLoop?
     private lazy var dropdown: BookmarkDropdown = {
@@ -26,6 +29,11 @@ final class BookmarksBarView: NSView {
         super.init(frame: .zero)
         wantsLayer = true
         layer?.addSublayer(hairline)
+        dropIndicator.cornerRadius = 1
+        dropIndicator.isHidden = true
+        dropIndicator.zPosition = 1
+        layer?.addSublayer(dropIndicator)
+        registerForDraggedTypes([BookmarkDrag.type])
         emptyLabel.font = .systemFont(ofSize: 11)
         emptyLabel.textColor = Theme.textTertiary
         addSubview(emptyLabel)
@@ -45,20 +53,23 @@ final class BookmarksBarView: NSView {
     override func updateLayer() {
         layer?.backgroundColor = resolved(Theme.chromeSurface)
         hairline.backgroundColor = resolved(Theme.hairline)
+        dropIndicator.backgroundColor = resolved(Theme.accent)
     }
 
     private func sync() {
         let items = library.children(of: nil)
-        dropdown.close() // its anchor is one of the buttons about to be replaced
+        // Changes inside folders leave the bar as it is, so an open dropdown stays open through them.
+        guard items != buttons.map(\.bookmark) else { return }
         buttons.forEach { $0.removeFromSuperview() }
         buttons = items.map { bookmark in
             let button = BookmarkButton(bookmark: bookmark)
             button.target = self
             button.action = #selector(pressed(_:))
-            button.menu = contextMenu(for: bookmark)
+            button.menu = BookmarkMenus.contextMenu(for: bookmark, library: library, in: self) { [weak self] in self?.onOpen?($0, $1) }
             addSubview(button, positioned: .below, relativeTo: overflowButton)
             return button
         }
+        dropdown.closeIfAnchorRemoved()
         emptyLabel.isHidden = !items.isEmpty
         needsLayout = true
     }
@@ -89,7 +100,7 @@ final class BookmarksBarView: NSView {
 
     @objc private func pressed(_ sender: BookmarkButton) {
         if sender.bookmark.isFolder {
-            dropdown.show(library.children(of: sender.bookmark.id), below: sender)
+            dropdown.show(folder: sender.bookmark.id, below: sender)
             sender.isOpen = true
         } else if let url = sender.bookmark.url.flatMap(URL.init(string:)) {
             onOpen?(url, NSApp.currentEvent?.modifierFlags.contains(.command) ?? false)
@@ -97,61 +108,60 @@ final class BookmarksBarView: NSView {
     }
 
     @objc private func showOverflow() {
-        dropdown.show(buttons.filter(\.isHidden).map(\.bookmark), below: overflowButton, alignRight: true)
+        dropdown.show(folder: nil, from: buttons.prefix { !$0.isHidden }.count, below: overflowButton, alignRight: true)
     }
 
-    private func contextMenu(for bookmark: Bookmark) -> NSMenu {
-        let menu = NSMenu()
-        if let url = bookmark.url.flatMap(URL.init(string:)) {
-            menu.addItem(closureMenuItem("Open in New Tab") { [weak self] in self?.onOpen?(url, true) })
-            menu.addItem(closureMenuItem("Copy Link") { Pasteboard.copy(url: url, title: bookmark.title) })
-            menu.addItem(.separator())
+    // MARK: Dropping
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        draggingUpdated(sender)
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        guard let dragged = BookmarkDrag.bookmark(in: sender, library: library) else {
+            dropTarget = nil
+            return []
         }
-        menu.addItem(closureMenuItem("Rename…") { [weak self] in self?.rename(bookmark) })
-        let move = NSMenuItem(title: "Move To", action: nil, keyEquivalent: "")
-        move.submenu = BookmarkMenus.moveMenu(for: bookmark, library: library)
-        menu.addItem(move)
-        menu.addItem(closureMenuItem("Delete") { [weak self] in self?.delete(bookmark) })
-        menu.addItem(.separator())
-        menu.addItem(closureMenuItem("New Folder…") { [weak self] in self?.newFolder() })
-        return menu
+        let visible = buttons.prefix { !$0.isHidden }
+        dropTarget = BookmarkDrag.target(at: convert(sender.draggingLocation, from: nil).x,
+                                         spans: visible.map { $0.frame.minX...$0.frame.maxX },
+                                         items: buttons.map(\.bookmark), dragging: dragged)
+        return .move
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        dropTarget = nil
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        defer { dropTarget = nil }
+        guard let target = dropTarget, let dragged = BookmarkDrag.bookmark(in: sender, library: library) else { return false }
+        BookmarkDrag.drop(dragged, on: target, in: nil, library: library)
+        return true
+    }
+
+    /// Highlights the folder a drop goes into, or draws the insertion line in the gap before its place.
+    private func showDropTarget() {
+        for button in buttons { button.isDropTarget = dropTarget == .into(button.bookmark) }
+        let visible = buttons.prefix { !$0.isHidden }
+        var x: CGFloat?
+        if case .before(let sibling) = dropTarget {
+            x = visible.first { $0.bookmark == sibling }.map { $0.frame.minX - 2 } ?? (visible.last?.frame.maxX ?? 6)
+        }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        dropIndicator.isHidden = x == nil
+        dropIndicator.frame = NSRect(x: x ?? 0, y: (bounds.height - 18) / 2, width: 2, height: 18)
+        CATransaction.commit()
     }
 
     /// Right-click on the bar itself, away from any bookmark.
     override func menu(for event: NSEvent) -> NSMenu? {
         let menu = NSMenu()
-        menu.addItem(closureMenuItem("New Folder…") { [weak self] in self?.newFolder() })
+        menu.addItem(closureMenuItem("New Folder…") { [weak self, library] in
+            if let window = self?.window { BookmarkMenus.newFolder(in: nil, library: library, in: window) }
+        })
         return menu
-    }
-
-    private func newFolder() {
-        NSApp.sendAction(#selector(BrowserWindowController.newBookmarkFolder(_:)), to: nil, from: self)
-    }
-
-    private func rename(_ bookmark: Bookmark) {
-        guard let window else { return }
-        BookmarkMenus.promptForTitle(bookmark.isFolder ? "Rename folder" : "Rename bookmark", initial: bookmark.title,
-                                     button: "Rename", in: window) { [library] title in
-            Task { try? await library.rename(bookmark, to: title) }
-        }
-    }
-
-    /// Deleting a folder deletes what it holds, so a non-empty folder asks first.
-    private func delete(_ bookmark: Bookmark) {
-        guard bookmark.isFolder, !library.children(of: bookmark.id).isEmpty, let window else {
-            Task { try? await library.remove(bookmark) }
-            return
-        }
-        let alert = NSAlert()
-        alert.messageText = "Delete “\(bookmark.title)” and everything in it?"
-        alert.informativeText = "The bookmarks and folders inside it are deleted too."
-        alert.addButton(withTitle: "Delete")
-        alert.addButton(withTitle: "Cancel")
-        alert.buttons[0].hasDestructiveAction = true
-        alert.beginSheetModal(for: window) { [library] response in
-            guard response == .alertFirstButtonReturn else { return }
-            Task { @MainActor in try? await library.remove(bookmark) }
-        }
     }
 }
 
@@ -165,6 +175,8 @@ final class BookmarkButton: NSButton {
     private var tracking: NSTrackingArea?
     /// Held pressed while the folder's dropdown is open.
     var isOpen = false { didSet { updateFill() } }
+    /// Held pressed while a dragged bookmark hovers to drop into this folder.
+    var isDropTarget = false { didSet { updateFill() } }
 
     init(bookmark: Bookmark) {
         self.bookmark = bookmark
@@ -235,12 +247,35 @@ final class BookmarkButton: NSButton {
         tracking = area
     }
 
+    override var mouseDownCanMoveWindow: Bool { false }
+
+    /// Tracks the press itself so that moving a few points picks the bookmark up instead of clicking it.
+    override func mouseDown(with event: NSEvent) {
+        guard let window else { return }
+        isHighlighted = true
+        defer { isHighlighted = false }
+        while let next = window.nextEvent(matching: [.leftMouseUp, .leftMouseDragged]) {
+            let inside = bounds.contains(convert(next.locationInWindow, from: nil))
+            if next.type == .leftMouseUp {
+                isHighlighted = false
+                if inside { sendAction(action, to: target) }
+                return
+            }
+            if BookmarkDrag.isDrag(from: event.locationInWindow, to: next.locationInWindow) {
+                isHighlighted = false
+                BookmarkDrag.begin(bookmark, icon: image, from: self, at: NSPoint(x: 0, y: (bounds.height - 22) / 2), event: next)
+                return
+            }
+            isHighlighted = inside
+        }
+    }
+
     override func mouseEntered(with event: NSEvent) { isHovered = true }
     override func mouseExited(with event: NSEvent) { isHovered = false }
     override var isHighlighted: Bool { didSet { updateFill() } }
 
     private func updateFill() {
-        let fill: NSColor? = isHighlighted || isOpen ? Theme.pressedFill : isHovered ? Theme.hoverFill : nil
+        let fill: NSColor? = isHighlighted || isOpen || isDropTarget ? Theme.pressedFill : isHovered ? Theme.hoverFill : nil
         layer?.backgroundColor = fill.map(resolved) ?? .clear
     }
 }
@@ -270,6 +305,58 @@ enum BookmarkMenus {
         }
         add("Bookmarks Bar", parentID: nil, depth: 0)
         return menu
+    }
+
+    /// The context menu for a bookmark on the bar or in a folder dropdown. Its sheets open on `view`'s window.
+    static func contextMenu(for bookmark: Bookmark, library: BookmarkLibrary, in view: NSView,
+                            onOpen: @escaping (URL, _ newTab: Bool) -> Void) -> NSMenu {
+        let menu = NSMenu()
+        if let url = bookmark.url.flatMap(URL.init(string:)) {
+            menu.addItem(closureMenuItem("Open in New Tab") { onOpen(url, true) })
+            menu.addItem(closureMenuItem("Copy Link") { Pasteboard.copy(url: url, title: bookmark.title) })
+            menu.addItem(.separator())
+        }
+        menu.addItem(closureMenuItem("Rename…") { [weak view] in
+            guard let window = view?.window else { return }
+            promptForTitle(bookmark.isFolder ? "Rename folder" : "Rename bookmark", initial: bookmark.title,
+                           button: "Rename", in: window) { title in
+                Task { try? await library.rename(bookmark, to: title) }
+            }
+        })
+        let move = NSMenuItem(title: "Move To", action: nil, keyEquivalent: "")
+        move.submenu = moveMenu(for: bookmark, library: library)
+        menu.addItem(move)
+        menu.addItem(closureMenuItem("Delete") { [weak view] in delete(bookmark, library: library, in: view?.window) })
+        menu.addItem(.separator())
+        menu.addItem(closureMenuItem("New Folder…") { [weak view] in
+            if let window = view?.window { newFolder(in: bookmark.parentID, library: library, in: window) }
+        })
+        return menu
+    }
+
+    /// Asks for a name, then adds a folder at the end of `parentID`'s children.
+    static func newFolder(in parentID: Int64?, library: BookmarkLibrary, in window: NSWindow) {
+        promptForTitle("New folder", initial: "", button: "Create", in: window) { title in
+            Task { try? await library.add(title: title, url: nil, in: parentID) }
+        }
+    }
+
+    /// Deleting a folder deletes what it holds, so a non-empty folder asks first.
+    static func delete(_ bookmark: Bookmark, library: BookmarkLibrary, in window: NSWindow?) {
+        guard bookmark.isFolder, !library.children(of: bookmark.id).isEmpty, let window else {
+            Task { try? await library.remove(bookmark) }
+            return
+        }
+        let alert = NSAlert()
+        alert.messageText = "Delete “\(bookmark.title)” and everything in it?"
+        alert.informativeText = "The bookmarks and folders inside it are deleted too."
+        alert.addButton(withTitle: "Delete")
+        alert.addButton(withTitle: "Cancel")
+        alert.buttons[0].hasDestructiveAction = true
+        alert.beginSheetModal(for: window) { response in
+            guard response == .alertFirstButtonReturn else { return }
+            Task { @MainActor in try? await library.remove(bookmark) }
+        }
     }
 
     /// Asks for a bookmark or folder name in a sheet; `completion` gets the trimmed, non-empty title.
