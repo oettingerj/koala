@@ -111,11 +111,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
 
         if let snapshot, !snapshot.tabs.isEmpty {
             for tabSnapshot in snapshot.tabs {
-                let tab = Tab(snapshot: tabSnapshot)
-                tab.delegate = self
-                tab.uiHost = self
-                tab.splitTab?.delegate = self
-                tab.splitTab?.uiHost = self
+                let tab = adopt(Tab(snapshot: tabSnapshot))
                 tabs.insert(tab, select: false)
                 services.applyCachedFavicon(to: tab)
             }
@@ -407,10 +403,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     private func split(_ tab: Tab, with row: Suggestion) {
         switch row.action {
         case .open(let url):
-            let partner = Tab(url: url)
-            partner.delegate = self
-            partner.uiHost = self
-            tabs.split(tab, with: partner)
+            tabs.split(tab, with: adopt(Tab(url: url)))
         case .switchToTab(let id):
             guard let partner = tabs.tabs.first(where: { $0.id == id }), partner !== tab else { return NSSound.beep() }
             if partner.splitTab != nil { tabs.unsplit(partner) }
@@ -446,18 +439,14 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
 
     /// Promotes the Peek page to a tab, keeping the same web view so nothing reloads.
     func openPeekInTab(_ webView: WKWebView) {
-        let tab = Tab(adopting: webView, openerID: tabs.selected?.id)
-        tab.delegate = self
-        tab.uiHost = self
+        let tab = adopt(Tab(adopting: webView, openerID: tabs.selected?.id))
         tabs.insert(tab, select: true)
         services.applyCachedFavicon(to: tab)
     }
 
     func openPeekInSplit(_ webView: WKWebView) {
         guard let tab = tabs.selected else { return }
-        let partner = Tab(adopting: webView, openerID: nil)
-        partner.delegate = self
-        partner.uiHost = self
+        let partner = adopt(Tab(adopting: webView, openerID: nil))
         if tab.splitTab != nil { tabs.unsplit(tab) }
         tabs.split(tab, with: partner)
     }
@@ -708,10 +697,18 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
 
     @discardableResult
     func openTab(url: URL?, select: Bool, opener: Tab? = nil) -> Tab {
-        let tab = Tab(url: url, openerID: opener?.id)
-        tab.delegate = self
-        tab.uiHost = self
+        let tab = adopt(Tab(url: url, openerID: opener?.id))
         tabs.insert(tab, select: select)
+        return tab
+    }
+
+    /// Makes this window the tab's host. Every tab this window shows comes through here.
+    @discardableResult
+    private func adopt(_ tab: Tab) -> Tab {
+        for pane in [tab, tab.splitTab].compactMap(\.self) {
+            pane.delegate = self
+            pane.uiHost = self
+        }
         return tab
     }
 
@@ -816,10 +813,8 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
 
     /// Reopens a closed tab where it was.
     func restore(_ snapshot: TabSnapshot, at index: Int) {
-        let tab = Tab(snapshot: snapshot)
+        let tab = adopt(Tab(snapshot: snapshot))
         tab.openerID = nil
-        tab.delegate = self
-        tab.uiHost = self
         tabs.insert(tab, select: true)
         tabs.move(tab, to: index)
         services.applyCachedFavicon(to: tab)
@@ -871,10 +866,8 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         var snapshot = tab.snapshot
         snapshot.id = UUID()
         snapshot.isPinned = false
-        let copy = Tab(snapshot: snapshot)
+        let copy = adopt(Tab(snapshot: snapshot))
         copy.openerID = tab.id
-        copy.delegate = self
-        copy.uiHost = self
         tabs.insert(copy, select: true)
         services.applyCachedFavicon(to: copy)
     }
@@ -1182,9 +1175,7 @@ extension BrowserWindowController: TabUIHost {
 extension BrowserWindowController: TabDelegate {
     func tab(_ tab: Tab, createWebViewWith configuration: WKWebViewConfiguration, for action: WKNavigationAction) -> WKWebView? {
         let webView = WebViewFactory.makeWebView(configuration: configuration)
-        let child = Tab(adopting: webView, openerID: tab.id)
-        child.delegate = self
-        child.uiHost = self
+        let child = adopt(Tab(adopting: webView, openerID: tab.id))
         tabs.insert(child, select: !action.modifierFlags.contains(.command))
         return webView
     }
