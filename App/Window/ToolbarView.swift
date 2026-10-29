@@ -23,6 +23,14 @@ final class ToolbarView: NSView {
     private(set) lazy var queueButton = IconButton(symbol: "tray", label: "Review Queue", pointSize: 12,
                                               action: #selector(BrowserWindowController.showReviewQueue(_:)))
     private let queueBadge = NSTextField(labelWithString: "")
+    /// Marks a private window, before the address field.
+    private let privateBadge = NSTextField(labelWithString: "Private")
+    var isPrivate = false {
+        didSet {
+            privateBadge.isHidden = !isPrivate
+            needsLayout = true
+        }
+    }
     private let hairline = CALayer()
     var showsHairline = true { didSet { hairline.isHidden = !showsHairline } }
     private let progressBar = CALayer()
@@ -43,7 +51,15 @@ final class ToolbarView: NSView {
         downloadsBadge.font = .monospacedDigitSystemFont(ofSize: 9, weight: .semibold)
         downloadsBadge.textColor = Theme.accent
         downloadsButton.isHidden = true
-        [backButton, forwardButton, reloadButton, addressField, githubChip, downloadsButton, downloadsBadge,
+        privateBadge.font = .systemFont(ofSize: 11, weight: .semibold)
+        privateBadge.textColor = Theme.textSecondary
+        privateBadge.alignment = .center
+        privateBadge.wantsLayer = true
+        privateBadge.layer?.cornerRadius = Theme.controlRadius
+        privateBadge.isHidden = true
+        privateBadge.toolTip = "Private window: no history, and its cookies and site data go away when it closes."
+        privateBadge.setAccessibilityLabel("Private window")
+        [privateBadge, backButton, forwardButton, reloadButton, addressField, githubChip, downloadsButton, downloadsBadge,
          extensionsMenuButton, queueButton, queueBadge, devButton].forEach(addSubview)
         setAccessibilityElement(true)
         setAccessibilityRole(.toolbar)
@@ -58,6 +74,7 @@ final class ToolbarView: NSView {
 
     override func updateLayer() {
         layer?.backgroundColor = resolved(Theme.chromeSurface)
+        privateBadge.layer?.backgroundColor = resolved(Theme.hoverFill)
         hairline.backgroundColor = resolved(Theme.hairline)
         progressBar.backgroundColor = resolved(Theme.accent)
     }
@@ -71,6 +88,13 @@ final class ToolbarView: NSView {
             x += Theme.iconButtonSize + 2
         }
         x += 6
+        if isPrivate {
+            let width = privateBadge.intrinsicContentSize.width + 14
+            privateBadge.frame = NSRect(x: x, y: (bounds.height - 20) / 2, width: width, height: 20)
+            // Centers the label's single line in the pill.
+            privateBadge.frame.origin.y -= 1
+            x += width + 6
+        }
         let fieldHeight: CGFloat = 28
         var trailing = bounds.width - 8 - Theme.iconButtonSize
         devButton.frame = NSRect(x: trailing, y: y, width: Theme.iconButtonSize, height: Theme.iconButtonSize)
@@ -110,8 +134,9 @@ final class ToolbarView: NSView {
     private func syncExtensionButtons(for tab: Tab?) {
         let host = ExtensionsHost.shared
         _ = host.actionsVersion
-        extensionsMenuButton.isHidden = host.contexts.isEmpty
-        let ids = host.contexts.map(\.id).filter(host.isPinned)
+        // Extensions don't run in private windows.
+        extensionsMenuButton.isHidden = host.contexts.isEmpty || isPrivate
+        let ids = isPrivate ? [] : host.contexts.map(\.id).filter(host.isPinned)
         if extensionButtons.map(\.extensionID) != ids {
             extensionButtons.forEach { $0.removeFromSuperview() }
             extensionButtons = ids.map(ExtensionButton.init)

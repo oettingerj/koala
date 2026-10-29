@@ -56,9 +56,10 @@ final class PeekView: NSView {
         header.layer?.backgroundColor = resolved(Theme.chromeSurface)
     }
 
-    func show(url: URL) {
+    /// `configuration` is the window's when it isn't the shared one (a private window's).
+    func show(url: URL, configuration: WKWebViewConfiguration? = nil) {
         dismissWebView()
-        let webView = WebViewFactory.makeWebView()
+        let webView = WebViewFactory.makeWebView(configuration: configuration)
         card.addSubview(webView)
         self.webView = webView
         hostLabel.stringValue = DisplayURL(url).map { $0.host + $0.remainder } ?? url.absoluteString

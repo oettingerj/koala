@@ -1,11 +1,24 @@
 import WebKit
 
-/// Owns the one configuration every tab's web view is cut from.
+/// Owns the configuration every tab's web view is cut from, and makes private windows' configurations.
 @MainActor
 public enum WebViewFactory {
     public static let configuration: WKWebViewConfiguration = {
         let config = WKWebViewConfiguration()
-        config.websiteDataStore = .default()
+        configure(config, store: .default())
+        return config
+    }()
+
+    /// A configuration for one private window: its own in-memory data store, so nothing it stores
+    /// outlives the window or reaches other windows. No extensions run in it.
+    public static func makePrivateConfiguration() -> WKWebViewConfiguration {
+        let config = WKWebViewConfiguration()
+        configure(config, store: .nonPersistent())
+        return config
+    }
+
+    private static func configure(_ config: WKWebViewConfiguration, store: WKWebsiteDataStore) {
+        config.websiteDataStore = store
         config.preferences.isElementFullscreenEnabled = true
         config.preferences.isTextInteractionEnabled = true
         config.allowsAirPlayForMediaPlayback = true
@@ -20,8 +33,7 @@ public enum WebViewFactory {
         DevToolsScripts.install(on: config.userContentController, handler: DevToolsRouter.shared)
         config.userContentController.addUserScript(WKUserScript(source: scrollbarStyle, injectionTime: .atDocumentStart,
                                                                 forMainFrameOnly: false, in: .defaultClient))
-        return config
-    }()
+    }
 
     /// Light, thin scrollbars that darken on hover. In a cascade layer so any scrollbar styles the
     /// page sets win; a constructed stylesheet because strict CSP blocks `<style>` elements.
@@ -50,9 +62,10 @@ public enum WebViewFactory {
         return url.host()
     }
 
-    /// A web view that can show `url`: extension pages get their extension's configuration.
-    public static func makeWebView(for url: URL?) -> WKWebView {
-        makeWebView(configuration: url.flatMap { extensionConfiguration?($0) })
+    /// A web view that can show `url`: extension pages get their extension's configuration, other
+    /// pages `base` (a private window's), or the shared configuration.
+    public static func makeWebView(for url: URL?, base: WKWebViewConfiguration? = nil) -> WKWebView {
+        makeWebView(configuration: url.flatMap { extensionConfiguration?($0) } ?? base)
     }
 
     /// `configuration` must be the one WebKit hands to `createWebViewWith` when opening a popup;

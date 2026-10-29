@@ -67,6 +67,8 @@ public final class Tab: NSObject, Identifiable {
     public private(set) var isJSONDocument = false
 
     @ObservationIgnored public weak var delegate: TabDelegate?
+    /// The configuration web pages load with when it isn't the shared one: a private window's.
+    @ObservationIgnored public var baseConfiguration: WKWebViewConfiguration?
     @ObservationIgnored public weak var uiHost: TabUIHost?
     /// Observed so the window re-shows the tab when moving between the web and extension pages swaps it.
     public private(set) var webView: WKWebView?
@@ -249,7 +251,7 @@ public final class Tab: NSObject, Identifiable {
     @discardableResult
     public func materialize() -> WKWebView {
         if let webView { return webView }
-        let webView = WebViewFactory.makeWebView(for: url)
+        let webView = WebViewFactory.makeWebView(for: url, base: baseConfiguration)
         attach(webView)
         webViewExtension = .some(WebViewFactory.extensionHost(of: url))
         if let restoredState {

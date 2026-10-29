@@ -29,7 +29,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // Front-to-back order so the frontmost window restores on top.
             let ordered = NSApp.orderedWindows.compactMap { $0.windowController as? BrowserWindowController }
             let rest = (self?.windows ?? []).filter { controller in !ordered.contains { $0 === controller } }
-            return (ordered + rest).reversed().map(\.snapshot)
+            // Private windows are never restored.
+            return (ordered + rest).reversed().filter { !$0.isPrivate }.map(\.snapshot)
         }
         Perf.record("launch.didFinishLaunching", Perf.sinceProcessStart)
         // Windows (chrome) appear now; pages wait for extensions so content blockers cover the
@@ -113,6 +114,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func newWindow(_ sender: Any?) { openWindow(url: nil) }
+    @objc func newPrivateWindow(_ sender: Any?) { openWindow(url: nil, isPrivate: true) }
 
     /// Settings is a page in a tab: focus the open one, else open it like any link.
     @objc func showSettings(_ sender: Any?) {
@@ -152,8 +154,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @discardableResult
-    private func openWindow(url: URL? = nil, snapshot: WindowSnapshot? = nil) -> BrowserWindowController {
-        let controller = BrowserWindowController(initialURL: url, snapshot: snapshot)
+    private func openWindow(url: URL? = nil, snapshot: WindowSnapshot? = nil, isPrivate: Bool = false) -> BrowserWindowController {
+        let controller = BrowserWindowController(initialURL: url, snapshot: snapshot, isPrivate: isPrivate)
         controller.onClose = { [weak self] closed in self?.windows.removeAll { $0 === closed } }
         if snapshot?.frame == nil, let previous = NSApp.keyWindow, previous.windowController is BrowserWindowController {
             controller.window?.setFrameTopLeftPoint(previous.cascadeTopLeft(from: NSPoint(x: previous.frame.minX, y: previous.frame.maxY)))
@@ -161,7 +163,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windows.append(controller)
         controller.showWindow(nil)
         if snapshot != nil || url != nil { controller.focusPage() }
-        ExtensionsHost.shared.didOpen(controller)
+        if !isPrivate { ExtensionsHost.shared.didOpen(controller) }
         return controller
     }
 }

@@ -273,8 +273,9 @@ final class ExtensionsHost: NSObject {
 
     // MARK: Events from Koala
 
+    /// Private windows are hidden from extensions.
     private var windows: [BrowserWindowController] {
-        NSApp.orderedWindows.compactMap { $0.windowController as? BrowserWindowController }
+        NSApp.orderedWindows.compactMap { $0.windowController as? BrowserWindowController }.filter { !$0.isPrivate }
     }
 
     /// Lets a newly loaded extension see what is already open.
@@ -512,7 +513,7 @@ extension BrowserWindowController: WKWebExtensionWindow {
     func tabs(for context: WKWebExtensionContext) -> [any WKWebExtensionTab] { tabs.tabs }
     func activeTab(for context: WKWebExtensionContext) -> (any WKWebExtensionTab)? { tabs.selected }
     func windowType(for context: WKWebExtensionContext) -> WKWebExtension.WindowType { .normal }
-    func isPrivate(for context: WKWebExtensionContext) -> Bool { false }
+    func isPrivate(for context: WKWebExtensionContext) -> Bool { isPrivate }
 
     func windowState(for context: WKWebExtensionContext) -> WKWebExtension.WindowState {
         guard let window else { return .normal }

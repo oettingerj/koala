@@ -45,7 +45,9 @@ final class AppServices {
         sessionStore = try? SessionStore.defaultStore()
         suggestions = SuggestionEngine(bookmarks: bookmarks, history: history, database: database)
         suggestions.tabs = {
+            // A private window's tabs show only in its own command bar.
             NSApp.orderedWindows.compactMap { $0.windowController as? BrowserWindowController }
+                .filter { !$0.isPrivate || $0.window?.isKeyWindow == true }
                 .flatMap { $0.tabs.tabs }
                 .map { SuggestionEngine.TabInfo(id: $0.id, title: $0.displayTitle, url: $0.url) }
         }

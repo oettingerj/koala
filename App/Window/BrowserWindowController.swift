@@ -35,6 +35,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
 
     /// Tells loaded extensions which tabs opened, closed, or became active.
     private func reportTabChangesToExtensions() {
+        guard !isPrivate else { return }
         let host = ExtensionsHost.shared
         let current = Dictionary(uniqueKeysWithValues: tabs.tabs.map { ($0.id, $0) })
         for (id, tab) in current where reportedTabs[id] == nil { host.didOpen(tab) }
@@ -57,10 +58,19 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     }()
     private var services: AppServices { .shared }
     var onClose: ((BrowserWindowController) -> Void)?
+    /// A private window keeps no history, session, favicons, or recently closed tabs, and its
+    /// pages share an in-memory data store that goes away with the window. Extensions don't see it.
+    let isPrivate: Bool
+    private let privateConfiguration: WKWebViewConfiguration?
+    /// A private window's camera and microphone choices, forgotten when it closes.
+    private var privateMediaDecisions: [String: Bool] = [:]
 
     /// Opens a window with one tab at `initialURL` (blank when nil), or the tabs of `snapshot`.
-    init(initialURL: URL? = nil, snapshot: WindowSnapshot? = nil) {
+    init(initialURL: URL? = nil, snapshot: WindowSnapshot? = nil, isPrivate: Bool = false) {
+        self.isPrivate = isPrivate
+        privateConfiguration = isPrivate ? WebViewFactory.makePrivateConfiguration() : nil
         rootView = BrowserRootView(tabs: tabs)
+        rootView.toolbar.isPrivate = isPrivate
         let window = BrowserWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1280, height: 820),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
@@ -701,6 +711,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         for pane in [tab, tab.splitTab].compactMap(\.self) {
             pane.delegate = self
             pane.uiHost = self
+            pane.baseConfiguration = privateConfiguration
         }
         return tab
     }
@@ -718,7 +729,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     func close(_ tab: Tab) {
         closeDevTools(for: tab)
         if let partner = tab.splitTab { closeDevTools(for: partner) }
-        if tabs.tabs.count > 1, tab.url != nil, let index = tabs.index(of: tab) {
+        if !isPrivate, tabs.tabs.count > 1, tab.url != nil, let index = tabs.index(of: tab) {
             services.remember(.tab(tab.snapshot, index: index))
         }
         tab.stop()
@@ -754,7 +765,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
 
     private func showSelectedTab() {
         guard let tab = tabs.selected else { return }
-        window?.title = tab.displayTitle
+        window?.title = isPrivate ? "\(tab.displayTitle) — Private" : tab.displayTitle
         // No page loads until enabled extensions are in place; this re-runs when they are.
         guard ExtensionsHost.shared.isReady else { return }
         tab.markActive()
@@ -969,7 +980,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     private func adjustZoom(_ transform: (CGFloat) -> CGFloat) {
         guard let tab = tabs.focused, let webView = tab.webView else { return }
         webView.pageZoom = (transform(webView.pageZoom) * 10).rounded() / 10
-        if let host = DisplayURL(tab.url)?.host {
+        if !isPrivate, let host = DisplayURL(tab.url)?.host {
             SiteZoom.shared[host] = Double(webView.pageZoom)
         }
     }
@@ -1027,7 +1038,9 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     // MARK: Window
 
     func windowWillEnterFullScreen(_ notification: Notification) { rootView.isFullScreen = true }
-    func windowDidBecomeKey(_ notification: Notification) { ExtensionsHost.shared.didFocus(self) }
+    func windowDidBecomeKey(_ notification: Notification) {
+        if !isPrivate { ExtensionsHost.shared.didFocus(self) }
+    }
     func windowWillExitFullScreen(_ notification: Notification) { rootView.isFullScreen = false }
 
     func windowWillClose(_ notification: Notification) {
@@ -1035,7 +1048,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         for controller in detachedTools.values { controller.onClose = nil; controller.close() }
         detachedTools.removeAll(); devSessions.removeAll()
         closeSignInPanel()
-        if !isDisposable, tabs.tabs.count > 0 {
+        if !isPrivate, !isDisposable, tabs.tabs.count > 0 {
             if tabs.tabs.count == 1, let tab = tabs.tabs.first {
                 services.remember(.tab(tab.snapshot, index: 0))
             } else {
@@ -1044,9 +1057,9 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         }
         for tab in tabs.tabs {
             tab.stop()
-            ExtensionsHost.shared.didClose(tab, windowIsClosing: true)
+            if !isPrivate { ExtensionsHost.shared.didClose(tab, windowIsClosing: true) }
         }
-        ExtensionsHost.shared.didClose(self)
+        if !isPrivate { ExtensionsHost.shared.didClose(self) }
         extensionObservation?.cancel()
         sleepTimer?.invalidate()
         selectionObservation?.cancel()
@@ -1133,14 +1146,15 @@ extension BrowserWindowController: TabUIHost {
 
     func tab(_ tab: Tab, allowMediaCapture type: WKMediaCaptureType, from origin: String) async -> Bool {
         let permissions = SitePermissions.shared
-        if let decision = permissions.decision(origin: origin, type: type) { return decision }
+        let key = SitePermissions.key(origin: origin, type: type)
+        if let decision = privateMediaDecisions[key] ?? permissions.decision(origin: origin, type: type) { return decision }
         let alert = NSAlert()
         alert.messageText = "Allow \(origin) to use your \(SitePermissions.deviceName(type).lowercased())?"
         alert.informativeText = "Koala remembers your choice for this site. You can change it in Settings › Sites."
         alert.addButton(withTitle: "Allow")
         alert.addButton(withTitle: "Don’t Allow")
         let allowed = await sheet(alert) == .alertFirstButtonReturn
-        permissions.set(allowed, origin: origin, type: type)
+        if isPrivate { privateMediaDecisions[key] = allowed } else { permissions.set(allowed, origin: origin, type: type) }
         return allowed
     }
 
@@ -1211,14 +1225,14 @@ extension BrowserWindowController: TabDelegate {
     }
 
     func tab(_ tab: Tab, peek url: URL) {
-        rootView.peek.show(url: url)
+        rootView.peek.show(url: url, configuration: privateConfiguration)
     }
 
     func tabDidCommitNavigation(_ tab: Tab) {
         devSessions[tab.id]?.navigationDidCommit()
         services.applyCachedFavicon(to: tab)
         applySiteZoom(to: tab)
-        guard let url = tab.url else { return }
+        guard !isPrivate, let url = tab.url else { return }
         let typed = tab.nextNavigationIsTyped
         services.suggestions.noteVisit(url: url, typed: typed)
         if GitHubURL(url)?.number != nil { github.refreshSoon() }
@@ -1228,11 +1242,12 @@ extension BrowserWindowController: TabDelegate {
     }
 
     func tabDidFinishNavigation(_ tab: Tab) {
-        services.refreshFavicon(for: tab)
-        ExtensionsHost.shared.didChange([.title, .loading], for: tab)
         if tab.isJSONDocument {
             tab.webView?.evaluateJavaScript(PageTools.jsonViewer, in: nil, in: DevToolsScripts.world) { _ in }
         }
+        guard !isPrivate else { return }
+        services.refreshFavicon(for: tab)
+        ExtensionsHost.shared.didChange([.title, .loading], for: tab)
         guard let url = tab.url else { return }
         let title = tab.title
         Task { try? await services.history.updateTitle(url: url, title: title) }
