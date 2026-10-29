@@ -12,6 +12,8 @@ public protocol TabUIHost: AnyObject {
     func tab(_ tab: Tab, prompt message: String, defaultText: String?, from origin: String) async -> String?
     func tab(_ tab: Tab, chooseFiles parameters: WKOpenPanelParameters) async -> [URL]?
     func tab(_ tab: Tab, allowMediaCapture type: WKMediaCaptureType, from origin: String) async -> Bool
+    /// A server asked for HTTP authentication. `failures` counts rejected attempts so far. Return nil to cancel.
+    func tab(_ tab: Tab, credentialFor space: URLProtectionSpace, failures: Int) async -> URLCredential?
     func tab(_ tab: Tab, didStart download: WKDownload)
     /// The PDF viewer's download button handed over the document's bytes to save.
     func tab(_ tab: Tab, save data: Data, suggestedFilename: String, from source: URL?)
@@ -27,6 +29,9 @@ public protocol TabDelegate: AnyObject {
     /// A link was ⇧-clicked: preview it without leaving the page.
     func tab(_ tab: Tab, peek url: URL)
     func tabDidRequestClose(_ tab: Tab)
+    /// The page's web content process quit (a crash, or killed for memory). The tab shows nothing until
+    /// it reloads: the window calls `recoverFromCrash()` if the tab is in view, else `sleep()`.
+    func tabWebContentProcessDidTerminate(_ tab: Tab)
     /// A main-frame navigation committed (the URL changed for real) or finished loading.
     func tabDidCommitNavigation(_ tab: Tab)
     func tabDidFinishNavigation(_ tab: Tab)
@@ -70,6 +75,11 @@ public final class Tab: NSObject, Identifiable {
     @ObservationIgnored private var webViewExtension: String?? = .some(nil)
     @ObservationIgnored private var observations: [NSKeyValueObservation] = []
     @ObservationIgnored private var errorNavigation: WKNavigation?
+    /// The server behind a certificate error page, which its "Visit Anyway" link may accept.
+    @ObservationIgnored private var pendingTrustKey: String?
+    /// Polls a local server that refused the connection, and reloads when it answers.
+    @ObservationIgnored private var serverWait: Task<Void, Never>?
+    @ObservationIgnored private var lastCrash: Date?
     /// Back/forward state from a restored session, applied when the web view is created.
     @ObservationIgnored private var restoredState: Data?
     /// The next committed navigation came from the address field (counts as typed in history).
@@ -131,6 +141,38 @@ public final class Tab: NSObject, Identifiable {
         detachWebView()
     }
 
+    /// True when a text field holds something the user typed: putting the tab to sleep would lose it.
+    public func hasUnsavedInput() async -> Bool {
+        guard let webView else { return false }
+        let result = try? await webView.callAsyncJavaScript(Self.unsavedInputCheck, contentWorld: DevToolsScripts.world)
+        return result as? Bool ?? false
+    }
+
+    private static let unsavedInputCheck = """
+        if (document.activeElement?.isContentEditable) return true;
+        const text = new Set(['text', 'search', 'email', 'url', 'tel', 'number']);
+        for (const input of document.querySelectorAll('input')) {
+          if (text.has(input.type) && input.value !== input.defaultValue) return true;
+        }
+        for (const area of document.querySelectorAll('textarea')) {
+          if (area.value !== area.defaultValue) return true;
+        }
+        return false;
+        """
+
+    /// Reloads a page whose web content process quit. A second crash within 10 seconds shows an
+    /// error page instead, so a page that crashes on load doesn't loop.
+    public func recoverFromCrash() {
+        guard let webView else { return }
+        let now = Date()
+        if let lastCrash, now.timeIntervalSince(lastCrash) < 10, let url {
+            errorNavigation = webView.loadHTMLString(ErrorPage.crashed(url), baseURL: url)
+        } else {
+            webView.reload()
+        }
+        lastCrash = now
+    }
+
     private func detachWebView() {
         guard let webView else { return }
         webView.stopLoading()
@@ -140,6 +182,8 @@ public final class Tab: NSObject, Identifiable {
         observations = []
         self.webView = nil
         automaticPictureInPicture = nil
+        serverWait?.cancel()
+        serverWait = nil
         isLoading = false
         progress = 0
     }
@@ -297,7 +341,10 @@ extension Tab: WKNavigationDelegate {
     public func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
                         preferences: WKWebpagePreferences) async -> (WKNavigationActionPolicy, WKWebpagePreferences) {
         // Only the app opens native pages; a web page linking to one must not reach them.
-        if action.request.url?.scheme?.lowercased() == KoalaPage.scheme { return (.cancel, preferences) }
+        if action.request.url?.scheme?.lowercased() == KoalaPage.scheme {
+            if action.request.url == ErrorPage.proceedURL { acceptCertificate(for: action) }
+            return (.cancel, preferences)
+        }
         if action.targetFrame?.isMainFrame == true, let url = action.request.url, needsNewWebView(for: url) {
             load(url)
             return (.cancel, preferences)
@@ -347,8 +394,43 @@ extension Tab: WKNavigationDelegate {
         return .allow
     }
 
+    /// "Visit Anyway" on this tab's own certificate error page. The server comes from the tab's state,
+    /// never from the link, so no other page can accept a certificate.
+    private func acceptCertificate(for action: WKNavigationAction) {
+        guard isShowingErrorPage, action.navigationType == .linkActivated, action.sourceFrame.isMainFrame,
+              let key = pendingTrustKey, let url, let webView else { return }
+        pendingTrustKey = nil
+        TrustExceptions.shared.insert(key)
+        webView.load(URLRequest(url: url))
+    }
+
+    public func webView(_ webView: WKWebView, respondTo challenge: URLAuthenticationChallenge) async
+        -> (URLSession.AuthChallengeDisposition, URLCredential?) {
+        let space = challenge.protectionSpace
+        switch space.authenticationMethod {
+        case NSURLAuthenticationMethodServerTrust:
+            guard let trust = space.serverTrust, TrustExceptions.shared.contains(host: space.host, port: space.port)
+            else { return (.performDefaultHandling, nil) }
+            return (.useCredential, URLCredential(trust: trust))
+        case NSURLAuthenticationMethodHTTPBasic, NSURLAuthenticationMethodHTTPDigest, NSURLAuthenticationMethodNTLM:
+            guard challenge.previousFailureCount < 3,
+                  let credential = await uiHost?.tab(self, credentialFor: space, failures: challenge.previousFailureCount)
+            else { return (.cancelAuthenticationChallenge, nil) }
+            return (.useCredential, credential)
+        default:
+            return (.performDefaultHandling, nil)
+        }
+    }
+
+    public func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        isLoading = false
+        progress = 0
+        delegate?.tabWebContentProcessDidTerminate(self)
+    }
+
     public func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
         isShowingErrorPage = navigation != nil && navigation === errorNavigation
+        if !isShowingErrorPage { pendingTrustKey = nil }
         devTools.reset()
         if isShowingErrorPage { devTools.endCapture() }
         bindDevToolsDocument(webView)
@@ -375,6 +457,10 @@ extension Tab: WKNavigationDelegate {
 
     public func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
         devTools.willNavigate()
+        if navigation !== errorNavigation {
+            serverWait?.cancel()
+            serverWait = nil
+        }
     }
 
     public func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
@@ -383,6 +469,33 @@ extension Tab: WKNavigationDelegate {
         guard let failingURL else { return }
         // Base URL keeps the address field on the URL that failed; "Try Again" links back to it.
         errorNavigation = webView.loadHTMLString(ErrorPage.html(for: failingURL, error: error), baseURL: failingURL)
+        pendingTrustKey = ErrorPage.isCertificateError(error) ? TrustExceptions.key(for: failingURL) : nil
+        if ErrorPage.waitsForServer(failingURL, error: error) { waitForServer(at: failingURL) }
+    }
+
+    private static let probeSession = URLSession(configuration: .ephemeral)
+
+    /// Probes the server until anything answers, then loads the page. A response of any kind, or
+    /// any error other than a refused connection, means something is listening.
+    private func waitForServer(at url: URL) {
+        serverWait?.cancel()
+        serverWait = Task { [weak self] in
+            var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 1)
+            request.httpMethod = "HEAD"
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1.5))
+                guard !Task.isCancelled else { return }
+                do {
+                    _ = try await Self.probeSession.data(for: request)
+                } catch let error as URLError where error.code == .cannotConnectToHost {
+                    continue
+                } catch {}
+                guard let self, !Task.isCancelled, self.isShowingErrorPage, self.url == url else { return }
+                self.serverWait = nil
+                self.webView?.load(URLRequest(url: url))
+                return
+            }
+        }
     }
 }
 

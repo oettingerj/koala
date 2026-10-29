@@ -17,18 +17,17 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     private static let sleepAfter: TimeInterval = 30 * 60
 
     /// Puts background tabs to sleep after 30 idle minutes. Pinned tabs, split panes, and pages
-    /// using the camera, microphone, or playing audio stay awake.
+    /// using the camera, microphone, playing audio, or holding typed text stay awake.
     private func sleepIdleTabs() {
         let now = Date()
         for tab in tabs.tabs where tab !== tabs.selected && !tab.isPinned && tab.splitTab == nil {
             guard devSessions[tab.id]?.isPresented != true else { continue }
             guard let webView = tab.webView, now.timeIntervalSince(tab.lastActiveAt) > Self.sleepAfter,
                   webView.cameraCaptureState == .none, webView.microphoneCaptureState == .none else { continue }
-            webView.requestMediaPlaybackState { [weak tab, weak self] state in
-                MainActor.assumeIsolated {
-                    guard let tab, state != .playing, self?.tabs.selected !== tab else { return }
-                    tab.sleep()
-                }
+            Task { [weak tab, weak self] in
+                guard await webView.requestMediaPlaybackState() != .playing,
+                      let tab, await !tab.hasUnsavedInput(), self?.tabs.selected !== tab else { return }
+                tab.sleep()
             }
         }
     }
@@ -1157,6 +1156,31 @@ extension BrowserWindowController: TabUIHost {
         return allowed
     }
 
+    func tab(_ tab: Tab, credentialFor space: URLProtectionSpace, failures: Int) async -> URLCredential? {
+        let host = [0, 80, 443].contains(space.port) ? space.host : "\(space.host):\(space.port)"
+        let alert = NSAlert()
+        alert.messageText = failures == 0 ? "Sign in to \(host)" : "Couldn’t sign in to \(host). Try again?"
+        var notes: [String] = []
+        if let realm = space.realm, !realm.isEmpty { notes.append("The site says: “\(realm)”") }
+        if !space.receivesCredentialSecurely { notes.append("Your password will be sent without encryption.") }
+        alert.informativeText = notes.joined(separator: "\n")
+        let user = NSTextField(string: "")
+        user.placeholderString = "User name"
+        let password = NSSecureTextField(string: "")
+        password.placeholderString = "Password"
+        let fields = NSStackView(views: [user, password])
+        fields.orientation = .vertical
+        fields.spacing = 8
+        fields.frame = NSRect(x: 0, y: 0, width: 280, height: 52)
+        for field in [user, password] { field.widthAnchor.constraint(equalToConstant: 280).isActive = true }
+        alert.accessoryView = fields
+        alert.addButton(withTitle: "Sign In")
+        alert.addButton(withTitle: "Cancel")
+        alert.window.initialFirstResponder = user
+        guard await sheet(alert) == .alertFirstButtonReturn else { return nil }
+        return URLCredential(user: user.stringValue, password: password.stringValue, persistence: .forSession)
+    }
+
     func tab(_ tab: Tab, didStart download: WKDownload) {
         DownloadManager.shared.track(download)
         rootView.toolbar.flashDownloads()
@@ -1191,6 +1215,11 @@ extension BrowserWindowController: TabDelegate {
         } else {
             close(tab)
         }
+    }
+
+    func tabWebContentProcessDidTerminate(_ tab: Tab) {
+        let inView = tabs.selected === tab || tabs.selected?.splitTab === tab
+        if inView { tab.recoverFromCrash() } else { tab.sleep() }
     }
 
     func tab(_ tab: Tab, peek url: URL) {
