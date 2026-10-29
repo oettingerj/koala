@@ -179,18 +179,22 @@ final class GitHubService {
 
     // MARK: Command bar
 
-    /// Review queue items and repository search for the command bar.
-    func suggestions(for text: String) async -> [Suggestion] {
+    /// Review queue items matching what's typed; answers at once, without the network.
+    func queueSuggestions(for text: String) -> [Suggestion] {
         let query = text.trimmingCharacters(in: .whitespaces)
-        guard isSignedIn, query.count >= 2 else { return [] }
-        var rows = queueRows(matching: query)
-        if query.count >= 3, !query.contains(" "), let repos = try? await client.searchRepositories(query) {
-            rows += repos.map { repo in
-                Suggestion(id: "url:\(repo.url.absoluteString)", kind: .github, title: repo.nameWithOwner,
-                           subtitle: repo.description, action: .open(repo.url), score: 0, iconHost: "github.com")
-            }
+        guard query.count >= 2 else { return [] }
+        return queueRows(matching: query)
+    }
+
+    /// Repositories matching what's typed, from GitHub search.
+    func repositorySuggestions(for text: String) async -> [Suggestion] {
+        let query = text.trimmingCharacters(in: .whitespaces)
+        guard isSignedIn, query.count >= 3, !query.contains(" "),
+              let repos = try? await client.searchRepositories(query) else { return [] }
+        return repos.map { repo in
+            Suggestion(id: "url:\(repo.url.absoluteString)", kind: .github, title: repo.nameWithOwner,
+                       subtitle: repo.description, action: .open(repo.url), score: 0, iconHost: "github.com")
         }
-        return rows
     }
 
     /// Review queue items as suggestions: those matching `query`, or all of them (as the

@@ -68,7 +68,9 @@ import Testing
 
     @Test func noEndpointSendsNothing() async {
         let e = SuggestionEngine(bookmarks: nil, history: nil, database: nil, web: WebSuggestions(endpoint: nil))
-        #expect(await e.remoteResults(for: "swift actors").isEmpty)
+        for source in e.remoteSources(for: "swift actors") {
+            #expect(await source().isEmpty)
+        }
     }
 
     @Test func keywordProducesOnlyKeywordRow() {

@@ -50,7 +50,10 @@ final class AppServices {
                 .map { SuggestionEngine.TabInfo(id: $0.id, title: $0.displayTitle, url: $0.url) }
         }
         suggestions.commands = { [unowned self] in commands }
-        suggestions.extraRemote = { text in await GitHubService.shared.suggestions(for: text) }
+        suggestions.extraRemote = [
+            { text in GitHubService.shared.queueSuggestions(for: text) },
+            { text in await GitHubService.shared.repositorySuggestions(for: text) },
+        ]
         suggestions.zeroState = { [unowned self] in
             let queue = GitHubService.shared.queueRows(matching: nil).prefix(4)
             // Newest first, keeping each item's index into `recentlyClosed` for reopening.

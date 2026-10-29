@@ -421,8 +421,8 @@ extension Tab: WKUIDelegate {
         await uiHost?.tab(self, chooseFiles: parameters)
     }
 
-    public func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin,
-                        initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType) async -> WKPermissionDecision {
+    public func webView(_ webView: WKWebView, decideMediaCapturePermissionsFor origin: WKSecurityOrigin,
+                        initiatedBy frame: WKFrameInfo, type: WKMediaCaptureType) async -> WKPermissionDecision {
         let name = origin.port == 0 ? origin.host : "\(origin.host):\(origin.port)"
         return await uiHost?.tab(self, allowMediaCapture: type, from: name) == true ? .grant : .deny
     }

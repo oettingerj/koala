@@ -56,7 +56,7 @@ public struct HistoryStore: Sendable {
     public func updateTitle(url: URL, title: String) async throws {
         guard Self.isRecordable(url), !title.isEmpty else { return }
         let key = url.absoluteString
-        try await database.writer.write { db in
+        _ = try await database.writer.write { db in
             try HistoryEntry.filter(Column("url") == key).updateAll(db, Column("title").set(to: title))
         }
     }
@@ -101,7 +101,7 @@ public struct HistoryStore: Sendable {
     }
 
     public func clear(since date: Date? = nil) async throws {
-        try await database.writer.write { db in
+        _ = try await database.writer.write { db in
             if let date {
                 try HistoryEntry.filter(Column("lastVisitedAt") >= date).deleteAll(db)
             } else {

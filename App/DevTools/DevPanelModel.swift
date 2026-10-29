@@ -22,7 +22,10 @@ final class DevPanelModel {
     let tab: BrowserKit.Tab?
     var section: Section = .console
     var isDetached = false
-    var isPresented = false
+    /// Showing the tools starts fetch/XHR capture; each committed navigation re-arms it while they stay open.
+    var isPresented = false {
+        didSet { if isPresented && !oldValue { startCapture() } }
+    }
     var status: String?
     var cookies: [HTTPCookie] = []
     var localStorage: [StorageItem] = []
@@ -54,6 +57,8 @@ final class DevPanelModel {
     @ObservationIgnored var perform: (PageAction) -> Void = { _ in }
     @ObservationIgnored private var storageRevision = UUID()
     @ObservationIgnored private var captureRevision = UUID()
+    /// Set when the user stops capture; navigations keep it off until they resume or reopen the tools.
+    @ObservationIgnored private var capturePaused = false
     @ObservationIgnored private var pickerRevision = UUID()
     @ObservationIgnored private var evaluationRevision = UUID()
 
@@ -83,16 +88,15 @@ final class DevPanelModel {
         storageRevision = UUID()
         cookies = []; localStorage = []; sessionStorage = []
         guard let record = tab?.devTools else { return }
-        if record.captureID != nil {
-            if record.captureOrigin == origin && isPresented { startCapture() }
-            else { stopCapture(); status = "Detailed capture stopped because the origin changed." }
-        }
+        // Each document is bound to its own origin; the previous capture token never carries over.
+        if isPresented && !capturePaused && origin != nil { startCapture() }
+        else if record.captureID != nil { stopCapture() }
         if section == .storage && isPresented { refreshStorage() }
     }
 
     func startCapture() {
+        capturePaused = false
         guard let tab, let webView = tab.webView, let origin else { return }
-        isPresented = true
         let token = tab.devTools.beginCapture(origin: origin), navigation = tab.devTools.navigationID
         let revision = UUID(); captureRevision = revision
         Task {
@@ -107,6 +111,11 @@ final class DevPanelModel {
                 tab.devTools.endCapture(); status = "Capture failed: \(error.localizedDescription)"
             }
         }
+    }
+
+    func pauseCapture() {
+        capturePaused = true
+        stopCapture()
     }
 
     func stopCapture() {

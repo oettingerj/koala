@@ -89,7 +89,7 @@ public final class SessionStore: Sendable {
 
     /// Writes on a background queue; `sync` blocks until written (used at quit).
     public func save(_ session: Session, sync: Bool = false) {
-        let work = { [fileURL] in
+        let work = { @Sendable [fileURL] in
             guard let data = try? JSONEncoder().encode(session) else { return }
             try? data.write(to: fileURL, options: [.atomic])
         }

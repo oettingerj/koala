@@ -113,8 +113,8 @@ public final class SuggestionEngine {
     /// The engine `searchTemplate` belongs to, as search rows name it ("Search Kagi").
     public var searchName = "Google"
     public var webSuggestionsEnabled = true
-    /// Extra asynchronous rows from the app (GitHub review queue and repository search).
-    public var extraRemote: (@MainActor (String) async -> [Suggestion])?
+    /// Extra asynchronous sources from the app (GitHub review queue and repository search).
+    public var extraRemote: [@MainActor (String) async -> [Suggestion]] = []
     /// Rows the app shows for an empty query (review queue, recently closed).
     public var zeroState: () -> [Suggestion] = { [] }
 
@@ -353,14 +353,16 @@ public final class SuggestionEngine {
 
     // MARK: Remote (asynchronous)
 
-    /// History matches and web suggestions; rows already present locally are dropped by the caller.
-    public func remoteResults(for raw: String) async -> [Suggestion] {
+    /// One source per kind of remote row (the app's extras, history matches, web suggestions),
+    /// so callers can show each as it answers instead of waiting on the slowest. Rows already
+    /// present locally are dropped by the caller.
+    public func remoteSources(for raw: String) -> [@MainActor () async -> [Suggestion]] {
         let text = raw.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty, KeywordSearch.match(raw, in: keywordSearches) == nil else { return [] }
-        async let historyRows = historyResults(for: text)
-        async let webRows = webResults(for: text)
-        let extra = await extraRemote?(text) ?? []
-        return await extra + historyRows + webRows
+        return extraRemote.map { source in { await source(text) } } + [
+            { [self] in await historyResults(for: text) },
+            { [self] in await webResults(for: text) },
+        ]
     }
 
     private func historyResults(for text: String) async -> [Suggestion] {

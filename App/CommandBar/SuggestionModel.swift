@@ -3,7 +3,8 @@ import BrowserKit
 import Observation
 
 /// State behind the command bar and the address field dropdown: the query, its rows, and
-/// which row is highlighted. Remote rows append below local ones and never move the highlight.
+/// which row is highlighted. Remote rows stream in below local ones, each source as soon as it
+/// answers, and never move the highlight.
 @MainActor
 @Observable
 final class SuggestionModel {
@@ -79,19 +80,35 @@ final class SuggestionModel {
         remoteTask = Task { [weak self, engine] in
             try? await Task.sleep(for: .milliseconds(80))
             guard !Task.isCancelled else { return }
-            let remote = await engine.remoteResults(for: query)
-            guard !Task.isCancelled, let self, self.query == query else { return }
-            var seen = Set(self.rows.map(\.id))
-            var counts: [Suggestion.Section: Int] = [:]
-            let additions = remote.filter { row in
-                guard seen.insert(row.id).inserted else { return false }
-                counts[row.section, default: 0] += 1
-                return counts[row.section]! <= Self.remoteLimits[row.section, default: 4]
+            await withTaskGroup(of: [Suggestion].self) { group in
+                for source in engine.remoteSources(for: query) {
+                    group.addTask { await source() }
+                }
+                for await batch in group {
+                    guard !Task.isCancelled, let self, self.query == query else { return group.cancelAll() }
+                    self.merge(batch)
+                }
             }
-            self.pointerAtLastChange = NSEvent.mouseLocation
-            self.rows.append(contentsOf: additions)
-            self.loadDetails(for: additions)
         }
+    }
+
+    /// Places a source's rows at the end of their sections, so a source that answers late
+    /// (GitHub search) slots in above ones that answered early without reordering them.
+    private func merge(_ batch: [Suggestion]) {
+        let selectedID = selected?.id
+        var seen = Set(rows.map(\.id))
+        var additions: [Suggestion] = []
+        for row in batch where seen.insert(row.id).inserted {
+            guard rows.count(where: { $0.section == row.section }) < Self.remoteLimits[row.section, default: 4] else { continue }
+            rows.insert(row, at: rows.firstIndex { $0.section > row.section } ?? rows.endIndex)
+            additions.append(row)
+        }
+        guard !additions.isEmpty else { return }
+        pointerAtLastChange = NSEvent.mouseLocation
+        if let selectedID, let index = rows.firstIndex(where: { $0.id == selectedID }), index != selectedIndex {
+            selectedIndex = index
+        }
+        loadDetails(for: additions)
     }
 
     func reset() {

@@ -649,7 +649,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
             if let existing = library.bookmark(for: url) {
                 try? await library.remove(existing)
             } else {
-                try? await library.add(title: tab.displayTitle, url: url)
+                _ = try? await library.add(title: tab.displayTitle, url: url)
             }
         }
     }

@@ -91,8 +91,7 @@ struct SuggestionRow: View {
                     .lineLimit(1)
                 if let url = subtitleURL {
                     // Same reading as the address field: host first, path quieter.
-                    (Text(url.host).foregroundStyle(Color(nsColor: Theme.textSecondary))
-                        + Text(url.remainder).foregroundStyle(Color(nsColor: Theme.textTertiary)))
+                    Text("\(Text(url.host).foregroundStyle(Color(nsColor: Theme.textSecondary)))\(Text(url.remainder).foregroundStyle(Color(nsColor: Theme.textTertiary)))")
                         .font(.system(size: 11, design: .monospaced))
                         .lineLimit(1)
                         .truncationMode(.middle)

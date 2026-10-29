@@ -59,8 +59,7 @@ struct SuggestionPreview: View {
                     .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
                 if let url = displayURL {
-                    (Text(url.host).foregroundStyle(Color(nsColor: Theme.textSecondary))
-                        + Text(url.remainder).foregroundStyle(Color(nsColor: Theme.textTertiary)))
+                    Text("\(Text(url.host).foregroundStyle(Color(nsColor: Theme.textSecondary)))\(Text(url.remainder).foregroundStyle(Color(nsColor: Theme.textTertiary)))")
                         .font(.system(size: 11, design: .monospaced))
                         .lineLimit(3)
                         .fixedSize(horizontal: false, vertical: true)
@@ -140,8 +139,7 @@ struct SuggestionPreview: View {
         }
         if let count = facts.visitCount, let last = facts.lastVisitedAt {
             rows.append(Fact(label: "Visited",
-                             value: Text("\(count)×").font(.system(size: 12, design: .monospaced))
-                                 + Text("  ·  \(RelativeTime.short(last))").foregroundStyle(Color(nsColor: Theme.textSecondary)),
+                             value: Text("\(Text("\(count)×").font(.system(size: 12, design: .monospaced)))\(Text("  ·  \(RelativeTime.short(last))").foregroundStyle(Color(nsColor: Theme.textSecondary)))"),
                              help: last.formatted(date: .abbreviated, time: .shortened)))
         } else {
             // Holds the row while the visit count loads, so the pane doesn't grow under the pointer.
@@ -154,20 +152,21 @@ struct SuggestionPreview: View {
     private func githubFacts(_ status: GitHubStatus) -> [Fact] {
         var rows: [Fact] = []
         let glyph = GitHubStyle.glyph(status.state)
-        let state = GitHubStyle.image(status.state, size: 11).map { Text(Image(nsImage: $0)) + Text(" ") } ?? Text("")
-        rows.append(Fact(label: "State", value: state + Text(Self.stateWord(status.state)), help: glyph.label))
+        let state = GitHubStyle.image(status.state, size: 11).map { Text("\(Image(nsImage: $0)) ") } ?? Text("")
+        rows.append(Fact(label: "State", value: Text("\(state)\(Self.stateWord(status.state))"), help: glyph.label))
         if !status.checkRuns.isEmpty, let color = GitHubStyle.color(status.checks) {
             let passing = status.checkRuns.filter { $0.result == .passing }.count
             let failing = status.checkRuns.filter { $0.result == .failing }.count
             var words = "\(passing) of \(status.checkRuns.count) passing"
             if failing > 0 { words += ", \(failing) failing" }
-            rows.append(Fact(label: "Checks", value: Text(Image(systemName: "circle.fill")).font(.system(size: 7)).foregroundStyle(Color(nsColor: color))
-                + Text("  " + words).font(.system(size: 12).monospacedDigit())))
+            rows.append(Fact(label: "Checks", value: Text("\(Text(Image(systemName: "circle.fill")).font(.system(size: 7)).foregroundStyle(Color(nsColor: color)))\(Text("  " + words).font(.system(size: 12).monospacedDigit()))")))
         }
         if let head = status.headRef, let base = status.baseRef {
-            rows.append(Fact(label: "Branch", value: Text(head).font(.system(size: 11, design: .monospaced))
-                + Text("  →  ").foregroundStyle(Color(nsColor: Theme.textTertiary))
-                + Text(base).font(.system(size: 11, design: .monospaced)).foregroundStyle(Color(nsColor: Theme.textSecondary))))
+            rows.append(Fact(label: "Branch", value: Text("""
+                \(Text(head).font(.system(size: 11, design: .monospaced)))\
+                \(Text("  →  ").foregroundStyle(Color(nsColor: Theme.textTertiary)))\
+                \(Text(base).font(.system(size: 11, design: .monospaced)).foregroundStyle(Color(nsColor: Theme.textSecondary)))
+                """)))
         }
         let review = GitHubStyle.reviewSummary(status)
         if !review.isEmpty { rows.append(Fact(label: "Review", value: Text(review))) }

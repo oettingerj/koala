@@ -45,8 +45,8 @@ struct DevNetworkView: View {
                 Menu { Picker("Sort requests", selection: $model.networkSorting) {
                     ForEach(["Newest", "Name", "Status", "Duration"], id: \.self) { Text($0).tag($0) }
                 } } label: { Label(model.networkSorting, systemImage: "arrow.up.arrow.down") }
-                Button(record.captureID == nil ? "Capture details" : "Stop capture", systemImage: record.captureID == nil ? "record.circle" : "stop.circle") {
-                    if record.captureID == nil { model.networkSource = "Fetch / XHR"; model.startCapture() } else { model.stopCapture() }
+                Button(record.captureID == nil ? "Resume capture" : "Pause capture", systemImage: record.captureID == nil ? "record.circle" : "pause.circle") {
+                    if record.captureID == nil { model.networkSource = "Fetch / XHR"; model.startCapture() } else { model.pauseCapture() }
                 }.disabled(model.origin == nil)
                 Button("Clear") { model.clearNetwork() }
             }
@@ -56,7 +56,7 @@ struct DevNetworkView: View {
             HStack {
                 Text(model.networkSource == "Resources" ? "\(resources.count) resources · \(devBytes(resources.reduce(0) { $0 + $1.bytesTransferred })) reported transfer" : "\(requests.count) captured requests")
                 Spacer()
-                Text(record.captureID != nil ? "Capture on · this origin only" : "Detailed capture off")
+                Text(record.captureID != nil ? "Capture on · this origin only" : "Detailed capture paused")
                     .foregroundStyle(record.captureID != nil ? Color(nsColor: Theme.accentText) : devSecondary)
             }.font(.system(size: 10)).foregroundStyle(devSecondary).padding(.horizontal, 12).frame(height: 24)
         }
@@ -76,7 +76,7 @@ struct DevNetworkView: View {
                     .font(.system(size: 12, design: .monospaced)).help(row.url)
             }
                 .overlay { if requests.isEmpty { DevEmpty(title: record.requests.isEmpty ? "Capture an API request" : "No matching requests",
-                    detail: record.captureID == nil ? "Enable Capture details, then reproduce the request. Headers and bounded text payloads stay in memory." : "Subsequent fetch and XHR requests from this page will appear here.", symbol: "network") } }
+                    detail: record.captureID == nil ? "Resume capture, then reproduce the request. Headers and bounded text payloads stay in memory." : "Fetch and XHR requests from this page appear here while the tools are open. Reload to include requests made during page load.", symbol: "network") } }
         } detail: {
             if let row = record.requests.first(where: { $0.id == model.selectedRequest }) { requestDetail(row) }
             else { DevEmpty(title: "Select a request", detail: "Inspect its headers, payload and response. Browser-managed credentials and iframe requests are unavailable.", symbol: "network") }
@@ -116,7 +116,7 @@ struct DevNetworkView: View {
                                     ("Delivery", delivery(row)), ("Transfer", row.transferSize > 0 ? devBytes(row.transferSize) : "Not reported"),
                                     ("Encoded body", row.encodedSize > 0 ? devBytes(row.encodedSize) : "Not reported")])
                     DevRule()
-                    Text("WebKit may withhold cross-origin timing and size data. Bars share a navigation-relative scale. Enable detailed capture for subsequent fetch/XHR headers and payloads.")
+                    Text("WebKit may withhold cross-origin timing and size data. Bars share a navigation-relative scale. Fetch / XHR captures headers and payloads while the tools are open.")
                         .font(.system(size: 11)).foregroundStyle(devSecondary)
                 }.padding(16) }
             } else { DevEmpty(title: "Select a resource", detail: "Read its URL, timing and available delivery information.", symbol: "chart.bar.xaxis") }
