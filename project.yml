@@ -36,6 +36,10 @@ targets:
         LSFileQuarantineEnabled: true
         NSCameraUsageDescription: Websites you allow can use your camera, for example for video calls.
         NSMicrophoneUsageDescription: Websites you allow can use your microphone, for example for calls and recordings.
+        # A browser loads whatever the user opens: App Transport Security would refuse plain HTTP pages
+        # and certificate exceptions in web views. Koala's own requests still follow ATS.
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoadsInWebContent: true
         CFBundleURLTypes:
           - CFBundleURLName: Web site URL
             CFBundleURLSchemes: [http, https]
