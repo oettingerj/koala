@@ -51,6 +51,20 @@ public struct LocalClones: Sendable {
         return "\(parts[0])/\(parts[1])".lowercased()
     }
 
+    /// The branch checked out in the clone at `directory`, or nil when HEAD is detached or unreadable.
+    /// Follows a worktree's `.git` file to its git directory.
+    public static func currentBranch(at directory: URL) -> String? {
+        var gitDirectory = directory.appendingPathComponent(".git")
+        if let pointer = try? String(contentsOf: gitDirectory, encoding: .utf8), pointer.hasPrefix("gitdir:") {
+            let path = pointer.dropFirst("gitdir:".count).trimmingCharacters(in: .whitespacesAndNewlines)
+            gitDirectory = path.hasPrefix("/") ? URL(fileURLWithPath: path) : directory.appendingPathComponent(path)
+        }
+        guard let head = try? String(contentsOf: gitDirectory.appendingPathComponent("HEAD"), encoding: .utf8) else { return nil }
+        let line = head.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard line.hasPrefix("ref: refs/heads/") else { return nil }
+        return String(line.dropFirst("ref: refs/heads/".count))
+    }
+
     public func clone(for github: GitHubURL) -> URL? {
         clones[github.slug.lowercased()]
     }

@@ -28,6 +28,17 @@ final class GitHubService {
 
     private(set) var codeRoot: URL?
 
+    /// Shows how many pull requests wait on your review on the Dock icon.
+    var showsDockBadge = UserDefaults.standard.object(forKey: "DockReviewBadge") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(showsDockBadge, forKey: "DockReviewBadge") }
+    }
+
+    /// The Dock badge: review requests only, since your own failing PRs aren't waiting on anyone.
+    var dockBadge: String? {
+        let count = queue.filter { $0.reason == .reviewRequested }.count
+        return showsDockBadge && isSignedIn && count > 0 ? "\(count)" : nil
+    }
+
     @ObservationIgnored let client = GitHubClient(token: { GitHubKeychain.read() })
     @ObservationIgnored private var pollTask: Task<Void, Never>?
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
@@ -210,7 +221,7 @@ final class GitHubService {
             return Suggestion(id: "url:\(item.url.absoluteString)", kind: .github, section: query == nil ? .reviewQueue : .github,
                               title: item.title,
                               subtitle: "\(item.repo)#\(item.number) · \(item.reason == .reviewRequested ? "review requested" : "checks failing")",
-                              action: .open(item.url), score: score, iconHost: "github.com")
+                              action: .open(item.destination), score: score, iconHost: "github.com")
         }
     }
 }

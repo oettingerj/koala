@@ -217,6 +217,33 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         performGitHub(.openInEditor, page: page)
     }
 
+    /// Opens the first failing check's page; for GitHub Actions that is the job's log.
+    @objc func openFailingCheck(_ sender: Any?) {
+        guard let url = failingCheckURL else { return NSSound.beep() }
+        openTab(url: url, select: true, opener: tabs.focused)
+    }
+
+    private var failingCheckURL: URL? {
+        github.status(for: tabs.focused?.url)?.checkRuns.first { $0.result == .failing }?.url
+    }
+
+    /// Opens the pull request for the branch checked out in this repository's local clone, or
+    /// GitHub's page for opening one when the branch has none yet.
+    @objc func openLocalBranchPullRequest(_ sender: Any?) {
+        guard let page = GitHubURL(tabs.focused?.url), let clone = github.clones.clone(for: page) else { return NSSound.beep() }
+        guard let branch = LocalClones.currentBranch(at: clone) else {
+            return report("\((clone.path as NSString).abbreviatingWithTildeInPath) isn’t on a branch.", failed: true)
+        }
+        let opener = tabs.focused
+        Task {
+            let found = try? await github.client.pullRequest(owner: page.owner, repo: page.repo, headRef: branch)
+            let encoded = branch.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? branch
+            let compare = URL(string: "https://github.com/\(page.slug)/compare/\(encoded)?expand=1")
+            guard let url = (found ?? nil) ?? compare else { return }
+            openTab(url: url, select: true, opener: opener)
+        }
+    }
+
     @objc func copyCheckoutCommand(_ sender: Any?) {
         guard let page = GitHubURL(tabs.focused?.url), case .pullRequest(let number) = page.kind else { return }
         performGitHub(.copyCheckout(number), page: page)
@@ -1051,6 +1078,9 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         case #selector(copyCheckoutCommand(_:)):
             if case .pullRequest = GitHubURL(tabs.focused?.url)?.kind { return true }
             return false
+        case #selector(openFailingCheck(_:)): return failingCheckURL != nil
+        case #selector(openLocalBranchPullRequest(_:)):
+            return GitHubURL(tabs.focused?.url).flatMap(github.clones.clone(for:)) != nil
         case #selector(signInToGitHub(_:)): return !github.isSignedIn
         case #selector(signOutOfGitHub(_:)): return github.isSignedIn
         case #selector(findNext(_:)), #selector(findPrevious(_:)):

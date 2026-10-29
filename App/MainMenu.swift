@@ -161,6 +161,8 @@ enum MainMenu {
         let menu = NSMenu(title: "GitHub")
         menu.addItem(item("Show Pull Request Details", #selector(BrowserWindowController.showGitHubContext(_:)), "g", [.command, .option]))
         menu.addItem(item("Review Queue", #selector(BrowserWindowController.showReviewQueue(_:)), "r", [.command, .option]))
+        menu.addItem(item("Open Failing Check", #selector(BrowserWindowController.openFailingCheck(_:)), "f", [.command, .option]))
+        menu.addItem(item("Open Pull Request for Local Branch", #selector(BrowserWindowController.openLocalBranchPullRequest(_:))))
         menu.addItem(.separator())
         menu.addItem(item("Copy Permalink", #selector(BrowserWindowController.copyPermalink(_:)), "p", [.command, .option]))
         menu.addItem(item("Copy Checkout Command", #selector(BrowserWindowController.copyCheckoutCommand(_:))))

@@ -48,6 +48,20 @@ import Testing
         #expect(queue.map(\.reason) == [.reviewRequested, .failingChecks])
     }
 
+    @Test func decodesPullRequestForBranch() {
+        let found = json(#"{"repository":{"pullRequests":{"nodes":[{"url":"https://github.com/a/b/pull/7"}]}}}"#)
+        #expect(GitHubClient.decodePullRequestURL(found)?.absoluteString == "https://github.com/a/b/pull/7")
+        #expect(GitHubClient.decodePullRequestURL(json(#"{"repository":{"pullRequests":{"nodes":[]}}}"#)) == nil)
+        #expect(GitHubClient.decodePullRequestURL(json(#"{"repository":null}"#)) == nil)
+    }
+
+    @Test func failingQueueItemsLeadToChecks() {
+        let url = URL(string: "https://github.com/a/b/pull/3")!
+        #expect(GitHubQueueItem(repo: "a/b", number: 3, title: "", url: url, reason: .failingChecks).destination.absoluteString
+                == "https://github.com/a/b/pull/3/checks")
+        #expect(GitHubQueueItem(repo: "a/b", number: 3, title: "", url: url, reason: .reviewRequested).destination == url)
+    }
+
     @Test func decodesViewer() {
         let account = GitHubClient.decodeViewer(json(#"{"viewer":{"login":"octocat","name":"","avatarUrl":"https://avatars.githubusercontent.com/u/1"}}"#))
         #expect(account == GitHubAccount(login: "octocat", name: nil, avatarURL: URL(string: "https://avatars.githubusercontent.com/u/1")))
@@ -81,6 +95,27 @@ import Testing
         #expect(file.line == 42)
         let escape = GitHubURL(owner: "swiftlang", repo: "swift", kind: .blob(ref: "main", path: "../../etc/passwd", lines: nil))
         #expect(clones.file(for: escape) == nil)
+    }
+
+    @Test func readsCheckedOutBranch() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("branch-\(UUID())")
+        let clone = root.appendingPathComponent("repo")
+        try FileManager.default.createDirectory(at: clone.appendingPathComponent(".git"), withIntermediateDirectories: true)
+        try "ref: refs/heads/feature/login\n".write(to: clone.appendingPathComponent(".git/HEAD"), atomically: true, encoding: .utf8)
+        #expect(LocalClones.currentBranch(at: clone) == "feature/login")
+
+        try "4b825dc642cb6eb9a060e54bf8d69288fbee4904\n".write(to: clone.appendingPathComponent(".git/HEAD"), atomically: true, encoding: .utf8)
+        #expect(LocalClones.currentBranch(at: clone) == nil)
+
+        // A worktree's .git is a file pointing at its git directory.
+        let worktreeGit = clone.appendingPathComponent(".git/worktrees/wt")
+        try FileManager.default.createDirectory(at: worktreeGit, withIntermediateDirectories: true)
+        try "ref: refs/heads/wip\n".write(to: worktreeGit.appendingPathComponent("HEAD"), atomically: true, encoding: .utf8)
+        let worktree = root.appendingPathComponent("wt")
+        try FileManager.default.createDirectory(at: worktree, withIntermediateDirectories: true)
+        try "gitdir: \(worktreeGit.path)\n".write(to: worktree.appendingPathComponent(".git"), atomically: true, encoding: .utf8)
+        #expect(LocalClones.currentBranch(at: worktree) == "wip")
+        #expect(LocalClones.currentBranch(at: root) == nil)
     }
 
     @Test func editorURLs() {

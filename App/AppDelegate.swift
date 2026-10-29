@@ -5,6 +5,7 @@ import os
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var windows: [BrowserWindowController] = []
+    private var dockBadgeObservation: ObservationLoop?
     /// False when launch stopped before the old sandbox data came over; nothing may be saved then.
     private var didLaunch = false
 
@@ -24,7 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let id = ExtensionsHost.shared.contexts.first { $0.context === context }?.id
             return controller?.extensionButton(for: id) ?? controller?.window?.contentView
         }
-        _ = GitHubService.shared
+        dockBadgeObservation = ObservationLoop { NSApp.dockTile.badgeLabel = GitHubService.shared.dockBadge }
         services.windowSnapshots = { [weak self] in
             // Front-to-back order so the frontmost window restores on top.
             let ordered = NSApp.orderedWindows.compactMap { $0.windowController as? BrowserWindowController }

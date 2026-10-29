@@ -40,7 +40,11 @@ enum SettingEntries {
         id: "editor", section: .github, title: "Editor",
         detail: "Open in Editor (⌥⌘E) opens the file at the line you’re viewing.",
         terms: CodeEditor.allCases.map(\.name) + ["ide", "open in editor"])
-    static let github = [githubAccount, codeFolder, editor]
+    static let dockBadge = SettingEntry(
+        id: "dock-badge", section: .github, title: "Show review count on Dock icon",
+        detail: "Pull requests waiting on your review.",
+        terms: ["badge", "dock", "notifications", "review queue", "count"])
+    static let github = [githubAccount, codeFolder, editor, dockBadge]
 
     static let importData = SettingEntry(
         id: "import", section: .data, title: "Import",
@@ -209,6 +213,9 @@ struct GitHubSettings: View {
                     .labelsHidden()
                     .onChange(of: editor) { _, value in github.editor = value }
                 }
+            }
+            SettingRow(SettingEntries.dockBadge) {
+                Toggle("Show review count on Dock icon", isOn: $github.showsDockBadge).settingsSwitch()
             }
         }
     }

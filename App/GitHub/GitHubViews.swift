@@ -165,7 +165,7 @@ struct ReviewQueuePopover: View {
                 Text("Nothing waiting on you.").font(.system(size: 12)).foregroundStyle(Color(nsColor: Theme.textTertiary)).padding(14)
             } else {
                 ForEach(items) { item in
-                    Button { open(item.url) } label: {
+                    Button { open(item.destination) } label: {
                         HStack(alignment: .top, spacing: 10) {
                             Image(systemName: item.reason == .reviewRequested ? "eye" : "xmark.circle.fill")
                                 .font(.system(size: 11))
