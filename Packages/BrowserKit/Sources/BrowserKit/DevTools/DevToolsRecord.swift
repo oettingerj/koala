@@ -113,8 +113,6 @@ public final class DevToolsRecord {
     public private(set) var vitals = Vitals()
     public private(set) var mainResponse: MainResponse?
     public private(set) var requests: [NetworkRequest] = []
-    public private(set) var element: ElementSnapshot?
-    public private(set) var isPicking = false
     public var preserveLog = false
     public private(set) var navigationID = UUID()
     public private(set) var captureID: String?
@@ -122,7 +120,6 @@ public final class DevToolsRecord {
     public private(set) var document: String?
     public private(set) var isolatedDocument: String?
     @ObservationIgnored private var pendingMessages: [(String, Any)] = []
-    @ObservationIgnored private var pickerID: String?
     @ObservationIgnored private var clearedRequestIDs: Set<String> = []
     static let payloadBudget = 8 * 1024 * 1024
 
@@ -139,9 +136,6 @@ public final class DevToolsRecord {
             resources.removeAll()
             requests.removeAll()
         }
-        element = nil
-        isPicking = false
-        pickerID = nil
         vitals = Vitals()
     }
 
@@ -173,11 +167,6 @@ public final class DevToolsRecord {
         case DevToolsScripts.consoleHandler: receive(console: body)
         case DevToolsScripts.metricsHandler: receive(metrics: body)
         case DevToolsScripts.networkHandler: receive(network: body)
-        case DevToolsScripts.elementHandler:
-            guard dict["token"] as? String == pickerID, pickerID != nil else { return }
-            element = ElementSnapshot.decode(body)
-            isPicking = false
-            pickerID = nil
         default: break
         }
     }
@@ -190,13 +179,6 @@ public final class DevToolsRecord {
     }
 
     public func endCapture() { captureID = nil; captureOrigin = nil }
-    public func beginPicking() -> String {
-        let token = UUID().uuidString
-        pickerID = token
-        isPicking = true
-        return token
-    }
-    public func endPicking() { pickerID = nil; isPicking = false }
     public func clearNetwork() {
         resources.removeAll()
         // Rotate the capture token in the model when clearing, rejecting late body updates.

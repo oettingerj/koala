@@ -91,23 +91,3 @@ public struct NetworkRequest: Identifiable, Equatable, Sendable {
         return parts.joined(separator: " ")
     }
 }
-
-public struct ElementSnapshot: Equatable, Sendable {
-    public let selector: String
-    public let html: String
-    public let tag: String
-    public let width: Double
-    public let height: Double
-    public let ancestors: [String]
-    public let styles: [DebugHeader]
-    public let attributes: [DebugHeader]
-
-    static func decode(_ value: Any) -> ElementSnapshot? {
-        guard let dict = value as? [String: Any], let tag = dict["tag"] as? String else { return nil }
-        return ElementSnapshot(selector: DebugValue.text(dict["selector"], limit: 2000), html: DebugValue.text(dict["html"], limit: 32_000),
-                               tag: DebugValue.text(tag, limit: 100), width: DebugValue.number(dict["width"]) ?? 0,
-                               height: DebugValue.number(dict["height"]) ?? 0,
-                               ancestors: (dict["ancestors"] as? [String] ?? []).prefix(12).map { DebugValue.text($0, limit: 200) },
-                               styles: DebugValue.headers(dict["styles"]), attributes: DebugValue.headers(dict["attributes"]))
-    }
-}

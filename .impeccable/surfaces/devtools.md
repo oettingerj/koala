@@ -9,7 +9,7 @@ related_targets: [Packages/BrowserKit/Sources/BrowserKit/DevTools]
 
 Mode: Operate. Native macOS AppKit + SwiftUI; the web detector does not apply to shipping UI.
 
-Audience/job: engineers investigating console errors, API requests, elements and site state during daily browsing. Public WebKit APIs only. All capture stays in memory.
+Audience/job: engineers investigating console errors, API requests and site state during daily browsing. Public WebKit APIs only. All capture stays in memory.
 
 ## Direction contract
 
@@ -17,7 +17,7 @@ THESIS: A readable debugging workbench with balanced event lists and selected-it
 
 OWN-WORLD: Inherit Koala's opaque neutral surfaces, hairlines, SF Pro labels, SF Mono data, semantic status colors and action-only teal. Controls retain native keyboard and accessibility behavior.
 
-STORY: Find an error or request, select it without losing surrounding context, read the evidence and copy what is useful. Inspect an element or site storage without changing tabs.
+STORY: Find an error or request, select it without losing surrounding context, read the evidence and copy what is useful. Inspect site storage without changing tabs; elements are Web Inspector’s job.
 
 FIRST VIEWPORT: Five section tabs and the inspected origin above a compact search/action toolbar. A resizable split assigns roughly 60% to events and 40% to details. Console input anchors the bottom. Small widths replace the list with selected details and Back. Detached tools retain the same composition and stay bound to their tab.
 

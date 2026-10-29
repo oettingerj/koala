@@ -201,6 +201,12 @@ final class SettingsModel {
 /// Hosts the Settings page in a tab's content area.
 final class SettingsHostingView: NSHostingView<SettingsPage>, SearchablePage {
     func focusSearch() { rootView.model.focusRequest += 1 }
+
+    /// Scrolls to `section`, clearing any search that would hide it.
+    func show(_ section: SettingsSection) {
+        rootView.model.query = ""
+        rootView.model.visibleSection = section
+    }
 }
 
 struct SettingsPage: View {

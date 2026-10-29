@@ -75,9 +75,7 @@ enum MainMenu {
         menu.addItem(.separator())
         menu.addItem(item("Copy URL", #selector(BrowserWindowController.copyURL(_:)), "c", [.command, .shift]))
         menu.addItem(.separator())
-        menu.addItem(item("Import from Chrome…", #selector(BrowserWindowController.importFromChrome(_:))))
-        menu.addItem(item("Import from Brave…", #selector(BrowserWindowController.importFromBrave(_:))))
-        menu.addItem(item("Import Bookmarks File…", #selector(BrowserWindowController.importBookmarksFile(_:))))
+        menu.addItem(item("Import Bookmarks and History…", #selector(AppDelegate.showImport(_:))))
         menu.addItem(.separator())
         menu.addItem(item("Print…", #selector(BrowserWindowController.printPage(_:)), "p"))
         menu.addItem(item("Share…", #selector(BrowserWindowController.sharePage(_:))))
@@ -133,11 +131,6 @@ enum MainMenu {
         menu.addItem(item("Detach / Dock Developer Tools", #selector(BrowserWindowController.detachDevTools(_:))))
         menu.addItem(.separator())
         menu.addItem(item("View Source", #selector(BrowserWindowController.viewSource(_:)), "u", [.command, .option]))
-        menu.addItem(item("Reload from Origin", #selector(BrowserWindowController.hardReload(_:)), "r", [.command, .shift]))
-        menu.addItem(.separator())
-        let note = NSMenuItem(title: "Web Inspector: right-click › Inspect Element", action: nil, keyEquivalent: "")
-        note.isEnabled = false
-        menu.addItem(note)
         #if DEBUG
         menu.addItem(.separator())
         let review = NSMenu(title: "Review Tools")

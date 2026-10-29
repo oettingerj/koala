@@ -5,7 +5,6 @@ public enum DevToolsScripts {
     public static let consoleHandler = "koalaConsole"
     public static let metricsHandler = "koalaMetrics"
     public static let networkHandler = "koalaNetwork"
-    public static let elementHandler = "koalaElement"
     public static let world = WKContentWorld.world(name: "KoalaDevTools")
 
     static func source(_ name: String) -> String {
@@ -19,7 +18,6 @@ public enum DevToolsScripts {
     static let console = source("console")
     static let metrics = source("metrics")
     public static let network = source("network")
-    public static let elements = source("elements")
     public static let readStorage = """
     const dump = storage => {
       const rows = [];
@@ -38,6 +36,5 @@ public enum DevToolsScripts {
         controller.add(handler, contentWorld: .page, name: consoleHandler)
         controller.add(handler, contentWorld: world, name: metricsHandler)
         controller.add(handler, contentWorld: .page, name: networkHandler)
-        controller.add(handler, contentWorld: world, name: elementHandler)
     }
 }

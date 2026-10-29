@@ -22,7 +22,7 @@ Koala is a fast, native Mac browser that understands the engineer's web. Pages l
 
 ## Positioning
 
-A native WebKit browser that treats GitHub and devtools as first-class parts of the browser rather than as websites like any other: PR and CI state live in the tab strip, a context chip names the repo and PR, a native dev panel shows console, network, elements, site storage, and page tools. Traditional layout (top tab strip + toolbar), not a sidebar browser.
+A native WebKit browser that treats GitHub and devtools as first-class parts of the browser rather than as websites like any other: PR and CI state live in the tab strip, a context chip names the repo and PR, a native dev panel shows console, network, site storage, and page tools. Traditional layout (top tab strip + toolbar), not a sidebar browser.
 
 ## Operating Context
 
@@ -36,12 +36,15 @@ v1 scope:
 - Tabs (pinned, reorder, tear-off), address field, full macOS menu with standard shortcuts.
 - Command bar (Cmd+K): tabs, commands, keyword search (`gh`, `mdn`, `npm`, `crates`, `pypi`, `go`, `so`, `docs`), GitHub, bookmarks, history, web suggestions.
 - Peek (Shift+click link opens floating preview; promote to tab without reload). Split view (two pages in one tab).
-- History, bookmarks, import from Chrome / Brave / Arc / Safari. Session restore, recently closed.
+- History and bookmarks, each with a native page (`koala://history`, `koala://bookmarks`), import from Chrome / Brave / Arc / Safari. Session restore (optional), recently closed.
+- Private windows: an in-memory data store per window; no history, session, favicons, or extensions.
+- Sites: camera and microphone choices remembered per site, per-site zoom, session-only certificate exceptions, website data, all in Settings › Sites. An address field warning for insecure, mixed, or accepted-certificate pages.
+- Robustness: HTTP auth prompts, Visit Anyway for untrusted certificates, crash recovery, reload when a refused local server comes back, background tabs sleep (configurable) unless they hold typed text or play sound. Tab audio indicator and mute.
 - Downloads manager. Web extensions via `WKWebExtension`: Chrome Web Store installs, a compatibility script that stands in for Chrome APIs WebKit lacks, and Chrome's native messaging hosts.
-- GitHub (GitHub App device flow, token in Keychain): PR/issue state and CI status in tabs, toolbar context chip, review queue, permalinks, open in local editor.
-- Devtools: Web Inspector (public API only: `isInspectable`, opened from the context menu) plus a resizable bottom-docked or detached native workbench bound to its inspected tab. Five sections: Console (argument snapshots, repeated-message groups, evaluation/history, preserve log and follow controls); Network (resource timing plus explicitly enabled per-tab fetch/XHR capture, script-visible headers, bounded text payloads, formatted/raw JSON and Copy as cURL); Elements (read-only page picker and element snapshot); Storage (current-site cookies and editable local/session storage); Page (force light/dark, responsive widths, enable/disable JS, reload from origin, view source, copy screenshot, save PDF and observed performance). JSON viewer remains a page utility.
+- GitHub (GitHub App device flow, token in Keychain): PR/issue state and CI status in tabs, toolbar context chip, review queue (and Dock badge), permalinks, open in local editor, open failing check, open the local branch's pull request.
+- Devtools: Web Inspector (public API only: `isInspectable`, opened from the context menu) plus a resizable bottom-docked or detached native workbench bound to its inspected tab. Four sections: Console (argument snapshots, repeated-message groups, evaluation/history, preserve log and follow controls); Network (resource timing plus explicitly enabled per-tab fetch/XHR capture, script-visible headers, bounded text payloads, formatted/raw JSON and Copy as cURL); Storage (current-site cookies and editable local/session storage); Page (force light/dark, responsive widths, enable/disable JS, reload from origin, view source, copy screenshot, save PDF and observed performance). JSON viewer remains a page utility.
 - Detailed network capture is limited to 64 KiB per body and an 8 MiB retained payload budget; closing tools or crossing origins stops it. Browser-added credentials, iframe requests and binary/streaming bodies are unavailable. Inspection records stay in memory; presentation preferences may persist. Page performance values are local observations, not field scores or a complete INP measurement.
-- Copy as Markdown.
+- Copy as Markdown, Share, Handoff. Link context menu: Peek, Split View, Copy as Markdown.
 
 Explicitly out of v1: password manager, spaces/profiles, tab auto-archive, automatic localhost dev mode, private WebKit SPI (two exceptions, each because macOS WKWebView has no public equivalent: `_setAllowsPictureInPictureMediaPlayback:` for Picture in Picture, and `_isPlayingAudio` with `_setPageMuted:` for the tab audio indicator and mute), implementing Chrome-only extension APIs (they get inert stand-ins).
 

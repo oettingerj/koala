@@ -16,7 +16,6 @@ struct DevPanel: View {
                     switch model.section {
                     case .console: DevConsoleView(model: model, record: tab.devTools)
                     case .network: DevNetworkView(model: model, record: tab.devTools)
-                    case .elements: DevElementsView(model: model, record: tab.devTools)
                     case .storage: DevStorageView(model: model)
                     case .page: DevPageView(model: model, tab: tab)
                     }
@@ -39,7 +38,6 @@ struct DevPanel: View {
         .foregroundStyle(devPrimary)
         .tint(Color(nsColor: Theme.accentText))
         .onChange(of: model.section) { _, section in
-            model.stopPicking()
             if section == .storage { model.refreshStorage() }
         }
     }

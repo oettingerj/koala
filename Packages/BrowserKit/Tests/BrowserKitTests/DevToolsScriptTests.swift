@@ -118,7 +118,7 @@ import WebKit
         #expect(binary?["text"] as? String == "")
     }
 
-    @Test(.timeLimit(.minutes(1))) func xhrAndElementPickerRetainNativeBehaviorAndCleanUp() async throws {
+    @Test(.timeLimit(.minutes(1))) func xhrRetainsNativeBehavior() async throws {
         _ = NSApplication.shared
         let page = Page(); defer { page.dispose() }
         try await page.load()
@@ -134,20 +134,5 @@ import WebKit
         #expect(response == true)
         _ = try await page.js("return true;")
         #expect(page.messages.contains { $0.0 == "koalaNetwork" && $0.1["kind"] as? String == "xhr" })
-        _ = try await page.js(DevToolsScripts.elements + "\n__koalaElements.start('picker');", world: DevToolsScripts.world)
-        let prevented = try await page.js("""
-        const target = document.querySelector('button');
-        const click = new MouseEvent('click', { bubbles: true, composed: true, cancelable: true });
-        target.dispatchEvent(click);
-        return click.defaultPrevented;
-        """) as? Bool
-        #expect(prevented == true)
-        _ = try await page.js("return true;")
-        let element = try #require(page.messages.last { $0.0 == "koalaElement" }?.1)
-        #expect(element["selector"] as? String == "#checkout")
-        #expect((element["html"] as? String)?.contains("Complete order") == true)
-        let clean = try await page.js("return document.querySelectorAll('div[aria-hidden]').length === 0;") as? Bool
-        #expect(clean == true)
-        _ = try await page.js("__koalaElements.start('again'); __koalaElements.stop();", world: DevToolsScripts.world)
     }
 }

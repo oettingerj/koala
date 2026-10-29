@@ -122,6 +122,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Settings is a page in a tab: focus the open one, else open it like any link.
     @objc func showSettings(_ sender: Any?) { show(.settings) }
 
+    /// File › Import: Settings › Browsing Data holds the importers.
+    @objc func showImport(_ sender: Any?) {
+        show(.settings)
+        // The page's view exists once its tab is shown, which `show` just did.
+        DispatchQueue.main.async { self.frontmostController?.showSettings(section: .data) }
+    }
+
     @objc func showHistory(_ sender: Any?) { show(.history) }
     @objc func showBookmarks(_ sender: Any?) { show(.bookmarks) }
 

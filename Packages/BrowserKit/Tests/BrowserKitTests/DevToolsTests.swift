@@ -96,16 +96,13 @@ import Testing
         #expect(record.console.count == 1)
     }
 
-    @Test func preservesOnlyWhenRequestedAndClearsSelection() {
+    @Test func preservesOnlyWhenRequested() {
         let record = DevToolsRecord()
         record.bindDocument("10", isolated: "10")
-        let token = record.beginPicking()
-        record.route(name: DevToolsScripts.elementHandler, body: ["document": "10", "token": token, "tag": "button", "width": 120])
-        #expect(record.element?.tag == "button" && !record.isPicking)
         record.appendEvaluation("command", kind: "command")
         record.preserveLog = true
         record.reset()
-        #expect(record.console.count == 1 && record.element == nil)
+        #expect(record.console.count == 1)
         record.preserveLog = false
         record.reset()
         #expect(record.console.isEmpty)

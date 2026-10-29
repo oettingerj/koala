@@ -15,7 +15,7 @@ struct StorageItem: Identifiable, Equatable {
 @MainActor @Observable
 final class DevPanelModel {
     enum Section: String, CaseIterable, Identifiable {
-        case console = "Console", network = "Network", elements = "Elements", storage = "Storage", page = "Page"
+        case console = "Console", network = "Network", storage = "Storage", page = "Page"
         var id: String { rawValue }
     }
     enum PageAction { case viewSource, copyScreenshot, savePDF, hardReload, clearSiteData, close, detach, redock }
@@ -59,7 +59,6 @@ final class DevPanelModel {
     @ObservationIgnored private var captureRevision = UUID()
     /// Set when the user stops capture; navigations keep it off until they resume or reopen the tools.
     @ObservationIgnored private var capturePaused = false
-    @ObservationIgnored private var pickerRevision = UUID()
     @ObservationIgnored private var evaluationRevision = UUID()
 
     init(tab: BrowserKit.Tab? = nil) { self.tab = tab }
@@ -79,7 +78,6 @@ final class DevPanelModel {
         storageRevision = UUID()
         evaluationRevision = UUID(); evaluating = false
         stopCapture()
-        stopPicking()
     }
 
     func navigationDidCommit() {
@@ -129,28 +127,6 @@ final class DevPanelModel {
         let wasCapturing = record.captureID != nil
         record.clearNetwork(); selectedRequest = nil; selectedResource = nil
         if wasCapturing { startCapture() }
-    }
-
-    func pickElement() {
-        guard let tab, let webView = tab.webView, let document = tab.devTools.isolatedDocument else { return }
-        isPresented = true
-        let token = tab.devTools.beginPicking(), navigation = tab.devTools.navigationID
-        let revision = UUID(); pickerRevision = revision
-        Task {
-            guard current(webView, navigation), pickerRevision == revision, isPresented else { return }
-            do {
-                _ = try await webView.callAsyncJavaScript("if (globalThis.__koalaDocumentID !== expectedDocument) throw new Error('The inspected document changed.');\n" + DevToolsScripts.elements + "\nglobalThis.__koalaElements.start(token);", arguments: ["token": token, "expectedDocument": document], contentWorld: DevToolsScripts.world)
-            } catch {
-                guard current(webView, navigation) else { return }
-                tab.devTools.endPicking(); status = "Element picker failed: \(error.localizedDescription)"
-            }
-        }
-    }
-
-    func stopPicking() {
-        pickerRevision = UUID()
-        tab?.devTools.endPicking()
-        tab?.webView?.evaluateJavaScript("globalThis.__koalaElements?.stop()", in: nil, in: DevToolsScripts.world) { _ in }
     }
 
     func evaluate() {

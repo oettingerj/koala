@@ -700,6 +700,12 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         UserDefaults.standard.set(shown, forKey: "ShowBookmarksBar")
     }
 
+    /// Scrolls the Settings page in this window's focused tab to `section`.
+    func showSettings(section: SettingsSection) {
+        guard let tab = tabs.focused, tab.page == .settings else { return }
+        (pageView(for: tab) as? SettingsHostingView)?.show(section)
+    }
+
     /// Brings forward the tab showing `page` in any window, including a split pane. Returns false when none does.
     static func reveal(_ page: KoalaPage) -> Bool {
         for controller in NSApp.orderedWindows.compactMap({ $0.windowController as? BrowserWindowController }) {

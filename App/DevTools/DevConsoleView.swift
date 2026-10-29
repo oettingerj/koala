@@ -76,7 +76,7 @@ struct DevConsoleView: View {
                     }
                     .overlay {
                         if rows.isEmpty { DevEmpty(title: record.console.isEmpty ? "Console is ready" : "No matching messages",
-                            detail: record.console.isEmpty ? "Messages appear as the page runs. Evaluate JavaScript below." : "Change your search or message levels.", symbol: "terminal") }
+                            detail: record.console.isEmpty ? "Messages appear as the page runs. Evaluate JavaScript below. For the full Web Inspector, right-click the page › Inspect Element." : "Change your search or message levels.", symbol: "terminal") }
                     }
                     .overlay(alignment: .bottomTrailing) {
                         if !following && unread > 0 {
