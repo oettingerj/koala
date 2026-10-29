@@ -16,7 +16,18 @@ enum SettingEntries {
     static let defaultBrowser = SettingEntry(
         id: "default-browser", section: .general, title: "Default browser",
         terms: ["links", "open", "system"])
-    static let general = [searchEngine, suggestions, defaultBrowser]
+    static let startup = SettingEntry(
+        id: "startup", section: .general, title: "At startup",
+        detail: "Recently closed tabs and windows stay available either way.",
+        terms: ["launch", "restore", "session", "windows", "tabs", "open"])
+    static let tabSleep = SettingEntry(
+        id: "tab-sleep", section: .general, title: "Sleep background tabs",
+        detail: "Frees a tab’s memory after it sits unseen this long. It reloads when you return. Tabs that are pinned, playing sound, or holding typed text stay awake.",
+        terms: ["memory", "performance", "idle", "suspend", "discard", "battery"])
+    static let downloads = SettingEntry(
+        id: "download-folder", section: .general, title: "Download to",
+        terms: ["downloads", "folder", "save", "files", "location"])
+    static let general = [searchEngine, suggestions, defaultBrowser, startup, tabSleep, downloads]
 
     static let githubAccount = SettingEntry(
         id: "github-account", section: .github, title: "Account",
@@ -50,6 +61,9 @@ enum SettingEntries {
 
 struct GeneralSettings: View {
     @State private var template = Preferences.searchTemplate
+    @State private var restoresSession = Preferences.restoresSession
+    @State private var sleepMinutes = Preferences.tabSleepMinutes
+    @State private var downloadFolder = Preferences.downloadFolder
     @State private var suggestions = Preferences.webSuggestions
     @State private var isDefault = false
 
@@ -97,10 +111,51 @@ struct GeneralSettings: View {
                     }
                 }
             }
+            SettingRow(SettingEntries.startup) {
+                Picker("At startup", selection: $restoresSession) {
+                    Text("Restore windows and tabs").tag(true)
+                    Text("Open a new window").tag(false)
+                }
+                .labelsHidden()
+                .onChange(of: restoresSession) { _, value in Preferences.restoresSession = value }
+            }
+            SettingRow(SettingEntries.tabSleep) {
+                Picker("Sleep background tabs", selection: $sleepMinutes) {
+                    Text("After 15 minutes").tag(15)
+                    Text("After 30 minutes").tag(30)
+                    Text("After 1 hour").tag(60)
+                    Text("After 2 hours").tag(120)
+                    Text("Never").tag(0)
+                }
+                .labelsHidden()
+                .onChange(of: sleepMinutes) { _, value in Preferences.tabSleepMinutes = value }
+            }
+            SettingRow(SettingEntries.downloads) {
+                Text((downloadFolder.path as NSString).abbreviatingWithTildeInPath)
+                    .font(.system(size: 11, design: .monospaced)).foregroundStyle(settingsSecondary)
+                    .lineLimit(1).truncationMode(.middle).textSelection(.enabled).help(downloadFolder.path)
+            } control: {
+                HStack(spacing: 8) {
+                    Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([downloadFolder]) }
+                    Button("Choose…", action: chooseDownloadFolder)
+                }
+            }
         }
         .onAppear(perform: checkDefault)
         // The default can change in System Settings while the tab stays open.
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in checkDefault() }
+    }
+
+    private func chooseDownloadFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.prompt = "Use Folder"
+        panel.directoryURL = downloadFolder
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        Preferences.downloadFolder = url
+        downloadFolder = url
     }
 
     private func checkDefault() {

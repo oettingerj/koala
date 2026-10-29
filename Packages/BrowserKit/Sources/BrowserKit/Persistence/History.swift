@@ -83,9 +83,10 @@ public struct HistoryStore: Sendable {
         }
     }
 
-    public func recent(limit: Int = 50) async throws -> [HistoryEntry] {
+    /// Newest first. `offset` pages through older entries.
+    public func recent(limit: Int = 50, offset: Int = 0) async throws -> [HistoryEntry] {
         try await database.writer.read { db in
-            try HistoryEntry.order(Column("lastVisitedAt").desc).limit(limit).fetchAll(db)
+            try HistoryEntry.order(Column("lastVisitedAt").desc).limit(limit, offset: offset).fetchAll(db)
         }
     }
 
@@ -98,6 +99,13 @@ public struct HistoryStore: Sendable {
 
     public func delete(_ entry: HistoryEntry) async throws {
         _ = try await database.writer.write { db in try entry.delete(db) }
+    }
+
+    /// Removes every page from `host`, as the address field shows it (no "www.").
+    public func delete(host: String) async throws {
+        _ = try await database.writer.write { db in
+            try HistoryEntry.filter(Column("host") == host).deleteAll(db)
+        }
     }
 
     public func clear(since date: Date? = nil) async throws {

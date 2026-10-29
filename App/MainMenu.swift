@@ -80,6 +80,7 @@ enum MainMenu {
         menu.addItem(item("Import Bookmarks File…", #selector(BrowserWindowController.importBookmarksFile(_:))))
         menu.addItem(.separator())
         menu.addItem(item("Print…", #selector(BrowserWindowController.printPage(_:)), "p"))
+        menu.addItem(item("Share…", #selector(BrowserWindowController.sharePage(_:))))
         menu.addItem(item("Copy Link as Markdown", #selector(BrowserWindowController.copyMarkdownLink(_:)), "c", [.command, .shift, .option]))
         return menu
     }
@@ -242,6 +243,7 @@ final class HistoryMenuDelegate: NSObject, NSMenuDelegate {
             }
         }
         menu.addItem(.separator())
+        menu.addItem(MainMenu.item("Show All History", #selector(AppDelegate.showHistory(_:)), "y"))
         menu.addItem(MainMenu.item("Clear History…", #selector(AppDelegate.clearHistory(_:))))
     }
 }
@@ -262,6 +264,7 @@ final class BookmarksMenuDelegate: NSObject, NSMenuDelegate {
             menu.addItem(move)
         }
         menu.addItem(MainMenu.item("New Folder…", #selector(BrowserWindowController.newBookmarkFolder(_:))))
+        menu.addItem(MainMenu.item("Show All Bookmarks", #selector(AppDelegate.showBookmarks(_:)), "b", [.command, .option]))
         menu.addItem(.separator())
         BookmarkMenus.append(library.children(of: nil), to: menu, library: library) { url, newTab in
             guard let controller = NSApp.keyWindow?.windowController as? BrowserWindowController else {

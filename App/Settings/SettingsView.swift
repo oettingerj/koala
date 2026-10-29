@@ -41,6 +41,30 @@ enum Preferences {
         }
     }
 
+    /// Reopen last session's windows at launch, or start with one new window.
+    static var restoresSession: Bool {
+        get { UserDefaults.standard.object(forKey: "RestoreSession") as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: "RestoreSession") }
+    }
+
+    /// Idle minutes before a background tab sleeps; 0 never sleeps tabs.
+    static var tabSleepMinutes: Int {
+        get { UserDefaults.standard.object(forKey: "TabSleepMinutes") as? Int ?? 30 }
+        set { UserDefaults.standard.set(newValue, forKey: "TabSleepMinutes") }
+    }
+
+    /// Where downloads go: the chosen folder while it exists, else ~/Downloads.
+    static var downloadFolder: URL {
+        get {
+            let home = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Downloads", isDirectory: true)
+            guard let path = UserDefaults.standard.string(forKey: "DownloadFolder") else { return home }
+            var isDirectory: ObjCBool = false
+            return FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) && isDirectory.boolValue
+                ? URL(fileURLWithPath: path, isDirectory: true) : home
+        }
+        set { UserDefaults.standard.set(newValue.path, forKey: "DownloadFolder") }
+    }
+
     static func apply() {
         let engine = AppServices.shared.suggestions
         engine.searchTemplate = searchTemplate
@@ -175,7 +199,7 @@ final class SettingsModel {
 }
 
 /// Hosts the Settings page in a tab's content area.
-final class SettingsHostingView: NSHostingView<SettingsPage> {
+final class SettingsHostingView: NSHostingView<SettingsPage>, SearchablePage {
     func focusSearch() { rootView.model.focusRequest += 1 }
 }
 
@@ -256,39 +280,7 @@ struct SettingsPage: View {
     }
 
     private var searchField: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass").font(.system(size: 13, weight: .medium)).foregroundStyle(settingsTertiary)
-                .accessibilityHidden(true)
-            TextField("Search settings", text: $model.query)
-                .textFieldStyle(.plain).font(.system(size: 13))
-                .tint(Color(nsColor: Theme.accent))
-                .focused($searchFocused)
-                .accessibilityLabel("Search settings")
-                .onKeyPress(.escape) {
-                    guard !model.query.isEmpty else { return .ignored }
-                    model.query = ""
-                    return .handled
-                }
-            if model.query.isEmpty {
-                Text("⌘F").font(.system(size: 11).monospacedDigit()).foregroundStyle(settingsTertiary).accessibilityHidden(true)
-            } else {
-                Text("esc").font(.system(size: 11)).foregroundStyle(settingsTertiary).accessibilityHidden(true)
-                Button { model.query = "" } label: {
-                    Image(systemName: "xmark.circle.fill").font(.system(size: 12)).foregroundStyle(settingsTertiary)
-                }
-                .buttonStyle(.plain).help("Clear search (Esc)").accessibilityLabel("Clear search")
-            }
-        }
-        .padding(.horizontal, 10).frame(height: 32)
-        .background(RoundedRectangle(cornerRadius: Theme.controlRadius)
-            .fill(Color(nsColor: searchFocused ? Theme.neutral(0) : Theme.fieldFill)))
-        .overlay {
-            if searchFocused {
-                RoundedRectangle(cornerRadius: Theme.controlRadius).strokeBorder(Color(nsColor: Theme.accent), lineWidth: 1.5)
-            }
-        }
-        .contentShape(Rectangle())
-        .onTapGesture { searchFocused = true }
+        PageSearchField(prompt: "Search settings", text: $model.query, focused: $searchFocused)
     }
 
     /// Jumps to a section. While searching, it shows how many rows match there.

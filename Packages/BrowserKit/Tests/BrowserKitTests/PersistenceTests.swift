@@ -37,6 +37,18 @@ import Testing
         #expect(try await history.recent().isEmpty)
     }
 
+    @Test func pagesNewestFirstAndDeletesByHost() async throws {
+        let history = HistoryStore(database: try .inMemory())
+        let now = Date()
+        for (index, page) in ["https://www.a.com/1", "https://a.com/2", "https://b.com/1"].enumerated() {
+            try await history.recordVisit(url: URL(string: page)!, title: page, at: now.addingTimeInterval(Double(index)))
+        }
+        #expect(try await history.recent(limit: 2).map(\.url) == ["https://b.com/1", "https://a.com/2"])
+        #expect(try await history.recent(limit: 2, offset: 2).map(\.url) == ["https://www.a.com/1"])
+        try await history.delete(host: "a.com")
+        #expect(try await history.recent().map(\.url) == ["https://b.com/1"])
+    }
+
     @Test func patternEscapesFTSSyntax() {
         #expect(HistoryStore.prefixPattern("a\"b OR c*") == "\"a\"* \"b\"* \"or\"* \"c\"*")
         #expect(HistoryStore.prefixPattern("  ") == nil)
@@ -58,6 +70,17 @@ import Testing
         let bar = library.children(of: nil)
         #expect(bar.map(\.title) == ["Docs", "GitHub"])
         #expect(library.children(of: bar[0].id).map(\.title) == ["MDN", "Rust"])
+    }
+
+    @Test func updateChangesTitleAndAddress() async throws {
+        let library = BookmarkLibrary(database: try .inMemory())
+        let bookmark = try await library.add(title: "Old", url: URL(string: "https://old.com"))
+        let folder = try await library.add(title: "Folder", url: nil)
+        try await library.update(bookmark, title: "New", url: URL(string: "https://new.com"))
+        try await library.update(folder, title: "Renamed", url: URL(string: "https://ignored.com"))
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(library.children(of: nil).map(\.title) == ["New", "Renamed"])
+        #expect(library.children(of: nil).map(\.url) == ["https://new.com", nil])
     }
 
     @Test func moveReorders() async throws {

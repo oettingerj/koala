@@ -13,15 +13,18 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     private var sleepTimer: Timer?
     private var devSessions: [UUID: DevPanelModel] = [:]
     private var detachedTools: [UUID: DevToolsWindowController] = [:]
-    private static let sleepAfter: TimeInterval = 30 * 60
 
-    /// Puts background tabs to sleep after 30 idle minutes. Pinned tabs, split panes, and pages
-    /// using the camera, microphone, playing audio, or holding typed text stay awake.
+    /// Puts background tabs to sleep after the idle time set in Settings (30 minutes by default).
+    /// Pinned tabs, split panes, and pages using the camera, microphone, playing audio, or holding
+    /// typed text stay awake.
     private func sleepIdleTabs() {
+        let minutes = Preferences.tabSleepMinutes
+        guard minutes > 0 else { return }
+        let sleepAfter = TimeInterval(minutes * 60)
         let now = Date()
         for tab in tabs.tabs where tab !== tabs.selected && !tab.isPinned && tab.splitTab == nil {
             guard devSessions[tab.id]?.isPresented != true else { continue }
-            guard let webView = tab.webView, now.timeIntervalSince(tab.lastActiveAt) > Self.sleepAfter, !tab.isPlayingAudio,
+            guard let webView = tab.webView, now.timeIntervalSince(tab.lastActiveAt) > sleepAfter, !tab.isPlayingAudio,
                   webView.cameraCaptureState == .none, webView.microphoneCaptureState == .none else { continue }
             Task { [weak tab, weak self] in
                 guard await webView.requestMediaPlaybackState() != .playing,
@@ -762,8 +765,11 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         // Drop views of native tabs that closed or moved to another window.
         let live = Set(tabs.tabs.flatMap { [$0.id, $0.splitTab?.id].compactMap(\.self) })
         nativeViews = nativeViews.filter { live.contains($0.key) }
+        let open: (URL, Bool) -> Void = { [weak self] url, newTab in self?.openBookmark(url, newTab: newTab) }
         let view: NSView = switch page {
         case .settings: SettingsPage.host()
+        case .history: HistoryHostingView.make(open: open)
+        case .bookmarks: BookmarksHostingView.make(open: open)
         }
         nativeViews[tab.id] = view
         return view
@@ -787,6 +793,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         }
         rootView.focusesSplit = tabs.focusesSplit
         updateDevToolsTarget()
+        updateHandoff()
         rootView.pageLayoutChanged()
         let switchedTabs = shownTab !== tab || shownSplit !== partner
         guard switchedTabs || shownWebView !== webView || shownSplitWebView !== partnerView else { return }
@@ -838,7 +845,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         guard let tab = tabs.focused else { return }
         if tab.page != nil {
             // The page focuses its search field once it is in the window.
-            (pageView(for: tab) as? SettingsHostingView)?.focusSearch()
+            (pageView(for: tab) as? SearchablePage)?.focusSearch()
         } else if let webView = tab.webView {
             window?.makeFirstResponder(webView)
         }
@@ -888,6 +895,28 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     }
 
     // MARK: Menu actions
+
+    @objc func sharePage(_ sender: Any?) {
+        guard let url = tabs.focused?.url else { return }
+        let field = rootView.toolbar.addressField
+        NSSharingServicePicker(items: [url]).show(relativeTo: field.bounds, of: field, preferredEdge: .minY)
+    }
+
+    // MARK: Handoff
+
+    /// Offers the page in view to the user's other devices.
+    private lazy var handoff = NSUserActivity(activityType: NSUserActivityTypeBrowsingWeb)
+
+    /// Called when the window becomes key and when its page changes. Private windows, native pages,
+    /// and non-web pages offer nothing.
+    private func updateHandoff() {
+        guard window?.isKeyWindow == true else { return }
+        guard !isPrivate, let tab = tabs.focused, tab.page == nil, let url = tab.url,
+              url.scheme == "http" || url.scheme == "https" else { return handoff.resignCurrent() }
+        handoff.webpageURL = url
+        handoff.title = tab.displayTitle
+        handoff.becomeCurrent()
+    }
 
     @objc func copyURL(_ sender: Any?) {
         guard let tab = tabs.focused, let url = tab.url else { return }
@@ -1036,6 +1065,8 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         case #selector(toggleBookmarksBar(_:)):
             item.title = rootView.showsBookmarksBar ? "Hide Bookmarks Bar" : "Show Bookmarks Bar"
             return true
+        case #selector(sharePage(_:)):
+            return tabs.focused?.url != nil && tabs.focused?.page == nil
         case #selector(toggleMuteTab(_:)):
             item.title = tabs.selected?.isMuted == true ? "Unmute Tab" : "Mute Tab"
             return tabs.selected != nil
@@ -1055,6 +1086,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     func windowWillEnterFullScreen(_ notification: Notification) { rootView.isFullScreen = true }
     func windowDidBecomeKey(_ notification: Notification) {
         if !isPrivate { ExtensionsHost.shared.didFocus(self) }
+        updateHandoff()
     }
     func windowWillExitFullScreen(_ notification: Notification) { rootView.isFullScreen = false }
 
@@ -1266,6 +1298,7 @@ extension BrowserWindowController: TabDelegate {
         devSessions[tab.id]?.navigationDidCommit()
         services.applyCachedFavicon(to: tab)
         applySiteZoom(to: tab)
+        if tab === tabs.focused { updateHandoff() }
         guard !isPrivate, let url = tab.url else { return }
         let typed = tab.nextNavigationIsTyped
         services.suggestions.noteVisit(url: url, typed: typed)
@@ -1276,6 +1309,7 @@ extension BrowserWindowController: TabDelegate {
     }
 
     func tabDidFinishNavigation(_ tab: Tab) {
+        if tab === tabs.focused { updateHandoff() }
         if tab.isJSONDocument {
             tab.webView?.evaluateJavaScript(PageTools.jsonViewer, in: nil, in: DevToolsScripts.world) { _ in }
         }

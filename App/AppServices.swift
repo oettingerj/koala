@@ -23,6 +23,8 @@ final class AppServices {
     /// Bumped per host when a fetch changes its cached icon, so views outside the tab
     /// (the bookmarks bar) can reload it.
     private(set) var faviconRevisions: [String: Int] = [:]
+    /// Bumped when history is cleared, so the History page reloads.
+    private(set) var historyRevision = 0
     private static let recentlyClosedLimit = 25
 
     @ObservationIgnored var windowSnapshots: () -> [WindowSnapshot] = { [] }
@@ -90,6 +92,11 @@ final class AppServices {
     func saveSession(sync: Bool) {
         saveTask?.cancel()
         sessionStore?.save(Session(windows: windowSnapshots(), recentlyClosed: recentlyClosed), sync: sync)
+    }
+
+    func clearHistory(since date: Date?) async {
+        try? await history.clear(since: date)
+        historyRevision += 1
     }
 
     // MARK: Recently closed

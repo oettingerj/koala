@@ -10,6 +10,8 @@ import Testing
         #expect(KoalaPage(url: URL(string: "koala://nope")) == nil)
         #expect(KoalaPage(url: URL(string: "https://settings")) == nil)
         #expect(KoalaPage.settings.url.absoluteString == "koala://settings")
+        #expect(KoalaPage(url: URL(string: "koala://history")) == .history)
+        #expect(KoalaPage(url: URL(string: "koala://bookmarks")) == .bookmarks)
     }
 
     @Test func nativeTabNeverCreatesAWebView() {

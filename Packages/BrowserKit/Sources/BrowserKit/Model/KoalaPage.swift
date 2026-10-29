@@ -4,7 +4,7 @@ import AppKit
 /// The tab keeps the URL, so the address field, history-free navigation, and session restore
 /// treat it like any other page.
 public enum KoalaPage: String, CaseIterable, Sendable {
-    case settings
+    case settings, history, bookmarks
 
     public static let scheme = "koala"
 
@@ -19,6 +19,8 @@ public enum KoalaPage: String, CaseIterable, Sendable {
     public var title: String {
         switch self {
         case .settings: "Settings"
+        case .history: "History"
+        case .bookmarks: "Bookmarks"
         }
     }
 
@@ -26,6 +28,8 @@ public enum KoalaPage: String, CaseIterable, Sendable {
     @MainActor public var icon: NSImage? {
         let symbol = switch self {
         case .settings: "gearshape"
+        case .history: "clock"
+        case .bookmarks: "book"
         }
         let image = NSImage(systemSymbolName: symbol, accessibilityDescription: title)?
             .withSymbolConfiguration(.init(pointSize: 13, weight: .medium))

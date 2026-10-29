@@ -35,7 +35,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Perf.record("launch.didFinishLaunching", Perf.sinceProcessStart)
         // Windows (chrome) appear now; pages wait for extensions so content blockers cover the
         // first load. See BrowserWindowController.showSelectedTab.
-        let restored = services.loadSession()?.windows.filter { !$0.tabs.isEmpty } ?? []
+        // Recently closed comes back either way; windows only when the user wants them.
+        let session = services.loadSession()
+        let restored = Preferences.restoresSession ? session?.windows.filter { !$0.tabs.isEmpty } ?? [] : []
         if restored.isEmpty {
             newWindow(nil)
         } else {
@@ -117,9 +119,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func newPrivateWindow(_ sender: Any?) { openWindow(url: nil, isPrivate: true) }
 
     /// Settings is a page in a tab: focus the open one, else open it like any link.
-    @objc func showSettings(_ sender: Any?) {
-        if BrowserWindowController.reveal(.settings) { return NSApp.activate() }
-        open(KoalaPage.settings.url)
+    @objc func showSettings(_ sender: Any?) { show(.settings) }
+
+    @objc func showHistory(_ sender: Any?) { show(.history) }
+    @objc func showBookmarks(_ sender: Any?) { show(.bookmarks) }
+
+    /// A native page in a tab: focus the open one, else open it like any link.
+    private func show(_ page: KoalaPage) {
+        if BrowserWindowController.reveal(page) { return NSApp.activate() }
+        open(page.url)
     }
 
     @objc func clearHistory(_ sender: Any?) {
@@ -139,7 +147,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case 1: Calendar.current.startOfDay(for: Date())
         default: nil
         }
-        Task { try? await AppServices.shared.history.clear(since: since) }
+        Task { await AppServices.shared.clearHistory(since: since) }
     }
 
     @objc func openHistoryItem(_ sender: NSMenuItem) {

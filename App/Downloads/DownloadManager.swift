@@ -32,9 +32,7 @@ final class DownloadManager: NSObject {
     private(set) var items: [Item] = []
     var activeCount: Int { items.filter { $0.state == .running }.count }
 
-    static var folder: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Downloads", isDirectory: true)
-    }
+    static var folder: URL { Preferences.downloadFolder }
 
     func track(_ download: WKDownload) {
         let item = Item(source: download.originalRequest?.url)

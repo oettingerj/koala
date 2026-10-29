@@ -316,12 +316,8 @@ enum BookmarkMenus {
             menu.addItem(closureMenuItem("Copy Link") { Pasteboard.copy(url: url, title: bookmark.title) })
             menu.addItem(.separator())
         }
-        menu.addItem(closureMenuItem("Rename…") { [weak view] in
-            guard let window = view?.window else { return }
-            promptForTitle(bookmark.isFolder ? "Rename folder" : "Rename bookmark", initial: bookmark.title,
-                           button: "Rename", in: window) { title in
-                Task { try? await library.rename(bookmark, to: title) }
-            }
+        menu.addItem(closureMenuItem(bookmark.isFolder ? "Rename…" : "Edit…") { [weak view] in
+            if let window = view?.window { edit(bookmark, library: library, in: window) }
         })
         let move = NSMenuItem(title: "Move To", action: nil, keyEquivalent: "")
         move.submenu = moveMenu(for: bookmark, library: library)
@@ -332,6 +328,36 @@ enum BookmarkMenus {
             if let window = view?.window { newFolder(in: bookmark.parentID, library: library, in: window) }
         })
         return menu
+    }
+
+    /// Renames a folder, or edits a bookmark's name and address, in a sheet.
+    static func edit(_ bookmark: Bookmark, library: BookmarkLibrary, in window: NSWindow) {
+        guard !bookmark.isFolder else {
+            return promptForTitle("Rename folder", initial: bookmark.title, button: "Rename", in: window) { title in
+                Task { try? await library.rename(bookmark, to: title) }
+            }
+        }
+        let alert = NSAlert()
+        alert.messageText = "Edit bookmark"
+        let title = NSTextField(string: bookmark.title)
+        title.placeholderString = "Name"
+        let address = NSTextField(string: bookmark.url ?? "")
+        address.placeholderString = "Address"
+        let fields = NSStackView(views: [title, address])
+        fields.orientation = .vertical
+        fields.spacing = 8
+        fields.frame = NSRect(x: 0, y: 0, width: 300, height: 52)
+        for field in [title, address] { field.widthAnchor.constraint(equalToConstant: 300).isActive = true }
+        alert.accessoryView = fields
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+        alert.window.initialFirstResponder = title
+        alert.beginSheetModal(for: window) { response in
+            let name = title.stringValue.trimmingCharacters(in: .whitespaces)
+            let url = AddressInput.resolve(address.stringValue)
+            guard response == .alertFirstButtonReturn, !name.isEmpty else { return }
+            MainActor.assumeIsolated { Task { try? await library.update(bookmark, title: name, url: url) } }
+        }
     }
 
     /// Asks for a name, then adds a folder at the end of `parentID`'s children.

@@ -75,6 +75,15 @@ public final class BookmarkLibrary {
         try await database.writer.write { db in try row.update(db, columns: ["title"]) }
     }
 
+    /// Changes a bookmark's title and address; a folder's `url` stays nil.
+    public func update(_ bookmark: Bookmark, title: String, url: URL?) async throws {
+        var updated = bookmark
+        updated.title = title
+        if !bookmark.isFolder, let url { updated.url = url.absoluteString }
+        let row = updated
+        try await database.writer.write { db in try row.update(db, columns: ["title", "url"]) }
+    }
+
     public func remove(_ bookmark: Bookmark) async throws {
         _ = try await database.writer.write { db in try bookmark.delete(db) }
     }
