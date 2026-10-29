@@ -24,7 +24,8 @@ final class ToolbarView: NSView {
                                               action: #selector(BrowserWindowController.showReviewQueue(_:)))
     private let queueBadge = NSTextField(labelWithString: "")
     /// Marks a private window, before the address field.
-    private let privateBadge = NSTextField(labelWithString: "Private")
+    private let privateBadge = NSView()
+    private let privateLabel = NSTextField(labelWithString: "Private")
     var isPrivate = false {
         didSet {
             privateBadge.isHidden = !isPrivate
@@ -51,13 +52,15 @@ final class ToolbarView: NSView {
         downloadsBadge.font = .monospacedDigitSystemFont(ofSize: 9, weight: .semibold)
         downloadsBadge.textColor = Theme.accent
         downloadsButton.isHidden = true
-        privateBadge.font = .systemFont(ofSize: 11, weight: .semibold)
-        privateBadge.textColor = Theme.textSecondary
-        privateBadge.alignment = .center
+        privateLabel.font = .systemFont(ofSize: 11, weight: .semibold)
+        privateLabel.textColor = Theme.textSecondary
+        privateBadge.addSubview(privateLabel)
         privateBadge.wantsLayer = true
         privateBadge.layer?.cornerRadius = Theme.controlRadius
         privateBadge.isHidden = true
         privateBadge.toolTip = "Private window: no history, and its cookies and site data go away when it closes."
+        privateBadge.setAccessibilityElement(true)
+        privateBadge.setAccessibilityRole(.staticText)
         privateBadge.setAccessibilityLabel("Private window")
         [privateBadge, backButton, forwardButton, reloadButton, addressField, githubChip, downloadsButton, downloadsBadge,
          extensionsMenuButton, queueButton, queueBadge, devButton].forEach(addSubview)
@@ -89,11 +92,12 @@ final class ToolbarView: NSView {
         }
         x += 6
         if isPrivate {
-            let width = privateBadge.intrinsicContentSize.width + 14
-            privateBadge.frame = NSRect(x: x, y: (bounds.height - 20) / 2, width: width, height: 20)
-            // Centers the label's single line in the pill.
-            privateBadge.frame.origin.y -= 1
-            x += width + 6
+            // The label's intrinsic width clips its last glyph; 2pt more holds it.
+            let label = privateLabel.intrinsicContentSize
+            let labelWidth = ceil(label.width) + 2
+            privateBadge.frame = NSRect(x: x, y: (bounds.height - 20) / 2, width: labelWidth + 14, height: 20)
+            privateLabel.frame = NSRect(x: 7, y: (20 - label.height) / 2, width: labelWidth, height: label.height)
+            x += privateBadge.frame.width + 6
         }
         let fieldHeight: CGFloat = 28
         var trailing = bounds.width - 8 - Theme.iconButtonSize
