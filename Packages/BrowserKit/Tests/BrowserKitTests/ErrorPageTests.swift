@@ -79,3 +79,19 @@ import Testing
         #expect(snapshot.isMuted == nil)
     }
 }
+
+@Suite struct ContextLinkTests {
+    @Test func readsWebLinksOnly() {
+        let link = KoalaWebView.ContextLink(message: ["href": "https://github.com/a/b/pull/1", "text": "  #1 Fix it\n"])
+        #expect(link?.url.absoluteString == "https://github.com/a/b/pull/1")
+        #expect(link?.text == "#1 Fix it")
+        #expect(KoalaWebView.ContextLink(message: ["href": "javascript:void(0)", "text": "x"]) == nil)
+        #expect(KoalaWebView.ContextLink(message: NSNull()) == nil)
+    }
+
+    @Test func escapesMarkdownBrackets() {
+        let url = URL(string: "https://example.com/a")!
+        #expect(markdownLink(title: "[WIP] Fix", url: url) == "[\\[WIP\\] Fix](https://example.com/a)")
+        #expect(markdownLink(title: "", url: url) == "[https://example.com/a](https://example.com/a)")
+    }
+}

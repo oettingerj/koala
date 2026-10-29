@@ -31,6 +31,7 @@ public enum WebViewFactory {
         }
         config.applicationNameForUserAgent = "Version/26.0 Safari/605.1.15"
         DevToolsScripts.install(on: config.userContentController, handler: DevToolsRouter.shared)
+        KoalaWebView.installLinkTracking(on: config.userContentController)
         config.userContentController.addUserScript(WKUserScript(source: scrollbarStyle, injectionTime: .atDocumentStart,
                                                                 forMainFrameOnly: false, in: .defaultClient))
     }
@@ -71,7 +72,7 @@ public enum WebViewFactory {
     /// `configuration` must be the one WebKit hands to `createWebViewWith` when opening a popup;
     /// otherwise the shared configuration is used.
     public static func makeWebView(configuration: WKWebViewConfiguration? = nil) -> WKWebView {
-        let webView = WKWebView(frame: .zero, configuration: configuration ?? self.configuration)
+        let webView = KoalaWebView(frame: .zero, configuration: configuration ?? self.configuration)
         webView.allowsMagnification = true
         webView.allowsBackForwardNavigationGestures = true
         webView.isInspectable = true

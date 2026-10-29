@@ -28,6 +28,8 @@ public protocol TabDelegate: AnyObject {
     func tab(_ tab: Tab, openInNewTab url: URL, inBackground: Bool)
     /// A link was ⇧-clicked: preview it without leaving the page.
     func tab(_ tab: Tab, peek url: URL)
+    /// The page's context menu is opening on `link`; add link actions to `menu`.
+    func tab(_ tab: Tab, willOpenMenu menu: NSMenu, for link: KoalaWebView.ContextLink)
     func tabDidRequestClose(_ tab: Tab)
     /// The page's web content process quit (a crash, or killed for memory). The tab shows nothing until
     /// it reloads: the window calls `recoverFromCrash()` if the tab is in view, else `sleep()`.
@@ -229,6 +231,7 @@ public final class Tab: NSObject, Identifiable {
         webView.removeFromSuperview()
         webView.navigationDelegate = nil
         webView.uiDelegate = nil
+        (webView as? KoalaWebView)?.contextMenuHook = nil
         observations = []
         if let audioObserved {
             audioObserved.removeObserver(self, forKeyPath: Self.isPlayingAudioKey)
@@ -381,6 +384,10 @@ public final class Tab: NSObject, Identifiable {
         DevToolsRouter.shared.register(devTools, for: webView)
         webView.navigationDelegate = self
         webView.uiDelegate = self
+        (webView as? KoalaWebView)?.contextMenuHook = { [weak self] menu, link in
+            guard let self, let link else { return }
+            delegate?.tab(self, willOpenMenu: menu, for: link)
+        }
         observations = [
             webView.observe(\.title) { [weak self] wv, _ in MainActor.assumeIsolated { self?.title = wv.title ?? "" } },
             webView.observe(\.url) { [weak self] wv, _ in MainActor.assumeIsolated { if let url = wv.url { self?.url = url } } },

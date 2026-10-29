@@ -406,7 +406,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     private func split(_ tab: Tab, with row: Suggestion) {
         switch row.action {
         case .open(let url):
-            tabs.split(tab, with: adopt(Tab(url: url)))
+            split(tab, with: url)
         case .switchToTab(let id):
             guard let partner = tabs.tabs.first(where: { $0.id == id }), partner !== tab else { return NSSound.beep() }
             if partner.splitTab != nil { tabs.unsplit(partner) }
@@ -414,6 +414,12 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         case .command, .reopenClosed:
             NSSound.beep()
         }
+    }
+
+    /// Opens `url` beside `tab`, replacing the other page if `tab` is already split.
+    private func split(_ tab: Tab, with url: URL) {
+        if tab.splitTab != nil { tabs.unsplit(tab) }
+        tabs.split(tab, with: adopt(Tab(url: url)))
     }
 
     /// Turns the split back into two tabs.
@@ -945,15 +951,16 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
 
     @objc func copyMarkdownLink(_ sender: Any?) {
         guard let tab = tabs.focused, let url = tab.url else { return }
-        // GitHub links read as references: "owner/repo#123: Title".
-        var text = tab.displayTitle
+        copyMarkdownLink(url, title: tab.displayTitle)
+    }
+
+    /// GitHub links read as references: "owner/repo#123: Title".
+    private func copyMarkdownLink(_ url: URL, title: String) {
+        var text = title
         if let page = GitHubURL(url), let number = page.number {
             text = "\(page.slug)#\(number): " + (github.status(for: url)?.title ?? GitHubURL.itemTitle(fromPageTitle: text))
         }
-        let title = text.replacingOccurrences(of: "]", with: "\\]").replacingOccurrences(of: "[", with: "\\[")
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString("[\(title)](\(url.absoluteString))", forType: .string)
+        copyString(markdownLink(title: text, url: url))
     }
 
     /// ⌘W closes the focused side of a split first, then the tab.
@@ -1230,6 +1237,25 @@ extension BrowserWindowController: TabDelegate {
     func tabWebContentProcessDidTerminate(_ tab: Tab) {
         let inView = tabs.selected === tab || tabs.selected?.splitTab === tab
         if inView { tab.recoverFromCrash() } else { tab.sleep() }
+    }
+
+    /// Koala's link actions go after WebKit's "Open Link in New Window", which opens a tab here.
+    func tab(_ tab: Tab, willOpenMenu menu: NSMenu, for link: KoalaWebView.ContextLink) {
+        let openIdentifier = NSUserInterfaceItemIdentifier("WKMenuItemIdentifierOpenLinkInNewWindow")
+        guard let open = menu.items.firstIndex(where: { $0.identifier == openIdentifier }) else { return }
+        menu.items[open].title = "Open Link in New Tab"
+        let url = link.url
+        let items = [
+            closureMenuItem("Open Link in Peek") { [weak self] in self?.tab(tab, peek: url) },
+            closureMenuItem("Open Link in Split View") { [weak self] in
+                guard let self, let owner = tabs.tabs.first(where: { $0 === tab || $0.splitTab === tab }) else { return }
+                split(owner, with: url)
+            },
+            closureMenuItem("Copy Link as Markdown") { [weak self] in
+                self?.copyMarkdownLink(url, title: link.text.isEmpty ? url.absoluteString : link.text)
+            },
+        ]
+        for (offset, item) in items.enumerated() { menu.insertItem(item, at: open + 1 + offset) }
     }
 
     func tab(_ tab: Tab, peek url: URL) {
