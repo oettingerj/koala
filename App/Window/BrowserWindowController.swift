@@ -21,7 +21,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         let now = Date()
         for tab in tabs.tabs where tab !== tabs.selected && !tab.isPinned && tab.splitTab == nil {
             guard devSessions[tab.id]?.isPresented != true else { continue }
-            guard let webView = tab.webView, now.timeIntervalSince(tab.lastActiveAt) > Self.sleepAfter,
+            guard let webView = tab.webView, now.timeIntervalSince(tab.lastActiveAt) > Self.sleepAfter, !tab.isPlayingAudio,
                   webView.cameraCaptureState == .none, webView.microphoneCaptureState == .none else { continue }
             Task { [weak tab, weak self] in
                 guard await webView.requestMediaPlaybackState() != .playing,
@@ -847,6 +847,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         })
         menu.addItem(closureMenuItem("Duplicate Tab") { [weak self] in self?.duplicate(tab) })
         menu.addItem(closureMenuItem("Reload Tab") { tab.reload() })
+        menu.addItem(closureMenuItem(tab.isMuted ? "Unmute Tab" : "Mute Tab") { tab.setMuted(!tab.isMuted) })
         if let url = tab.url {
             menu.addItem(.separator())
             menu.addItem(closureMenuItem("Copy Link") { Pasteboard.copy(url: url, title: tab.title) })
@@ -889,6 +890,10 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
 
     @objc func togglePinTab(_ sender: Any?) {
         if let tab = tabs.selected { tabs.setPinned(tab, !tab.isPinned) }
+    }
+
+    @objc func toggleMuteTab(_ sender: Any?) {
+        if let tab = tabs.selected { tab.setMuted(!tab.isMuted) }
     }
 
     @objc func duplicateTab(_ sender: Any?) {
@@ -1024,6 +1029,9 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         case #selector(toggleBookmarksBar(_:)):
             item.title = rootView.showsBookmarksBar ? "Hide Bookmarks Bar" : "Show Bookmarks Bar"
             return true
+        case #selector(toggleMuteTab(_:)):
+            item.title = tabs.selected?.isMuted == true ? "Unmute Tab" : "Mute Tab"
+            return tabs.selected != nil
         case #selector(togglePinTab(_:)):
             item.title = tabs.selected?.isPinned == true ? "Unpin Tab" : "Pin Tab"
             return tabs.selected != nil

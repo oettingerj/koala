@@ -43,7 +43,7 @@ v1 scope:
 - Detailed network capture is limited to 64 KiB per body and an 8 MiB retained payload budget; closing tools or crossing origins stops it. Browser-added credentials, iframe requests and binary/streaming bodies are unavailable. Inspection records stay in memory; presentation preferences may persist. Page performance values are local observations, not field scores or a complete INP measurement.
 - Copy as Markdown.
 
-Explicitly out of v1: password manager, spaces/profiles, tab auto-archive, automatic localhost dev mode, private WebKit SPI (one exception: `_setAllowsPictureInPictureMediaPlayback:`, since macOS WKWebView has no public switch for Picture in Picture), implementing Chrome-only extension APIs (they get inert stand-ins).
+Explicitly out of v1: password manager, spaces/profiles, tab auto-archive, automatic localhost dev mode, private WebKit SPI (two exceptions, each because macOS WKWebView has no public equivalent: `_setAllowsPictureInPictureMediaPlayback:` for Picture in Picture, and `_isPlayingAudio` with `_setPageMuted:` for the tab audio indicator and mute), implementing Chrome-only extension APIs (they get inert stand-ins).
 
 Terminology: "tab strip", "toolbar", "address field", "command bar", "Peek", "split view", "dev panel", "context chip", "review queue".
 

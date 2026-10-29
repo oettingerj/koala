@@ -8,6 +8,10 @@ final class AddressField: NSView {
     private let border = CALayer()
     private(set) var isEditing = false
 
+    /// A warning before the URL when the page isn't secure; nothing for secure pages.
+    private let securityIcon = NSImageView()
+    var security: PageSecurity = .none { didSet { if security != oldValue { updateSecurity() } } }
+
     private lazy var starButton = IconButton(symbol: "star", label: "Bookmark This Page", pointSize: 12,
                                              action: #selector(starPressed), target: self)
     var isBookmarked = false { didSet { updateStar() } }
@@ -54,6 +58,24 @@ final class AddressField: NSView {
         starButton.isHidden = true
         addSubview(starButton)
         updateStar()
+        securityIcon.image = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: 11, weight: .medium))
+        securityIcon.contentTintColor = Theme.fail
+        securityIcon.isHidden = true
+        addSubview(securityIcon)
+    }
+
+    private func updateSecurity() {
+        let label: String? = switch security {
+        case .insecure: "Not Secure: this page came over plain HTTP"
+        case .mixed: "Not Fully Secure: some of this page came over plain HTTP"
+        case .exception: "Not Secure: you chose to trust this site’s certificate"
+        case .secure, .none: nil
+        }
+        securityIcon.toolTip = label
+        securityIcon.setAccessibilityLabel(label)
+        securityIcon.setAccessibilityElement(label != nil)
+        needsLayout = true
     }
 
     @objc private func starPressed() { onToggleBookmark?() }
@@ -85,7 +107,13 @@ final class AddressField: NSView {
         let starSize: CGFloat = 24
         starButton.frame = NSRect(x: bounds.width - starSize - 2, y: (bounds.height - starSize) / 2, width: starSize, height: starSize)
         let trailing: CGFloat = starButton.isHidden ? 10 : starSize + 4
-        field.frame = NSRect(x: 10, y: (bounds.height - height) / 2, width: bounds.width - 10 - trailing, height: height)
+        securityIcon.isHidden = isEditing || !security.isWarning
+        var leading: CGFloat = 10
+        if !securityIcon.isHidden {
+            securityIcon.frame = NSRect(x: 9, y: (bounds.height - 14) / 2, width: 14, height: 14)
+            leading = securityIcon.frame.maxX + 5
+        }
+        field.frame = NSRect(x: leading, y: (bounds.height - height) / 2, width: bounds.width - leading - trailing, height: height)
     }
 
     func show(_ url: URL?) {

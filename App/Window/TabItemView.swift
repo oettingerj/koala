@@ -29,6 +29,10 @@ final class TabItemView: NSView {
     private let spinner = NSProgressIndicator()
     private let titleField = NSTextField(labelWithString: "")
     private lazy var closeButton = IconButton(symbol: "xmark", label: "Close Tab", pointSize: 9, action: #selector(closePressed), target: self)
+    /// Shows while the page makes sound or is muted; clicking mutes or unmutes it.
+    private lazy var audioButton = IconButton(symbol: "speaker.wave.2.fill", label: "Mute Tab", pointSize: 9,
+                                              action: #selector(audioPressed), target: self)
+    private var showsAudio = false
     private var tracking: NSTrackingArea?
     private var observation: ObservationLoop?
     private var isDragging = false
@@ -61,8 +65,10 @@ final class TabItemView: NSView {
         titleField.cell?.truncatesLastVisibleLine = true
         titleField.maximumNumberOfLines = 1
         closeButton.layer?.cornerRadius = 4
+        audioButton.layer?.cornerRadius = 4
+        audioButton.isHidden = true
 
-        [iconView, spinner, titleField, closeButton].forEach(addSubview)
+        [iconView, spinner, titleField, audioButton, closeButton].forEach(addSubview)
         layer?.addSublayer(checksDot)
 
         setAccessibilityElement(true)
@@ -83,7 +89,7 @@ final class TabItemView: NSView {
     /// title reorders tabs instead of moving the window (labels let the window move).
     override func hitTest(_ point: NSPoint) -> NSView? {
         guard let hit = super.hitTest(point) else { return nil }
-        return hit.isDescendant(of: closeButton) ? hit : self
+        return hit.isDescendant(of: closeButton) || hit.isDescendant(of: audioButton) ? hit : self
     }
 
     private func apply() {
@@ -105,6 +111,17 @@ final class TabItemView: NSView {
         var label = title
         if let status { label += ", " + GitHubStyle.glyph(status.state).label.lowercased() }
         if let checks = GitHubStyle.label(checks) { label += ", " + checks }
+        let audible = tab.isPlayingAudio || tab.isMuted
+        if audible != showsAudio {
+            showsAudio = audible
+            needsLayout = true
+        }
+        let audioLabel = tab.isMuted ? "Unmute Tab" : "Mute Tab"
+        audioButton.image = NSImage(systemSymbolName: tab.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill",
+                                    accessibilityDescription: audioLabel)?.withSymbolConfiguration(.init(pointSize: 9, weight: .medium))
+        audioButton.toolTip = audioLabel
+        audioButton.setAccessibilityLabel(audioLabel)
+        if tab.isMuted { label += ", muted" } else if tab.isPlayingAudio { label += ", playing audio" }
         setAccessibilityLabel(label)
         updateColors()
         if tab.isLoading && tab.progress < 1 {
@@ -144,6 +161,9 @@ final class TabItemView: NSView {
             checksDot.frame = NSRect(x: iconView.frame.maxX - 5, y: iconView.frame.minY - 2, width: 7, height: 7)
             titleField.isHidden = true
             closeButton.isHidden = true
+            // On the icon's top corner, opposite the CI dot.
+            audioButton.isHidden = !showsAudio
+            audioButton.frame = NSRect(x: iconView.frame.maxX - 4, y: iconView.frame.maxY - 8, width: 14, height: 14)
             return
         }
         titleField.isHidden = false
@@ -154,7 +174,13 @@ final class TabItemView: NSView {
         closeButton.isHidden = !showsClose
         closeButton.frame = NSRect(x: bounds.width - inset - 16 + 4, y: midY - 8, width: 16, height: 16)
         let titleX = iconView.frame.maxX + 8
-        let titleEnd = showsClose ? closeButton.frame.minX - 4 : bounds.width - inset
+        var titleEnd = showsClose ? closeButton.frame.minX - 4 : bounds.width - inset
+        audioButton.isHidden = !showsAudio
+        if showsAudio {
+            let audioX = showsClose ? closeButton.frame.minX - 18 : bounds.width - inset - 16 + 4
+            audioButton.frame = NSRect(x: audioX, y: midY - 8, width: 16, height: 16)
+            titleEnd = audioButton.frame.minX - 4
+        }
         titleField.frame = NSRect(x: titleX, y: midY - 8, width: max(0, titleEnd - titleX), height: 16)
     }
 
@@ -179,6 +205,8 @@ final class TabItemView: NSView {
         // next steps read too heavy there, so the button tints that fill with text-primary instead.
         closeButton.hoverFill = isSelected ? Theme.hoverFill : Theme.textPrimary.withAlphaComponent(0.1)
         closeButton.pressedFill = isSelected ? Theme.pressedFill : Theme.textPrimary.withAlphaComponent(0.16)
+        audioButton.hoverFill = closeButton.hoverFill
+        audioButton.pressedFill = closeButton.pressedFill
         CATransaction.commit()
     }
 
@@ -221,6 +249,7 @@ final class TabItemView: NSView {
     }
 
     @objc private func closePressed() { delegate?.tabItemDidRequestClose(self) }
+    @objc private func audioPressed() { tab.setMuted(!tab.isMuted) }
 
     override func menu(for event: NSEvent) -> NSMenu? { delegate?.tabItemMenu(self) }
 

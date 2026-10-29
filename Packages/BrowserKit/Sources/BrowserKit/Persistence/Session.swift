@@ -10,6 +10,8 @@ public struct TabSnapshot: Codable, Equatable, Sendable {
     public var interactionState: Data?
     /// The second page of a split view.
     public var split: SplitSnapshot?
+    /// The user muted the tab. nil in sessions saved before tabs could be muted.
+    public var isMuted: Bool?
 
     public init(id: UUID, url: URL?, title: String, isPinned: Bool, openerID: UUID?, interactionState: Data?) {
         self.id = id

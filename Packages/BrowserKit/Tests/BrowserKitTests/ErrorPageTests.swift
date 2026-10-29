@@ -53,3 +53,29 @@ import Testing
         #expect(TrustExceptions.key(for: URL(string: "https://localhost:8443")!) == "localhost:8443")
     }
 }
+
+@Suite struct PageSecurityTests {
+    private func security(_ url: String?, secureContent: Bool = true, exception: Bool = false) -> PageSecurity {
+        PageSecurity(url: url.flatMap(URL.init(string:)), hasOnlySecureContent: secureContent, hasTrustException: exception)
+    }
+
+    @Test func warnsOnlyForUnsafePages() {
+        #expect(security("https://example.com") == .secure)
+        #expect(security("https://example.com", secureContent: false) == .mixed)
+        #expect(security("https://example.com", secureContent: false, exception: true) == .exception)
+        #expect(security("http://example.com") == .insecure)
+        #expect(security("http://localhost:3000") == .secure)
+        #expect(security("http://127.0.0.1:8080", secureContent: false) == .secure)
+        for page in ["about:blank", "koala://settings", "file:///tmp/a.html", nil] {
+            #expect(security(page) == .none)
+        }
+        #expect(PageSecurity.insecure.isWarning && PageSecurity.mixed.isWarning && PageSecurity.exception.isWarning)
+        #expect(!PageSecurity.secure.isWarning && !PageSecurity.none.isWarning)
+    }
+
+    @Test func oldSessionsDecodeWithoutMute() throws {
+        let json = #"{"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","title":"","isPinned":false}"#
+        let snapshot = try JSONDecoder().decode(TabSnapshot.self, from: Data(json.utf8))
+        #expect(snapshot.isMuted == nil)
+    }
+}

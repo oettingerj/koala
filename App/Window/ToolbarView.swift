@@ -197,6 +197,7 @@ final class ToolbarView: NSView {
         // Native pages (Settings) have nothing to reload.
         reloadButton.isEnabled = tab?.page == nil
         addressField.show(tab?.url)
+        addressField.security = tab?.security ?? .none
         let github = GitHubURL(tab?.url)
         githubChip.isHidden = github == nil
         if let github { githubChip.show(github, status: GitHubService.shared.status(for: tab?.url)) }

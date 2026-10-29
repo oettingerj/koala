@@ -193,6 +193,7 @@ enum MainMenu {
         menu.addItem(previousAlt)
         menu.addItem(item("Pin Tab", #selector(BrowserWindowController.togglePinTab(_:))))
         menu.addItem(item("Duplicate Tab", #selector(BrowserWindowController.duplicateTab(_:))))
+        menu.addItem(item("Mute Tab", #selector(BrowserWindowController.toggleMuteTab(_:)), "m", .control))
         menu.addItem(.separator())
         for number in 1...9 {
             let title = number == 9 ? "Show Last Tab" : "Show Tab \(number)"

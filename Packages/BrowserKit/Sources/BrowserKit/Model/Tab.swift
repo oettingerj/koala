@@ -65,6 +65,12 @@ public final class Tab: NSObject, Identifiable {
     public var colorSchemeOverride: String?
     /// The main document was served as JSON; the app shows its viewer once loaded.
     public private(set) var isJSONDocument = false
+    /// Every resource on the page came over HTTPS. Kept while the tab sleeps.
+    public private(set) var hasOnlySecureContent = true
+    /// The page is making sound. Muted pages still report true.
+    public private(set) var isPlayingAudio = false
+    /// The user silenced this tab; kept across sleep and relaunch.
+    public private(set) var isMuted = false
 
     @ObservationIgnored public weak var delegate: TabDelegate?
     /// The configuration web pages load with when it isn't the shared one: a private window's.
@@ -100,6 +106,7 @@ public final class Tab: NSObject, Identifiable {
     public convenience init(snapshot: TabSnapshot) {
         self.init(id: snapshot.id, url: snapshot.url, title: snapshot.title, openerID: snapshot.openerID)
         isPinned = snapshot.isPinned
+        isMuted = snapshot.isMuted ?? false
         restoredState = snapshot.interactionState
         if let split = snapshot.split {
             let partner = Tab(url: split.url, title: split.title)
@@ -112,6 +119,7 @@ public final class Tab: NSObject, Identifiable {
     public var snapshot: TabSnapshot {
         var snapshot = TabSnapshot(id: id, url: url, title: title, isPinned: isPinned, openerID: openerID,
                                    interactionState: currentInteractionState)
+        snapshot.isMuted = isMuted ? true : nil
         if let splitTab {
             snapshot.split = SplitSnapshot(url: splitTab.url, title: splitTab.title, interactionState: splitTab.currentInteractionState)
         }
@@ -130,6 +138,46 @@ public final class Tab: NSObject, Identifiable {
 
     /// The native page this tab shows instead of a web view, if any.
     public var page: KoalaPage? { KoalaPage(url: url) }
+
+    /// What the address field warns about. Error pages and native pages have nothing to warn about.
+    public var security: PageSecurity {
+        guard !isShowingErrorPage, page == nil else { return .none }
+        return PageSecurity(url: url, hasOnlySecureContent: hasOnlySecureContent,
+                            hasTrustException: TrustExceptions.shared.contains(url))
+    }
+
+    public func setMuted(_ muted: Bool) {
+        isMuted = muted
+        applyMute()
+    }
+
+    /// WebKit SPI: macOS WKWebView has no public way to mute a page. `_mediaMutedState` is a
+    /// `_WKMediaMutedState` bit set; bit 0 mutes audio, the others (capture devices) are kept.
+    private func applyMute() {
+        guard let webView, webView.responds(to: Self.setPageMuted) else { return }
+        let current = (webView.value(forKey: "_mediaMutedState") as? UInt) ?? 0
+        let state = isMuted ? current | 1 : current & ~1
+        typealias SetMuted = @convention(c) (AnyObject, Selector, UInt) -> Void
+        unsafeBitCast(webView.method(for: Self.setPageMuted), to: SetMuted.self)(webView, Self.setPageMuted, state)
+    }
+
+    private static let setPageMuted = NSSelectorFromString("_setPageMuted:")
+    /// WebKit SPI, key-value observable: whether the page is making sound.
+    private nonisolated static let isPlayingAudioKey = "_isPlayingAudio"
+    @ObservationIgnored private weak var audioObserved: WKWebView?
+
+    deinit {
+        MainActor.assumeIsolated { audioObserved?.removeObserver(self, forKeyPath: Self.isPlayingAudioKey) }
+    }
+
+    override public nonisolated func observeValue(forKeyPath keyPath: String?, of object: Any?,
+                                                  change: [NSKeyValueChangeKey: Any]?, context: UnsafeMutableRawPointer?) {
+        guard keyPath == Self.isPlayingAudioKey else {
+            return super.observeValue(forKeyPath: keyPath, of: object, change: change, context: context)
+        }
+        let playing = change?[.newKey] as? Bool ?? false
+        MainActor.assumeIsolated { isPlayingAudio = playing }
+    }
 
     /// When the tab was last shown; background tabs idle long enough are put to sleep.
     @ObservationIgnored public private(set) var lastActiveAt = Date()
@@ -182,6 +230,11 @@ public final class Tab: NSObject, Identifiable {
         webView.navigationDelegate = nil
         webView.uiDelegate = nil
         observations = []
+        if let audioObserved {
+            audioObserved.removeObserver(self, forKeyPath: Self.isPlayingAudioKey)
+            self.audioObserved = nil
+        }
+        isPlayingAudio = false
         self.webView = nil
         automaticPictureInPicture = nil
         serverWait?.cancel()
@@ -335,7 +388,16 @@ public final class Tab: NSObject, Identifiable {
             webView.observe(\.estimatedProgress) { [weak self] wv, _ in MainActor.assumeIsolated { self?.progress = wv.estimatedProgress } },
             webView.observe(\.canGoBack) { [weak self] wv, _ in MainActor.assumeIsolated { self?.canGoBack = wv.canGoBack } },
             webView.observe(\.canGoForward) { [weak self] wv, _ in MainActor.assumeIsolated { self?.canGoForward = wv.canGoForward } },
+            webView.observe(\.hasOnlySecureContent) { [weak self] wv, _ in
+                MainActor.assumeIsolated { self?.hasOnlySecureContent = wv.hasOnlySecureContent }
+            },
         ]
+        hasOnlySecureContent = webView.hasOnlySecureContent
+        if webView.responds(to: NSSelectorFromString(Self.isPlayingAudioKey)) {
+            webView.addObserver(self, forKeyPath: Self.isPlayingAudioKey, options: [.initial, .new], context: nil)
+            audioObserved = webView
+        }
+        if isMuted { applyMute() }
     }
 }
 
