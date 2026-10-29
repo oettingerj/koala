@@ -202,10 +202,10 @@ final class SettingsModel {
 final class SettingsHostingView: NSHostingView<SettingsPage>, SearchablePage {
     func focusSearch() { rootView.model.focusRequest += 1 }
 
-    /// Scrolls to `section`, clearing any search that would hide it.
-    func show(_ section: SettingsSection) {
-        rootView.model.query = ""
-        rootView.model.visibleSection = section
+    /// Shows only the rows matching `query`, as if typed into the search field.
+    func search(_ query: String) {
+        rootView.model.query = query
+        rootView.model.visibleSection = nil
     }
 }
 

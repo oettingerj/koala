@@ -58,7 +58,7 @@ final class ToolbarView: NSView {
         privateBadge.wantsLayer = true
         privateBadge.layer?.cornerRadius = Theme.controlRadius
         privateBadge.isHidden = true
-        privateBadge.toolTip = "Private window: no history, and its cookies and site data go away when it closes."
+        privateBadge.toolTip = "Private window: no history, and its cookies and site data go away when the last private window closes."
         privateBadge.setAccessibilityElement(true)
         privateBadge.setAccessibilityRole(.staticText)
         privateBadge.setAccessibilityLabel("Private window")

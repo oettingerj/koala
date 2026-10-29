@@ -122,11 +122,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Settings is a page in a tab: focus the open one, else open it like any link.
     @objc func showSettings(_ sender: Any?) { show(.settings) }
 
-    /// File › Import: Settings › Browsing Data holds the importers.
+    /// File › Import: Settings, searched down to the importers.
     @objc func showImport(_ sender: Any?) {
         show(.settings)
         // The page's view exists once its tab is shown, which `show` just did.
-        DispatchQueue.main.async { self.frontmostController?.showSettings(section: .data) }
+        DispatchQueue.main.async { self.frontmostController?.searchSettings("import") }
     }
 
     @objc func showHistory(_ sender: Any?) { show(.history) }
@@ -169,16 +169,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return openWindow(snapshot: tabs.isEmpty ? nil : WindowSnapshot(frame: nil, tabs: tabs, selectedIndex: 0))
     }
 
+    /// A window for a tab torn off another, its top left near the pointer.
+    func openWindow(adopting tab: Tab, at point: NSPoint, isPrivate: Bool) {
+        let controller = openWindow(isPrivate: isPrivate, adopting: tab)
+        controller.window?.setFrameTopLeftPoint(NSPoint(x: point.x - 100, y: point.y + 16))
+    }
+
     @discardableResult
-    private func openWindow(url: URL? = nil, snapshot: WindowSnapshot? = nil, isPrivate: Bool = false) -> BrowserWindowController {
-        let controller = BrowserWindowController(initialURL: url, snapshot: snapshot, isPrivate: isPrivate)
+    private func openWindow(url: URL? = nil, snapshot: WindowSnapshot? = nil, isPrivate: Bool = false,
+                            adopting tab: Tab? = nil) -> BrowserWindowController {
+        let controller = BrowserWindowController(initialURL: url, snapshot: snapshot, isPrivate: isPrivate, adopting: tab)
         controller.onClose = { [weak self] closed in self?.windows.removeAll { $0 === closed } }
         if snapshot?.frame == nil, let previous = NSApp.keyWindow, previous.windowController is BrowserWindowController {
             controller.window?.setFrameTopLeftPoint(previous.cascadeTopLeft(from: NSPoint(x: previous.frame.minX, y: previous.frame.maxY)))
         }
         windows.append(controller)
         controller.showWindow(nil)
-        if snapshot != nil || url != nil { controller.focusPage() }
+        if snapshot != nil || url != nil || tab != nil { controller.focusPage() }
         if !isPrivate { ExtensionsHost.shared.didOpen(controller) }
         return controller
     }

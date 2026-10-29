@@ -9,8 +9,8 @@ public enum WebViewFactory {
         return config
     }()
 
-    /// A configuration for one private window: its own in-memory data store, so nothing it stores
-    /// outlives the window or reaches other windows. No extensions run in it.
+    /// A configuration for private windows: its own in-memory data store, so nothing stored in it
+    /// outlives the configuration or reaches regular windows. No extensions run in it.
     public static func makePrivateConfiguration() -> WKWebViewConfiguration {
         let config = WKWebViewConfiguration()
         configure(config, store: .nonPersistent())

@@ -62,16 +62,26 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     private var services: AppServices { .shared }
     var onClose: ((BrowserWindowController) -> Void)?
     /// A private window keeps no history, session, favicons, or recently closed tabs, and its
-    /// pages share an in-memory data store that goes away with the window. Extensions don't see it.
+    /// pages use an in-memory data store shared with other private windows. Extensions don't see it.
     let isPrivate: Bool
     private let privateConfiguration: WKWebViewConfiguration?
+    /// Private windows share one in-memory data store, so a tab moves between them with its
+    /// session. It goes away when the last private window closes.
+    private static weak var sharedPrivateConfiguration: WKWebViewConfiguration?
     /// A private window's camera and microphone choices, forgotten when it closes.
     private var privateMediaDecisions: [String: Bool] = [:]
 
-    /// Opens a window with one tab at `initialURL` (blank when nil), or the tabs of `snapshot`.
-    init(initialURL: URL? = nil, snapshot: WindowSnapshot? = nil, isPrivate: Bool = false) {
+    /// Opens a window with one tab at `initialURL` (blank when nil), the tabs of `snapshot`, or
+    /// `tab`, torn off another window.
+    init(initialURL: URL? = nil, snapshot: WindowSnapshot? = nil, isPrivate: Bool = false, adopting tab: Tab? = nil) {
         self.isPrivate = isPrivate
-        privateConfiguration = isPrivate ? WebViewFactory.makePrivateConfiguration() : nil
+        if isPrivate {
+            let configuration = Self.sharedPrivateConfiguration ?? WebViewFactory.makePrivateConfiguration()
+            Self.sharedPrivateConfiguration = configuration
+            privateConfiguration = configuration
+        } else {
+            privateConfiguration = nil
+        }
         rootView = BrowserRootView(tabs: tabs)
         rootView.toolbar.isPrivate = isPrivate
         let window = BrowserWindow(
@@ -105,6 +115,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         rootView.strip.onSelect = { [weak self] tab in self?.tabs.select(tab) }
         rootView.strip.onClose = { [weak self] tab in self?.close(tab) }
         rootView.strip.menuForTab = { [weak self] tab in self?.contextMenu(for: tab) }
+        rootView.strip.onTearOff = { [weak self] tab, point in self?.tearOff(tab, at: point) }
         rootView.toolbar.addressField.onSubmit = { [weak self] text in self?.navigate(to: text) }
         rootView.toolbar.addressField.onCancel = { [weak self] in self?.focusPage() }
         rootView.toolbar.addressField.onToggleBookmark = { [weak self] in self?.toggleBookmark(nil) }
@@ -120,7 +131,10 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         field.onEndEditing = { [weak self] in self?.addressDropdown.hide() }
         rootView.bookmarksBar.onOpen = { [weak self] url, newTab in self?.openBookmark(url, newTab: newTab) }
 
-        if let snapshot, !snapshot.tabs.isEmpty {
+        if let tab {
+            tabs.insert(adopt(tab), select: true)
+            services.applyCachedFavicon(to: tab)
+        } else if let snapshot, !snapshot.tabs.isEmpty {
             for tabSnapshot in snapshot.tabs {
                 let tab = adopt(Tab(snapshot: tabSnapshot))
                 tabs.insert(tab, select: false)
@@ -700,10 +714,10 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         UserDefaults.standard.set(shown, forKey: "ShowBookmarksBar")
     }
 
-    /// Scrolls the Settings page in this window's focused tab to `section`.
-    func showSettings(section: SettingsSection) {
+    /// Searches the Settings page in this window's focused tab for `query`.
+    func searchSettings(_ query: String) {
         guard let tab = tabs.focused, tab.page == .settings else { return }
-        (pageView(for: tab) as? SettingsHostingView)?.show(section)
+        (pageView(for: tab) as? SettingsHostingView)?.search(query)
     }
 
     /// Brings forward the tab showing `page` in any window, including a split pane. Returns false when none does.
@@ -766,6 +780,32 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         } else {
             openTab(url: url, select: true)
         }
+    }
+
+    /// A tab dragged out of the strip moves into the strip it was dropped on, or into a new window
+    /// there. Tabs never move between private and regular windows: their data stores differ.
+    private func tearOff(_ tab: Tab, at point: NSPoint) {
+        let target = NSApp.orderedWindows.lazy.compactMap { $0.windowController as? BrowserWindowController }
+            .first { $0 !== self && $0.isPrivate == self.isPrivate && $0.rootView.strip.contains(screenPoint: point) }
+        // A window's only tab dropped nowhere stays put: the window is already where it is.
+        guard target != nil || tabs.tabs.count > 1 else { return }
+        release(tab)
+        if let target {
+            target.tabs.insert(target.adopt(tab), select: true)
+            target.window?.makeKeyAndOrderFront(nil)
+        } else {
+            (NSApp.delegate as? AppDelegate)?.openWindow(adopting: tab, at: point, isPrivate: isPrivate)
+        }
+        if tabs.tabs.isEmpty { window?.close() }
+    }
+
+    /// Takes `tab` out of this window without closing it, so another window can show it.
+    private func release(_ tab: Tab) {
+        for pane in [tab, tab.splitTab].compactMap(\.self) {
+            closeDevTools(for: pane)
+            pane.webView?.removeFromSuperview()
+        }
+        tabs.remove(tab)
     }
 
     func close(_ tab: Tab) {
@@ -897,6 +937,12 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         if let url = tab.url {
             menu.addItem(.separator())
             menu.addItem(closureMenuItem("Copy Link") { Pasteboard.copy(url: url, title: tab.title) })
+            if tab.page == nil {
+                menu.addItem(closureMenuItem("Share…") { [weak self] in
+                    guard let anchor = self?.rootView.strip.view(for: tab) else { return }
+                    NSSharingServicePicker(items: [url]).show(relativeTo: anchor.bounds, of: anchor, preferredEdge: .minY)
+                })
+            }
         }
         menu.addItem(.separator())
         menu.addItem(closureMenuItem("Close Tab") { [weak self] in self?.close(tab) })
@@ -1162,6 +1208,20 @@ extension BrowserWindowController {
             commandBar.show(over: window, chromeHeight: rootView.chromeHeight)
         }
         commandBar.reviewType(query)
+    }
+
+    /// Tears off the selected tab: "away" drops it clear of every window, "back" onto another window's strip.
+    func reviewTearOff(_ destination: String) {
+        guard let tab = tabs.selected else { return }
+        let others = NSApp.orderedWindows.compactMap { $0.windowController as? BrowserWindowController }.filter { $0 !== self }
+        if destination == "back", let target = others.first, let strip = target.window.map({ _ in target.rootView.strip }),
+           let targetWindow = target.window {
+            let center = strip.convert(NSPoint(x: strip.bounds.midX, y: strip.bounds.midY), to: nil)
+            tearOff(tab, at: targetWindow.convertPoint(toScreen: center))
+        } else {
+            let screen = window?.screen?.visibleFrame ?? .zero
+            tearOff(tab, at: NSPoint(x: screen.minX + 160, y: screen.maxY - 120))
+        }
     }
 
     func reviewAddressField(query: String) {

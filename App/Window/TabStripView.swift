@@ -16,12 +16,27 @@ final class TabStripView: NSView {
     /// Horizontal scroll offset when tabs overflow at minimum width.
     private var scrollOffset: CGFloat = 0
     private var drag: (item: TabItemView, grabOffset: CGFloat)?
+    /// The dragged tab has left the strip; letting go moves it to another window or a new one.
+    private var isTearingOff = false
+    /// How far above or below the strip a drag goes before the tab tears off.
+    private static let tearOffDistance: CGFloat = 32
 
     var leadingInset = Theme.trafficLightInset { didSet { needsLayout = true } }
 
     var onSelect: ((Tab) -> Void)?
     var onClose: ((Tab) -> Void)?
     var menuForTab: ((Tab) -> NSMenu?)?
+    /// A tab was dragged out of the strip and let go at this point on screen.
+    var onTearOff: ((Tab, NSPoint) -> Void)?
+
+    /// The view drawing `tab`, for anchoring popovers and pickers to it.
+    func view(for tab: Tab) -> NSView? { items[tab.id] }
+
+    /// Whether `point` (in screen coordinates) is over this strip, where a torn-off tab can land.
+    func contains(screenPoint point: NSPoint) -> Bool {
+        guard let window else { return false }
+        return bounds.contains(convert(window.convertPoint(fromScreen: point), from: nil))
+    }
 
     init(tabs: TabCollection) {
         self.tabs = tabs
@@ -264,7 +279,14 @@ extension TabStripView: TabItemViewDelegate {
 
     func tabItemDidDrag(_ item: TabItemView, event: NSEvent) {
         guard let drag, drag.item === item, let from = order.firstIndex(where: { $0 === item }) else { return }
-        let mouseX = convert(event.locationInWindow, from: nil).x
+        let point = convert(event.locationInWindow, from: nil)
+        let outside = point.y < bounds.minY - Self.tearOffDistance || point.y > bounds.maxY + Self.tearOffDistance
+        if outside != isTearingOff {
+            isTearingOff = outside
+            item.alphaValue = outside ? 0.5 : 1
+        }
+        guard !outside else { return }
+        let mouseX = point.x
         let target: Int
         if item.tab.isPinned {
             let center = mouseX - drag.grabOffset + TabItemView.pinnedWidth / 2 - tabsArea.minX
@@ -284,6 +306,11 @@ extension TabStripView: TabItemViewDelegate {
     func tabItemDidEndDrag(_ item: TabItemView) {
         item.layer?.zPosition = 0
         drag = nil
+        if isTearingOff {
+            isTearingOff = false
+            item.alphaValue = 1
+            onTearOff?(item.tab, NSEvent.mouseLocation)
+        }
         NSAnimationContext.runAnimationGroup { context in
             context.duration = Theme.reduceMotion ? 0 : Theme.panelDuration
             context.allowsImplicitAnimation = true

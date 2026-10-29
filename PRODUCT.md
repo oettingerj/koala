@@ -37,7 +37,7 @@ v1 scope:
 - Command bar (Cmd+K): tabs, commands, keyword search (`gh`, `mdn`, `npm`, `crates`, `pypi`, `go`, `so`, `docs`), GitHub, bookmarks, history, web suggestions.
 - Peek (Shift+click link opens floating preview; promote to tab without reload). Split view (two pages in one tab).
 - History and bookmarks, each with a native page (`koala://history`, `koala://bookmarks`), import from Chrome / Brave / Arc / Safari. Session restore (optional), recently closed.
-- Private windows: an in-memory data store per window; no history, session, favicons, or extensions.
+- Private windows: one in-memory data store shared by open private windows, gone when the last closes; no history, session, favicons, or extensions.
 - Sites: camera and microphone choices remembered per site, per-site zoom, session-only certificate exceptions, website data, all in Settings › Sites. An address field warning for insecure, mixed, or accepted-certificate pages.
 - Robustness: HTTP auth prompts, Visit Anyway for untrusted certificates, crash recovery, reload when a refused local server comes back, background tabs sleep (configurable) unless they hold typed text or play sound. Tab audio indicator and mute.
 - Downloads manager. Web extensions via `WKWebExtension`: Chrome Web Store installs, a compatibility script that stands in for Chrome APIs WebKit lacks, and Chrome's native messaging hosts.
