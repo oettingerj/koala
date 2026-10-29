@@ -16,13 +16,15 @@ final class AddressField: NSView {
 
     var onSubmit: ((String) -> Void)?
     /// Typing, ↑/↓, and ↩ are offered to the suggestions dropdown first.
-    var onTextChange: ((String) -> Void)?
+    /// Returns the completion to fill in ahead of the caret, if any.
+    var onTextChange: ((String, TextEdit) -> String?)?
     var onMoveSelection: ((Int) -> Bool)?
     var onSubmitSelection: ((_ newTab: Bool) -> Bool)?
     var onEndEditing: (() -> Void)?
     var onCancel: (() -> Void)?
 
     private var url: URL?
+    private let completer = InlineCompleter()
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -104,6 +106,9 @@ final class AddressField: NSView {
         field.textColor = Theme.textPrimary
         needsDisplay = true
         DispatchQueue.main.async { [weak self] in self?.field.currentEditor()?.selectAll(nil) }
+        completer.reset()
+        // An empty field (a new tab) offers the suggestions' zero state; a page URL offers nothing.
+        if field.stringValue.isEmpty { _ = onTextChange?("", .other) }
     }
 
     private func endEditing() {
@@ -157,8 +162,23 @@ extension AddressField: NSTextFieldDelegate {
         }
     }
 
+    #if DEBUG
+    func reviewType(_ text: String) {
+        window?.makeFirstResponder(field)
+        field.stringValue = text
+        completer.reset(typed: text)
+        completer.show(onTextChange?(text, .typed) ?? nil, in: field)
+    }
+    #endif
+
     func controlTextDidChange(_ obj: Notification) {
-        onTextChange?(field.stringValue)
+        let edit = completer.textDidChange(in: field)
+        completer.show(onTextChange?(completer.typed, edit) ?? nil, in: field)
+    }
+
+    /// Takes the inline completion back out when the suggestions' selection leaves it.
+    func clearCompletion() {
+        completer.clear(in: field)
     }
 
     func controlTextDidEndEditing(_ obj: Notification) {

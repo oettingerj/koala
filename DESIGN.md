@@ -147,7 +147,7 @@ components:
   command-bar:
     backgroundColor: "{colors.chrome-surface}"
     rounded: "{rounded.panel}"
-    width: "640pt"
+    width: "820pt"
   command-row:
     textColor: "{colors.text-primary}"
     typography: "{typography.field}"
@@ -310,7 +310,7 @@ The window is a fixed vertical stack: tab strip (40pt, the native compact titleb
 
 Tabs run 120 to 200pt wide with 4pt gaps and a centered 16pt hairline separator between unselected neighbors; pinned tabs are 40pt icon-only. Past the minimum width the strip scrolls whole tabs and shows a guide word at each overflowing edge. The toolbar holds back, forward, reload at left (28pt buttons, 2pt apart, 8pt from the edge), the flexing address field, then the right cluster.
 
-Spacing is a 4pt grid for structure (row heights, gaps, insets of 4, 8, 12, 16, 20pt) with 2pt half steps inside controls (2pt between buttons, 6pt list padding, 10pt and 14pt control insets). Popovers pad 14pt; sheets pad 20pt. The Settings page is a centered 680pt column with a 20pt minimum gutter: 24pt above the title and above the first section, 40pt between sections and before the footer, 40pt at the end. The command bar is 640pt wide (window width minus 48pt when narrower), centered, 12pt below the chrome. Peek insets its card 7% of width (min 24pt) and 5% of height (min 16pt). Split view divides the content with a 1pt hairline.
+Spacing is a 4pt grid for structure (row heights, gaps, insets of 4, 8, 12, 16, 20pt) with 2pt half steps inside controls (2pt between buttons, 6pt list padding, 10pt and 14pt control insets). Popovers pad 14pt; sheets pad 20pt. The Settings page is a centered 680pt column with a 20pt minimum gutter: 24pt above the title and above the first section, 40pt between sections and before the footer, 40pt at the end. The command bar is 820pt wide (window width minus 48pt when narrower), centered, 12pt below the chrome; below 720pt it drops its preview pane. Peek insets its card 7% of width (min 24pt) and 5% of height (min 16pt). Split view divides the content with a 1pt hairline.
 
 ## Elevation & Depth
 
@@ -351,15 +351,20 @@ The overflow edge of a scrolling strip: a 9pt semibold drawn chevron in tertiary
 The primary action of the window.
 - **Resting:** field well, 6pt, 28pt tall, 10pt inset; host in 13pt primary, path in 12pt tertiary mono; a bookmark star at the trailing edge (tertiary, teal when filled).
 - **Editing:** editing-field fill and a 1.5pt teal ring; the full URL, all selected; the star hides.
-- **Dropdown:** command rows in a 10pt floating panel with a hairline border.
+- **Dropdown:** the command bar's sectioned list in a 10pt floating panel with a hairline border, as wide as the field; a field 720pt or wider also shows the preview pane. Focusing an empty field (a new tab) shows the zero state; focusing a page URL shows nothing.
 
 ### Context Chip
 On any GitHub page: field well, 6pt, 24pt tall, `owner/repo · #number` in 11pt medium mono secondary, a leading state glyph and a trailing 7pt checks dot. Hover and pressed fills match the icon button.
 
 ### Command Bar
-- **Container:** 640pt, 10pt radius, chrome surface, 1px hairline border, system shadow; 16pt query field with an 18pt search glyph, a hairline under the field.
-- **Rows:** 40pt tall, 10pt inset, 6pt radius, 16pt icon, 10pt gap; 13pt title, URL subtitle in 11pt mono (host secondary, path tertiary) or 11pt tertiary text; trailing hint (Switch to Tab, Search, Open, or the shortcut) in 11pt tertiary tabular.
-- **Selected:** hover fill and a medium-weight title. Pointer hover moves the selection; streaming results never move the selected row.
+- **Container:** 820pt, so the list and its preview fit side by side and the width never changes while typing; 10pt radius, chrome surface, 1px hairline border, system shadow; 16pt query field with an 18pt search glyph, a hairline under the field. The list scrolls past 520pt; reaching a section's first row by keyboard scrolls its header into view.
+- **Sections:** the top hit comes first without a header: navigate, search, keyword, or GitHub shorthand rows, plus the strongest tab, bookmark, or command when it is a whole-title prefix match. Then come Tabs, Bookmarks, and Commands (local, 8 rows in all with the top hit), then GitHub (up to 3), History (4), and Suggestions (4), which stream in. Headers are 30pt, 11pt medium tertiary, aligned to the row titles and set 3pt above the first row, so more space sits above a header than below it. Headers are accessibility headings and are not selectable.
+- **Rows:** 40pt tall, 10pt inset, 6pt radius, 16pt icon, 10pt gap; 13pt title, URL subtitle in 11pt mono (host secondary, path tertiary) or 11pt tertiary text; trailing hint (Switch to Tab, Search, Open, Reopen, the keyword's engine, the shortcut, or a history row's relative time such as "3h ago") in 11pt tertiary tabular. A GitHub PR or issue shows its state glyph and checks dot, as its tab does; rows for items not open in a tab fetch their state once, in one request. A keyword row leads with the keyword chip (field well, 5pt, 22pt, 12pt medium mono).
+- **Icons:** the host's cached favicon, else its parent domain's (api.github.com shows GitHub's), else `/favicon.ico`, which is fetched only for hosts already in history. Dark monochrome favicons follow the Legible Favicon Rule.
+- **Selected:** hover fill and a medium-weight title. Pointer hover moves the selection only when the pointer actually moves, so rows that stream in, rebuild, or scroll under a resting pointer never take the highlight.
+- **Preview pane:** 288pt on chrome surface behind a 1px hairline, describing only the selected row, at least 232pt tall. The header has a 20pt icon, the title in 13pt semibold (up to 3 lines), the URL host first in 11pt mono wrapping, and a repository description or queue reason in 12pt secondary. Below a hairline is a facts grid: 11pt tertiary labels, 12pt primary values, and mono for counts, refs, and hosts. Facts: Visited (`12×  ·  3h ago`, with the exact date as help; a Frequent host counts visits across the host), Bookmark folder, Tab, the GitHub state, checks ("3 of 4 passing"), `head → base` and review, the engine a search uses, and a command's menu path and shortcut. A 32pt footer names what Return does ("↩ Open in New Tab", "↩ Switch to Tab", "↩ Run"; the address field adds "⌘↩ New Tab"). Content swaps instantly with the selection; facts that load later fill a row that is already reserved.
+- **Inline completion:** when one address is clearly meant, the field fills it in ahead of the caret, with the added part in the system text selection: "gith" shows "github.com", and "github.com/sw" shows the full address from history. Its row leads the list and is selected, so Return opens what the field shows; moving the selection off it takes the completion back out. Only hosts complete until a "/" is typed. A candidate needs real intent (a host visited twice; an address typed once or visited three times) and must outscore its nearest unrelated rival 1.5× (3× on two letters). Scores are visits plus twice the typed visits, halved every 30 days, and an address absorbs the pages beneath it. Nothing completes on one letter, whitespace, a bare keyword ("gh"), a paste, an edit away from the end, or composing input. Typing through a completion keeps it, and deleting one suppresses it until editing ends.
+- **Zero state:** an empty query shows Review Queue (up to 4, when signed in), Recently Closed (up to 3, which reopen with their back history), and Frequent (up to 5 hosts by visits). With all three empty, only the field shows.
 
 ### Dev Panel
 A native debugging workbench on chrome surface, docked below a draggable hairline or detached into a normal, resizable macOS window bound to its inspected tab.

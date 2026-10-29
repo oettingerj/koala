@@ -59,7 +59,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func reopenClosedItem(_ sender: NSMenuItem) {
-        reopen(AppServices.shared.takeRecentlyClosed(at: sender.tag))
+        reopenClosed(at: sender.tag)
+    }
+
+    /// Reopens the recently closed item at `index`, as chosen in the menu or the command bar.
+    func reopenClosed(at index: Int) {
+        reopen(AppServices.shared.takeRecentlyClosed(at: index))
     }
 
     private func reopen(_ item: ClosedItem?) {

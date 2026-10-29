@@ -98,10 +98,12 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         rootView.toolbar.addressField.onCancel = { [weak self] in self?.focusPage() }
         rootView.toolbar.addressField.onToggleBookmark = { [weak self] in self?.toggleBookmark(nil) }
         let field = rootView.toolbar.addressField
-        field.onTextChange = { [weak self, weak field] text in
-            guard let self, let field else { return }
-            addressDropdown.update(query: text, anchor: field)
+        field.onTextChange = { [weak self, weak field] text, edit in
+            guard let self, let field else { return nil }
+            addressDropdown.update(query: text, edit: edit, anchor: field)
+            return addressDropdown.model.inline?.text
         }
+        addressDropdown.model.onLeaveCompletion = { [weak field] in field?.clearCompletion() }
         field.onMoveSelection = { [weak self] step in self?.addressDropdown.moveSelection(by: step) ?? false }
         field.onSubmitSelection = { [weak self] newTab in self?.addressDropdown.activateSelected(newTab: newTab) ?? false }
         field.onEndEditing = { [weak self] in self?.addressDropdown.hide() }
@@ -413,7 +415,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
             guard let partner = tabs.tabs.first(where: { $0.id == id }), partner !== tab else { return NSSound.beep() }
             if partner.splitTab != nil { tabs.unsplit(partner) }
             tabs.split(tab, with: partner)
-        case .command:
+        case .command, .reopenClosed:
             NSSound.beep()
         }
     }
@@ -936,6 +938,8 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
             }
         case .command(let selector):
             NSApp.sendAction(NSSelectorFromString(selector), to: nil, from: self)
+        case .reopenClosed(let index):
+            (NSApp.delegate as? AppDelegate)?.reopenClosed(at: index)
         }
     }
 
@@ -1068,6 +1072,30 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     }
 }
 
+#if DEBUG
+/// Review hooks: type into the command bar or address field and capture its suggestions.
+extension BrowserWindowController {
+    func reviewCommandBar(query: String) {
+        guard let window else { return }
+        if !commandBar.isVisible {
+            services.commands = MenuCommands.collect()
+            commandBar.show(over: window, chromeHeight: rootView.chromeHeight)
+        }
+        commandBar.reviewType(query)
+    }
+
+    func reviewAddressField(query: String) {
+        rootView.toolbar.addressField.reviewType(query)
+    }
+
+    func reviewSuggestionsSnapshot(name: String) {
+        let view = commandBar.isVisible ? commandBar.reviewView : addressDropdown.reviewView
+        guard let view else { return }
+        try? ReviewSnapshot.save(view, folder: "suggestions", name: "\(name)-\(ReviewSnapshot.appearanceName(view))")
+    }
+}
+#endif
+
 extension BrowserWindowController: TabUIHost {
     private func sheet(_ alert: NSAlert) async -> NSApplication.ModalResponse {
         guard let window else { return .cancel }
@@ -1185,10 +1213,10 @@ extension BrowserWindowController: TabDelegate {
         services.applyCachedFavicon(to: tab)
         applySiteZoom(to: tab)
         guard let url = tab.url else { return }
-        if let host = DisplayURL(url)?.host { services.suggestions.noteVisit(host: host) }
+        let typed = tab.nextNavigationIsTyped
+        services.suggestions.noteVisit(url: url, typed: typed)
         if GitHubURL(url)?.number != nil { github.refreshSoon() }
         ExtensionsHost.shared.didChange([.URL, .loading], for: tab)
-        let typed = tab.nextNavigationIsTyped
         let title = tab.title
         Task { try? await services.history.recordVisit(url: url, title: title, typed: typed) }
     }

@@ -8,6 +8,8 @@ import SwiftUI
 final class AddressDropdown {
     let model: SuggestionModel
     private let panel: NSPanel
+    private let host: NSHostingView<DropdownView>
+    private var showsPreview = false
     private var heightObservation: ObservationLoop?
     private weak var anchor: NSView?
 
@@ -16,16 +18,21 @@ final class AddressDropdown {
     init(engine: SuggestionEngine) {
         model = SuggestionModel(engine: engine)
         panel = dropdownPanel()
-        let view = DropdownView(model: model) { [weak self] row in self?.activate(row, newTab: false) }
-        panel.contentView = NSHostingView(rootView: view)
+        host = NSHostingView(rootView: DropdownView(model: model, showsPreview: false, onActivate: { _ in }))
+        host.rootView = DropdownView(model: model, showsPreview: false) { [weak self] row in self?.activate(row, newTab: false) }
+        panel.contentView = host
         heightObservation = ObservationLoop { [weak self] in self?.layout() }
     }
 
     var isVisible: Bool { panel.isVisible }
 
-    func update(query: String, anchor: NSView) {
+    #if DEBUG
+    var reviewView: NSView? { panel.isVisible ? panel.contentView : nil }
+    #endif
+
+    func update(query: String, edit: TextEdit, anchor: NSView) {
         self.anchor = anchor
-        model.update(query: query)
+        model.update(query: query, edit: edit)
         guard let window = anchor.window else { return }
         if panel.parent !== window {
             panel.parent?.removeChildWindow(panel)
@@ -64,7 +71,13 @@ final class AddressDropdown {
             return
         }
         let frame = window.convertToScreen(anchor.convert(anchor.bounds, to: nil))
-        let height = CGFloat(count) * 40 + 12
+        let preview = frame.width >= SuggestionMetrics.previewThreshold
+        if preview != showsPreview {
+            showsPreview = preview
+            model.loadsFacts = preview
+            host.rootView.showsPreview = preview
+        }
+        let height = model.listHeight(showingPreview: preview)
         panel.setFrame(NSRect(x: frame.minX, y: frame.minY - 4 - height, width: frame.width, height: height), display: true)
         if !panel.isVisible { panel.orderFront(nil) }
     }
@@ -72,10 +85,11 @@ final class AddressDropdown {
 
 private struct DropdownView: View {
     @Bindable var model: SuggestionModel
+    var showsPreview: Bool
     var onActivate: (Suggestion) -> Void
 
     var body: some View {
-        SuggestionList(model: model, onActivate: onActivate)
+        SuggestionList(model: model, showsPreview: showsPreview, onActivate: onActivate)
             .frame(maxWidth: .infinity, alignment: .top)
             .dropdownSurface()
     }

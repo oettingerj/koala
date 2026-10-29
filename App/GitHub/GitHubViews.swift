@@ -40,6 +40,19 @@ enum GitHubStyle {
             .applying(.init(paletteColors: [glyph.color]))
         return NSImage(systemSymbolName: glyph.symbol, accessibilityDescription: glyph.label)?.withSymbolConfiguration(config)
     }
+
+    /// "Approved · waiting on a, b", for the context popover and the suggestion preview.
+    static func reviewSummary(_ status: GitHubStatus) -> String {
+        var parts: [String] = []
+        switch status.reviewDecision {
+        case "APPROVED": parts.append("Approved")
+        case "CHANGES_REQUESTED": parts.append("Changes requested")
+        case "REVIEW_REQUIRED": parts.append("Review required")
+        default: break
+        }
+        if !status.reviewers.isEmpty { parts.append("waiting on " + status.reviewers.joined(separator: ", ")) }
+        return parts.joined(separator: " · ")
+    }
 }
 
 // MARK: Context chip popover
@@ -100,7 +113,7 @@ struct GitHubContextPopover: View {
                 if !status.reviewers.isEmpty || status.reviewDecision != nil {
                     Divider()
                     HStack(spacing: 6) {
-                        Text(reviewText(status)).font(.system(size: 12)).foregroundStyle(Color(nsColor: Theme.textSecondary))
+                        Text(GitHubStyle.reviewSummary(status)).font(.system(size: 12)).foregroundStyle(Color(nsColor: Theme.textSecondary))
                         Spacer()
                     }
                 }
@@ -125,18 +138,6 @@ struct GitHubContextPopover: View {
         .padding(14)
         .frame(width: 360, alignment: .leading)
         .tint(Color(nsColor: Theme.accent))
-    }
-
-    private func reviewText(_ status: GitHubStatus) -> String {
-        var parts: [String] = []
-        switch status.reviewDecision {
-        case "APPROVED": parts.append("Approved")
-        case "CHANGES_REQUESTED": parts.append("Changes requested")
-        case "REVIEW_REQUIRED": parts.append("Review required")
-        default: break
-        }
-        if !status.reviewers.isEmpty { parts.append("waiting on " + status.reviewers.joined(separator: ", ")) }
-        return parts.joined(separator: " · ")
     }
 }
 

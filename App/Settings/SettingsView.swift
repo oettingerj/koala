@@ -5,12 +5,19 @@ import SwiftUI
 /// Settings that persist in user defaults and feed AppServices.
 @MainActor
 enum Preferences {
-    static let searchEngines: [(name: String, template: String)] = [
-        ("Google", "https://www.google.com/search?q=%s"),
-        ("DuckDuckGo", "https://duckduckgo.com/?q=%s"),
-        ("Kagi", "https://kagi.com/search?q=%s"),
-        ("Bing", "https://www.bing.com/search?q=%s"),
+    /// Each engine with its search-as-you-type endpoint. Kagi's needs a signed-in session, so
+    /// Koala sends Kagi users' typing nowhere.
+    static let searchEngines: [(name: String, template: String, suggestions: String?)] = [
+        ("Google", "https://www.google.com/search?q=%s", WebSuggestions.google),
+        ("DuckDuckGo", "https://duckduckgo.com/?q=%s", "https://duckduckgo.com/ac/?q=%s&type=list"),
+        ("Kagi", "https://kagi.com/search?q=%s", nil),
+        ("Bing", "https://www.bing.com/search?q=%s", "https://api.bing.com/osjson.aspx?query=%s"),
     ]
+
+    /// The chosen engine, or nil for a custom template.
+    static var searchEngine: (name: String, template: String, suggestions: String?)? {
+        searchEngines.first { $0.template == searchTemplate }
+    }
 
     static var searchTemplate: String {
         get { UserDefaults.standard.string(forKey: "SearchTemplate") ?? AddressInput.defaultSearchTemplate }
@@ -37,6 +44,9 @@ enum Preferences {
     static func apply() {
         let engine = AppServices.shared.suggestions
         engine.searchTemplate = searchTemplate
+        engine.searchName = searchEngine?.name ?? URL(string: searchTemplate).flatMap { DisplayURL($0)?.host } ?? "the Web"
+        // Suggestions only ever go to the engine searches go to; a custom engine gets none.
+        engine.web.endpoint = searchEngine?.suggestions
         engine.webSuggestionsEnabled = webSuggestions
         engine.keywordSearches = keywordSearches
     }

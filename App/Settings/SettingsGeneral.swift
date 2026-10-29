@@ -53,6 +53,19 @@ struct GeneralSettings: View {
     @State private var suggestions = Preferences.webSuggestions
     @State private var isDefault = false
 
+    private var engine: (name: String, template: String, suggestions: String?)? {
+        Preferences.searchEngines.first { $0.template == template }
+    }
+
+    private var offersSuggestions: Bool { engine?.suggestions != nil }
+
+    private var suggestionsDetail: String {
+        guard offersSuggestions, let engine else {
+            return "Koala doesn’t get suggestions from \(engine?.name ?? "this search engine"), so nothing you type is sent until you search."
+        }
+        return "Sends what you type in the address field and command bar to \(engine.name)."
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             SettingRow(SettingEntries.searchEngine) {
@@ -62,9 +75,10 @@ struct GeneralSettings: View {
                 .labelsHidden()
                 .onChange(of: template) { _, value in Preferences.searchTemplate = value }
             }
-            SettingRow(SettingEntries.suggestions) {
-                Toggle("Suggestions while typing", isOn: $suggestions)
+            SettingRow(SettingEntries.suggestions, detail: { SettingDetail(text: suggestionsDetail) }) {
+                Toggle("Suggestions while typing", isOn: offersSuggestions ? $suggestions : .constant(false))
                     .settingsSwitch()
+                    .disabled(!offersSuggestions)
                     .onChange(of: suggestions) { _, value in Preferences.webSuggestions = value }
             }
             SettingRow(SettingEntries.defaultBrowser) {

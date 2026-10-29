@@ -75,6 +75,14 @@ public struct HistoryStore: Sendable {
         return Array(candidates.sorted { $0.score(now: now) > $1.score(now: now) }.prefix(limit))
     }
 
+    /// The record for exactly `url`, for the visit facts in a suggestion preview.
+    public func entry(for url: URL) async -> HistoryEntry? {
+        let key = url.absoluteString
+        return try? await database.writer.read { db in
+            try HistoryEntry.filter(Column("url") == key).fetchOne(db)
+        }
+    }
+
     public func recent(limit: Int = 50) async throws -> [HistoryEntry] {
         try await database.writer.read { db in
             try HistoryEntry.order(Column("lastVisitedAt").desc).limit(limit).fetchAll(db)

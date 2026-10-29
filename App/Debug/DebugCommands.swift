@@ -5,7 +5,8 @@ import os
 /// Debug-only: lets review scripts drive window states without UI scripting permissions.
 /// Post `com.joshoettinger.koala.debug` with an object like "appearance dark",
 /// "action newTab:", "open https://example.com", "resize 1280x820", "settings-search pin",
-/// "snapshot-settings <suffix>", or "js return document.title"
+/// "snapshot-settings <suffix>", "suggest <query>" (the command bar), "suggest-address <query>",
+/// "snapshot-suggestions <name>", or "js return document.title"
 /// (runs in the focused tab; the result goes to the log under category "debug").
 @MainActor
 enum DebugCommands {
@@ -59,6 +60,12 @@ enum DebugCommands {
             SettingsReview.search(argument)
         case "settings-add-keyword":
             SettingsReview.addKeyword()
+        case "suggest":
+            (window?.windowController as? BrowserWindowController)?.reviewCommandBar(query: argument)
+        case "suggest-address":
+            (window?.windowController as? BrowserWindowController)?.reviewAddressField(query: argument)
+        case "snapshot-suggestions":
+            (window?.windowController as? BrowserWindowController)?.reviewSuggestionsSnapshot(name: argument)
         case "resize":
             let size = argument.split(separator: "x").compactMap { Double($0) }
             if size.count == 2 { window?.setContentSize(NSSize(width: size[0], height: size[1])) }

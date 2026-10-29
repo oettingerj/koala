@@ -51,6 +51,16 @@ final class AppServices {
         }
         suggestions.commands = { [unowned self] in commands }
         suggestions.extraRemote = { text in await GitHubService.shared.suggestions(for: text) }
+        suggestions.zeroState = { [unowned self] in
+            let queue = GitHubService.shared.queueRows(matching: nil).prefix(4)
+            // Newest first, keeping each item's index into `recentlyClosed` for reopening.
+            let closed = recentlyClosed.enumerated().reversed().prefix(3).compactMap { index, item -> Suggestion? in
+                guard case .tab(let tab, _) = item else { return nil }
+                return Suggestion(id: "closed:\(tab.id)", kind: .closed, title: item.title, subtitle: tab.url?.absoluteString,
+                                  action: .reopenClosed(index), score: 0, iconHost: DisplayURL(tab.url)?.host)
+            }
+            return Array(queue) + closed
+        }
         Task { await suggestions.reloadHostIndex() }
     }
 

@@ -10,6 +10,7 @@ final class CommandBar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
     private let panel: CommandBarPanel
     private let container = CommandBarContainer()
     private let field = NSTextField()
+    private let completer = InlineCompleter()
     private let searchIcon = NSImageView()
     private let divider = NSView()
     private let list: NSHostingView<SuggestionList>
@@ -20,9 +21,10 @@ final class CommandBar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
     var onCancel: (() -> Void)?
     private static let defaultPlaceholder = "Search, open a URL, or run a command"
 
-    static let width: CGFloat = 640
+    /// Wide enough for the list and its preview pane; narrow windows drop the pane.
+    static let width: CGFloat = 820
     private static let fieldHeight: CGFloat = 52
-    private static let rowHeight: CGFloat = 40
+    private var showsPreview = false
 
     init(engine: SuggestionEngine) {
         model = SuggestionModel(engine: engine)
@@ -30,7 +32,8 @@ final class CommandBar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
                                 styleMask: [.borderless], backing: .buffered, defer: false)
         list = NSHostingView(rootView: SuggestionList(model: model, onActivate: { _ in }))
         super.init()
-        list.rootView = SuggestionList(model: model) { [weak self] row in self?.activate(row, newTab: false) }
+        // Picking a page from the bar opens it in a new tab (see BrowserWindowController).
+        list.rootView = SuggestionList(model: model, opensInNewTab: true) { [weak self] row in self?.activate(row, newTab: false) }
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
@@ -59,6 +62,10 @@ final class CommandBar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         container.layoutHandler = { [weak self] in self?.layoutContents() }
         panel.contentView = container
         heightObservation = ObservationLoop { [weak self] in self?.resize() }
+        model.onLeaveCompletion = { [weak self] in
+            guard let self else { return }
+            completer.clear(in: field)
+        }
     }
 
     var isVisible: Bool { panel.isVisible }
@@ -74,6 +81,8 @@ final class CommandBar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
             .font: NSFont.systemFont(ofSize: 16), .foregroundColor: Theme.textTertiary,
         ])
         model.reset()
+        model.update(query: "")
+        completer.reset()
         field.stringValue = ""
         if panel.parent !== window {
             panel.parent?.removeChildWindow(panel)
@@ -103,10 +112,16 @@ final class CommandBar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
     }
 
     private func resize() {
-        let rows = model.rows.count
-        let height = Self.fieldHeight + (rows == 0 ? 0 : CGFloat(rows) * Self.rowHeight + 13)
         guard let parent else { return }
         let width = min(Self.width, parent.frame.width - 48)
+        let preview = width >= SuggestionMetrics.previewThreshold
+        if preview != showsPreview {
+            showsPreview = preview
+            model.loadsFacts = preview
+            list.rootView.showsPreview = preview
+        }
+        let listHeight = model.listHeight(showingPreview: preview)
+        let height = Self.fieldHeight + (listHeight == 0 ? 0 : listHeight + 1)
         let top = parent.frame.maxY - chromeHeight - 12
         let x = parent.frame.midX - width / 2
         panel.setFrame(NSRect(x: x.rounded(), y: (top - height).rounded(), width: width, height: height), display: true)
@@ -123,10 +138,23 @@ final class CommandBar: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         list.frame = NSRect(x: 0, y: 0, width: bounds.width, height: max(0, fieldTop - 1))
     }
 
+    #if DEBUG
+    var reviewView: NSView { container }
+
+    func reviewType(_ text: String) {
+        field.stringValue = text
+        completer.reset(typed: text)
+        model.update(query: text, edit: .typed)
+        completer.show(model.inline?.text, in: field)
+    }
+    #endif
+
     // MARK: Field
 
     func controlTextDidChange(_ obj: Notification) {
-        model.update(query: field.stringValue)
+        let edit = completer.textDidChange(in: field)
+        model.update(query: completer.typed, edit: edit)
+        completer.show(model.inline?.text, in: field)
     }
 
     func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {
@@ -203,31 +231,33 @@ enum MenuCommands {
     static func collect() -> [SuggestionEngine.CommandInfo] {
         guard let main = NSApp.mainMenu else { return [] }
         var commands: [SuggestionEngine.CommandInfo] = []
-        func walk(_ menu: NSMenu) {
+        func walk(_ menu: NSMenu, path: [String]) {
             menu.update()
             for item in menu.items where !item.isSeparatorItem && !item.isHidden {
                 if let submenu = item.submenu {
                     // Dynamic menus (History, Bookmarks) list pages, not commands; skip their entries.
                     if menu === main && submenu.delegate != nil {
-                        for entry in submenu.items where entry.action != nil { append(entry, to: &commands) }
+                        for entry in submenu.items where entry.action != nil { append(entry, path: [item.title], to: &commands) }
                     } else if menu !== main || item.title != "Services" {
-                        walk(submenu)
+                        walk(submenu, path: path + [item.title])
                     }
                 } else {
-                    append(item, to: &commands)
+                    append(item, path: path, to: &commands)
                 }
             }
         }
-        walk(main)
+        walk(main, path: [])
         return commands
     }
 
-    private static func append(_ item: NSMenuItem, to commands: inout [SuggestionEngine.CommandInfo]) {
+    private static func append(_ item: NSMenuItem, path: [String], to commands: inout [SuggestionEngine.CommandInfo]) {
         guard let action = item.action, item.isEnabled, !item.title.isEmpty else { return }
         let selector = NSStringFromSelector(action)
         guard !excluded.contains(selector), item.title != "Services" else { return }
         if commands.contains(where: { $0.title == item.title }) { return }
-        commands.append(.init(selector: selector, title: item.title, shortcut: shortcut(for: item)))
+        // The first level of the main menu is the app menu, titled by the app name.
+        let menuPath = path.isEmpty ? nil : path.map { $0.isEmpty ? "Koala" : $0 }.joined(separator: " ▸ ")
+        commands.append(.init(selector: selector, title: item.title, shortcut: shortcut(for: item), menuPath: menuPath))
     }
 
     static func shortcut(for item: NSMenuItem) -> String? {
