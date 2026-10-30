@@ -8,7 +8,8 @@ import os
 /// "action newTab:", "open https://example.com", "resize 1280x820", "settings-search pin",
 /// "snapshot-settings <suffix>", "suggest <query>" (the command bar), "suggest-address <query>",
 /// "snapshot-suggestions <name>", "snapshot-window <name>", "crash-tab", "context-menu <selector>",
-/// "sheet <value,value>", "windows", "tear-off away|back",
+/// "sheet <value,value>", "windows", "tear-off away|back", "home-fixture populated|empty|loading|error|signed-out",
+/// "home-search <query>|tab:mine|tab:requested", "snapshot-home <suffix>",
 /// or "js return document.title"
 /// (runs in the focused tab; the result goes to the log under category "debug").
 @MainActor
@@ -122,6 +123,12 @@ enum DebugCommands {
             let values = argument.split(separator: ",", omittingEmptySubsequences: false).map(String.init)
             for (field, value) in zip(sheet.contentView.map(fields(in:)) ?? [], values) { field.stringValue = value }
             (sheet.defaultButtonCell?.controlView as? NSButton)?.performClick(nil)
+        case "home-fixture":
+            HomeReview.showFixture(argument)
+        case "home-search":
+            HomeReview.search(argument)
+        case "snapshot-home":
+            HomeReview.saveSnapshot(suffix: argument)
         case "snapshot-window":
             // The chrome only: web content isn't drawn by cacheDisplay.
             if let view = window?.contentView { try? ReviewSnapshot.save(view, folder: "window", name: argument) }

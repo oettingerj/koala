@@ -17,7 +17,13 @@ final class GitHubService {
     private(set) var pendingStatuses: Set<GitHubClient.Key> = []
     /// Keys fetched for suggestions; a failed fetch isn't retried on every keystroke.
     @ObservationIgnored private var requestedStatuses: Set<GitHubClient.Key> = []
-    private(set) var queue: [GitHubQueueItem] = []
+    /// Review requests and your own open pull requests, for the home page's Reviews.
+    private(set) var pulls = GitHubPulls()
+    /// When `pulls` last arrived; nil until the first fetch after launch or sign-in.
+    private(set) var pullsUpdatedAt: Date?
+    private(set) var isRefreshingPulls = false
+    /// The toolbar's review queue, from `pulls`.
+    var queue: [GitHubQueueItem] { pulls.queue }
     private(set) var clones = LocalClones()
     private(set) var lastError: String?
 
@@ -93,6 +99,12 @@ final class GitHubService {
         }
     }
 
+    /// Fetches the review queue now: the Reviews page's refresh button and ⌘R.
+    func refreshPulls() {
+        guard isSignedIn, !isRefreshingPulls else { return }
+        Task { await refresh(includeQueue: true) }
+    }
+
     private func startPolling() {
         pollTask = Task { [weak self] in
             while !Task.isCancelled {
@@ -108,14 +120,36 @@ final class GitHubService {
             .compactMap { Self.key(for: $0.url) }
     }
 
+    #if DEBUG
+    /// Review scripts show synthetic pull requests; polling leaves them alone.
+    @ObservationIgnored private var showsFixture = false
+
+    func showFixture(_ pulls: GitHubPulls?, signedIn: Bool, error: String? = nil) {
+        showsFixture = true
+        isSignedIn = signedIn
+        self.pulls = pulls ?? GitHubPulls()
+        pullsUpdatedAt = pulls == nil ? nil : Date()
+        isRefreshingPulls = signedIn && pulls == nil && error == nil
+        lastError = error
+    }
+    #endif
+
     private func refresh(includeQueue: Bool = false) async {
         guard isSignedIn else { return }
+        #if DEBUG
+        if showsFixture { return }
+        #endif
         // Polling never runs while the app is in the background; status refreshes on return.
         guard NSApp.isActive || includeQueue else { return }
+        if includeQueue { isRefreshingPulls = true }
+        defer { if includeQueue { isRefreshingPulls = false } }
         do {
             let fresh = try await client.statuses(for: openKeys())
             statuses.merge(fresh) { _, new in new }
-            if includeQueue { queue = try await client.reviewQueue() }
+            if includeQueue {
+                pulls = try await client.pulls()
+                pullsUpdatedAt = Date()
+            }
             if account == nil { account = try await client.viewer() }
             lastError = nil
         } catch GitHubClient.Failure.http(401) {
@@ -147,7 +181,8 @@ final class GitHubService {
         statuses = [:]
         requestedStatuses = []
         pendingStatuses = []
-        queue = []
+        pulls = GitHubPulls()
+        pullsUpdatedAt = nil
     }
 
     // MARK: Local clones

@@ -344,7 +344,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
 
     @objc func showFindBar(_ sender: Any?) {
         // A native page has nothing to find in; Settings searches its own rows.
-        if tabs.focused?.page != nil { return focusPage() }
+        if let tab = tabs.focused, tab.page != nil || tab.isHome { return focusPage() }
         rootView.findBar.show()
     }
 
@@ -825,16 +825,19 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     /// A tab swaps its web view when it moves between the web and an extension's pages, or to a native page.
     private weak var shownWebView: NSView?
     private weak var shownSplitWebView: NSView?
-    /// Hosting views for tabs showing a native page (Settings), kept while the tab shows it.
-    private var nativeViews: [Tab.ID: NSView] = [:]
+    /// Hosting views for tabs showing a native page (Settings, or the home page of a blank tab),
+    /// kept while the tab shows that page.
+    private var nativeViews: [Tab.ID: (page: KoalaPage?, view: NSView)] = [:]
 
-    /// The view that shows `tab`: its native page, or its web view (created on first use).
+    /// The view that shows `tab`: its native page, the home page while it is blank, or its web view
+    /// (created on first use).
     private func pageView(for tab: Tab) -> NSView {
-        guard let page = tab.page else {
+        let page = tab.page
+        guard page != nil || tab.isHome else {
             nativeViews[tab.id] = nil
             return tab.materialize()
         }
-        if let view = nativeViews[tab.id] { return view }
+        if let native = nativeViews[tab.id], native.page == page { return native.view }
         // Drop views of native tabs that closed or moved to another window.
         let live = Set(tabs.tabs.flatMap { [$0.id, $0.splitTab?.id].compactMap(\.self) })
         nativeViews = nativeViews.filter { live.contains($0.key) }
@@ -843,9 +846,16 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         case .settings: SettingsPage.host()
         case .history: HistoryHostingView.make(open: open)
         case .bookmarks: BookmarksHostingView.make(open: open)
+        case nil: HomeHostingView.make(open: open)
         }
-        nativeViews[tab.id] = view
+        nativeViews[tab.id] = (page, view)
         return view
+    }
+
+    /// The home page in view, when the focused tab is blank.
+    private var shownHome: RefreshablePage? {
+        guard let tab = tabs.focused, tab.isHome else { return nil }
+        return nativeViews[tab.id]?.view as? RefreshablePage
     }
 
     private func showSelectedTab() {
@@ -916,7 +926,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
 
     func focusPage() {
         guard let tab = tabs.focused else { return }
-        if tab.page != nil {
+        if tab.page != nil || tab.isHome {
             // The page focuses its search field once it is in the window.
             (pageView(for: tab) as? SearchablePage)?.focusSearch()
         } else if let webView = tab.webView {
@@ -1084,12 +1094,21 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     @objc func openLocation(_ sender: Any?) { focusAddressField() }
     @objc func goBack(_ sender: Any?) { tabs.focused?.goBack() }
     @objc func goForward(_ sender: Any?) { tabs.focused?.goForward() }
-    @objc func reloadPage(_ sender: Any?) { tabs.focused?.reload() }
-    @objc func hardReload(_ sender: Any?) { tabs.focused?.reload(fromOrigin: true) }
+    /// On the home page ⌘R refreshes what it shows; a blank tab has nothing else to reload.
+    @objc func reloadPage(_ sender: Any?) {
+        if let home = shownHome { return home.refresh() }
+        tabs.focused?.reload()
+    }
+
+    @objc func hardReload(_ sender: Any?) {
+        if let home = shownHome { return home.refresh() }
+        tabs.focused?.reload(fromOrigin: true)
+    }
     @objc func stopLoading(_ sender: Any?) { tabs.focused?.stop() }
 
     @objc func reloadOrStop(_ sender: Any?) {
         guard let tab = tabs.focused else { return }
+        if let home = shownHome { return home.refresh() }
         if tab.isLoading { tab.stop() } else { tab.reload() }
     }
 
@@ -1118,9 +1137,10 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         case #selector(goBack(_:)): return tabs.focused?.canGoBack ?? false
         case #selector(goForward(_:)): return tabs.focused?.canGoForward ?? false
         case #selector(stopLoading(_:)): return tabs.focused?.isLoading ?? false
-        case #selector(reloadPage(_:)), #selector(hardReload(_:)), #selector(zoomIn(_:)), #selector(zoomOut(_:)),
-             #selector(actualSize(_:)), #selector(printPage(_:)), #selector(viewSource(_:)):
+        case #selector(reloadPage(_:)), #selector(hardReload(_:)):
             return tabs.focused?.page == nil
+        case #selector(zoomIn(_:)), #selector(zoomOut(_:)), #selector(actualSize(_:)), #selector(printPage(_:)), #selector(viewSource(_:)):
+            return tabs.focused.map { $0.page == nil && !$0.isHome } ?? false
         case #selector(selectTabByNumber(_:)): return item.tag == 9 ? !tabs.tabs.isEmpty : item.tag <= tabs.tabs.count
         case #selector(copyPermalink(_:)):
             if case .blob = GitHubURL(tabs.focused?.url)?.kind { return true }

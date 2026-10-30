@@ -41,6 +41,78 @@ public struct GitHubQueueItem: Equatable, Sendable, Identifiable {
     public var destination: URL { reason == .failingChecks ? url.appending(path: "checks") : url }
 }
 
+/// An open pull request on the home page's Reviews: one waiting on your review, or one of yours.
+public struct GitHubPull: Equatable, Sendable, Identifiable {
+    public var repo: String
+    public var number: Int
+    public var title: String
+    public var url: URL
+    public var author: String?
+    public var authorAvatarURL: URL?
+    public var isDraft: Bool
+    public var createdAt: Date?
+    public var updatedAt: Date?
+    public var additions: Int
+    public var deletions: Int
+    public var headRef: String?
+    public var baseRef: String?
+    public var reviewDecision: String?
+    public var checks: GitHubStatus.Checks
+    /// The review was asked of one of your teams rather than of you.
+    public var isTeamRequest = false
+    /// The first team asked to review, when GitHub lists one.
+    public var requestedTeam: String?
+    public var id: String { "\(repo)#\(number)" }
+
+    public init(repo: String, number: Int, title: String, url: URL, author: String? = nil, authorAvatarURL: URL? = nil,
+                isDraft: Bool = false, createdAt: Date? = nil, updatedAt: Date? = nil, additions: Int = 0, deletions: Int = 0,
+                headRef: String? = nil, baseRef: String? = nil, reviewDecision: String? = nil, checks: GitHubStatus.Checks = .none,
+                isTeamRequest: Bool = false, requestedTeam: String? = nil) {
+        self.repo = repo
+        self.number = number
+        self.title = title
+        self.url = url
+        self.author = author
+        self.authorAvatarURL = authorAvatarURL
+        self.isDraft = isDraft
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.additions = additions
+        self.deletions = deletions
+        self.headRef = headRef
+        self.baseRef = baseRef
+        self.reviewDecision = reviewDecision
+        self.checks = checks
+        self.isTeamRequest = isTeamRequest
+        self.requestedTeam = requestedTeam
+    }
+}
+
+/// Everything the review queue and the home page's Reviews show, from one request.
+public struct GitHubPulls: Equatable, Sendable {
+    /// Open pull requests asking for your review, directly or through a team.
+    public var reviewRequested: [GitHubPull] = []
+    /// Your own open pull requests.
+    public var mine: [GitHubPull] = []
+    /// How many each search matched; more than were fetched when the list is cut short.
+    public var reviewRequestedTotal = 0
+    public var mineTotal = 0
+
+    public init(reviewRequested: [GitHubPull] = [], mine: [GitHubPull] = [], reviewRequestedTotal: Int = 0, mineTotal: Int = 0) {
+        self.reviewRequested = reviewRequested
+        self.mine = mine
+        self.reviewRequestedTotal = reviewRequestedTotal
+        self.mineTotal = mineTotal
+    }
+
+    /// The toolbar's review queue: review requests, then your pull requests with failing checks.
+    public var queue: [GitHubQueueItem] {
+        reviewRequested.map { GitHubQueueItem(repo: $0.repo, number: $0.number, title: $0.title, url: $0.url, reason: .reviewRequested) }
+            + mine.filter { $0.checks == .failing }
+            .map { GitHubQueueItem(repo: $0.repo, number: $0.number, title: $0.title, url: $0.url, reason: .failingChecks) }
+    }
+}
+
 /// The signed-in user, shown in Settings.
 public struct GitHubAccount: Equatable, Sendable {
     public var login: String
@@ -183,33 +255,69 @@ public actor GitHubClient {
 
     // MARK: Review queue
 
-    public func reviewQueue() async throws -> [GitHubQueueItem] {
+    /// Review requests (direct and through teams) and your own open pull requests, in one request.
+    /// The direct search only tells the two kinds of request apart.
+    public func pulls() async throws -> GitHubPulls {
         let query = """
         query {
-          review: search(query: "is:open is:pr review-requested:@me archived:false", type: ISSUE, first: 30) {
-            nodes { ... on PullRequest { number title url repository { nameWithOwner } } } }
-          mine: search(query: "is:open is:pr author:@me archived:false", type: ISSUE, first: 30) {
-            nodes { ... on PullRequest { number title url repository { nameWithOwner }
-              commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } } } }
+          direct: search(query: "is:open is:pr user-review-requested:@me archived:false", type: ISSUE, first: \(Self.pullLimit)) {
+            nodes { ... on PullRequest { number repository { nameWithOwner } } } }
+          review: search(query: "is:open is:pr review-requested:@me archived:false sort:updated-desc", type: ISSUE, first: \(Self.pullLimit)) {
+            issueCount nodes { ...Pull } }
+          mine: search(query: "is:open is:pr author:@me archived:false sort:updated-desc", type: ISSUE, first: \(Self.pullLimit)) {
+            issueCount nodes { ...Pull } }
+        }
+        fragment Pull on PullRequest {
+          number title url isDraft createdAt updatedAt additions deletions headRefName baseRefName reviewDecision
+          repository { nameWithOwner }
+          author { login avatarUrl(size: 40) }
+          commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
+          reviewRequests(first: 10) { nodes { requestedReviewer { __typename ... on Team { name } } } }
         }
         """
-        return Self.decodeQueue(try await graphQL(query, variables: [:]))
+        return Self.decodePulls(try await graphQL(query, variables: [:]))
     }
 
-    static func decodeQueue(_ data: [String: Any]) -> [GitHubQueueItem] {
-        func items(_ key: String, reason: GitHubQueueItem.Reason, filter: ([String: Any]) -> Bool) -> [GitHubQueueItem] {
-            (((data[key] as? [String: Any])?["nodes"] as? [[String: Any]]) ?? []).compactMap { node in
-                guard filter(node), let number = node["number"] as? Int, let title = node["title"] as? String,
-                      let url = (node["url"] as? String).flatMap(URL.init(string:)),
-                      let repo = (node["repository"] as? [String: Any])?["nameWithOwner"] as? String else { return nil }
-                return GitHubQueueItem(repo: repo, number: number, title: title, url: url, reason: reason)
-            }
+    public static let pullLimit = 50
+
+    static func decodePulls(_ data: [String: Any]) -> GitHubPulls {
+        func nodes(_ key: String) -> [[String: Any]] {
+            ((data[key] as? [String: Any])?["nodes"] as? [[String: Any]]) ?? []
         }
-        let failing: ([String: Any]) -> Bool = { node in
-            let state = ((((node["commits"] as? [String: Any])?["nodes"] as? [[String: Any]])?.first?["commit"] as? [String: Any])?["statusCheckRollup"] as? [String: Any])?["state"] as? String
-            return state == "FAILURE" || state == "ERROR"
+        func total(_ key: String) -> Int { ((data[key] as? [String: Any])?["issueCount"] as? Int) ?? 0 }
+        let direct = Set(nodes("direct").compactMap { node -> String? in
+            guard let number = node["number"] as? Int,
+                  let repo = (node["repository"] as? [String: Any])?["nameWithOwner"] as? String else { return nil }
+            return "\(repo)#\(number)"
+        })
+        var review = nodes("review").compactMap(decodePull)
+        for index in review.indices where !direct.contains(review[index].id) {
+            review[index].isTeamRequest = true
         }
-        return items("review", reason: .reviewRequested) { _ in true } + items("mine", reason: .failingChecks, filter: failing)
+        let mine = nodes("mine").compactMap(decodePull)
+        return GitHubPulls(reviewRequested: review, mine: mine,
+                           reviewRequestedTotal: max(total("review"), review.count), mineTotal: max(total("mine"), mine.count))
+    }
+
+    static func decodePull(_ node: [String: Any]) -> GitHubPull? {
+        guard let number = node["number"] as? Int, let title = node["title"] as? String,
+              let url = (node["url"] as? String).flatMap(URL.init(string:)),
+              let repo = (node["repository"] as? [String: Any])?["nameWithOwner"] as? String else { return nil }
+        let author = node["author"] as? [String: Any]
+        let rollup = ((((node["commits"] as? [String: Any])?["nodes"] as? [[String: Any]])?.first?["commit"] as? [String: Any])?["statusCheckRollup"] as? [String: Any])?["state"] as? String
+        let team = (((node["reviewRequests"] as? [String: Any])?["nodes"] as? [[String: Any]]) ?? [])
+            .compactMap { $0["requestedReviewer"] as? [String: Any] }
+            .first { $0["__typename"] as? String == "Team" }?["name"] as? String
+        func date(_ key: String) -> Date? { (node[key] as? String).flatMap { try? Date($0, strategy: .iso8601) } }
+        return GitHubPull(repo: repo, number: number, title: title, url: url,
+                          author: author?["login"] as? String,
+                          authorAvatarURL: (author?["avatarUrl"] as? String).flatMap(URL.init(string:)),
+                          isDraft: node["isDraft"] as? Bool ?? false,
+                          createdAt: date("createdAt"), updatedAt: date("updatedAt"),
+                          additions: node["additions"] as? Int ?? 0, deletions: node["deletions"] as? Int ?? 0,
+                          headRef: node["headRefName"] as? String, baseRef: node["baseRefName"] as? String,
+                          reviewDecision: node["reviewDecision"] as? String,
+                          checks: rollupState(rollup), requestedTeam: team)
     }
 
     // MARK: Account

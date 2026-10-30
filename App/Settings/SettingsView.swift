@@ -124,43 +124,9 @@ struct SettingEntry: Identifiable {
     var haystack: String { ([section.title, title, detail ?? ""] + terms).joined(separator: " ").lowercased() }
 }
 
-/// The search field's query. Like the command bar, every query word must start a word in the row's text,
-/// so "pin" finds Pin to Toolbar but not "typing".
-struct SettingsFilter {
-    var query = ""
-
-    var words: [String] { Self.words(in: query) }
-    var isActive: Bool { !words.isEmpty }
-
-    private static func words(in text: String) -> [String] {
-        text.lowercased().split { !$0.isLetter && !$0.isNumber && $0 != "%" }.map(String.init)
-    }
-
-    func shows(_ entry: SettingEntry) -> Bool {
-        let haystack = Self.words(in: entry.haystack)
-        return words.allSatisfy { word in haystack.contains { $0.hasPrefix(word) } }
-    }
-
-    /// Sets the matched word starts in semibold at the text's own size, so a filtered row shows why it matched.
-    func highlight(_ text: String, size: CGFloat, design: Font.Design = .default) -> AttributedString {
-        var result = AttributedString(text)
-        for word in words {
-            var searchStart = text.startIndex
-            while let range = text.range(of: word, options: .caseInsensitive, range: searchStart..<text.endIndex) {
-                let startsWord = range.lowerBound == text.startIndex || !text[text.index(before: range.lowerBound)].isLetter
-                    && !text[text.index(before: range.lowerBound)].isNumber
-                if startsWord, let marked = Range(range, in: result) {
-                    result[marked].font = .system(size: size, weight: .semibold, design: design)
-                }
-                searchStart = range.upperBound
-            }
-        }
-        return result
-    }
-}
 
 extension EnvironmentValues {
-    @Entry var settingsFilter = SettingsFilter()
+    @Entry var settingsFilter = PageFilter()
 }
 
 @MainActor
@@ -225,9 +191,9 @@ struct SettingsPage: View {
     private static let columnWidth: CGFloat = 680
 
     var body: some View {
-        let filter = SettingsFilter(query: model.query)
+        let filter = PageFilter(query: model.query)
         let matches = Dictionary(uniqueKeysWithValues: SettingsSection.allCases.map { section in
-            (section, filter.isActive ? model.entries(for: section).filter(filter.shows).count : nil as Int?)
+            (section, filter.isActive ? model.entries(for: section).filter { filter.matches($0.haystack) }.count : nil as Int?)
         })
         VStack(spacing: 0) {
             header(filter: filter, matches: matches)
@@ -268,7 +234,7 @@ struct SettingsPage: View {
 
     // MARK: Header
 
-    private func header(filter: SettingsFilter, matches: [SettingsSection: Int?]) -> some View {
+    private func header(filter: PageFilter, matches: [SettingsSection: Int?]) -> some View {
         column {
             Text("Settings").font(.system(size: 20, weight: .semibold)).foregroundStyle(settingsPrimary)
                 .accessibilityAddTraits(.isHeader)
@@ -290,7 +256,7 @@ struct SettingsPage: View {
     }
 
     /// Jumps to a section. While searching, it shows how many rows match there.
-    private func indexButton(_ section: SettingsSection, matches: Int?, filter: SettingsFilter) -> some View {
+    private func indexButton(_ section: SettingsSection, matches: Int?, filter: PageFilter) -> some View {
         let isCurrent = !filter.isActive && model.visibleSection == section
         return Button { model.visibleSection = section } label: {
             HStack(spacing: 5) {
@@ -380,7 +346,7 @@ struct SettingsRowFrame<Content: View>: View {
     }
 
     var body: some View {
-        if filter.shows(entry) {
+        if filter.matches(entry.haystack) {
             content
                 .padding(.vertical, 12)
                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)

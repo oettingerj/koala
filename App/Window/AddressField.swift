@@ -135,8 +135,8 @@ final class AddressField: NSView {
         needsDisplay = true
         DispatchQueue.main.async { [weak self] in self?.field.currentEditor()?.selectAll(nil) }
         completer.reset()
-        // An empty field (a new tab) offers the suggestions' zero state; a page URL offers nothing.
-        if field.stringValue.isEmpty { _ = onTextChange?("", .other) }
+        // Focusing offers no suggestions: a page URL has nothing to suggest, and a new tab's home page
+        // is the zero state. Typing opens the list.
     }
 
     private func endEditing() {
@@ -223,6 +223,8 @@ private final class FocusAwareTextField: NSTextField {
     override func becomeFirstResponder() -> Bool {
         let accepted = super.becomeFirstResponder()
         if accepted {
+            // The caret takes the accent, like every Koala-drawn field.
+            (currentEditor() as? NSTextView)?.insertionPointColor = Theme.accent
             // A click makes the field first responder before its mouseDown arrives.
             focusedByClick = NSApp.currentEvent?.type == .leftMouseDown
             onFocus?()

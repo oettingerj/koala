@@ -141,6 +141,9 @@ public final class Tab: NSObject, Identifiable {
     /// The native page this tab shows instead of a web view, if any.
     public var page: KoalaPage? { KoalaPage(url: url) }
 
+    /// A blank tab that hasn't loaded anything: the window shows its home page instead of a web view.
+    public var isHome: Bool { url == nil && webView == nil }
+
     /// What the address field warns about. Error pages and native pages have nothing to warn about.
     public var security: PageSecurity {
         guard !isShowingErrorPage, page == nil else { return .none }

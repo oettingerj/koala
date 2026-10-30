@@ -224,6 +224,44 @@ components:
     height: "22pt"
     width: "64pt"
     padding: "0 6pt"
+  home-sidebar:
+    backgroundColor: "{colors.chrome-surface}"
+    width: "200pt"
+    padding: "24pt 10pt"
+  home-sidebar-row:
+    textColor: "{colors.text-secondary}"
+    typography: "{typography.body}"
+    rounded: "{rounded.inner}"
+    height: "28pt"
+    padding: "0 8pt"
+  home-sidebar-row-selected:
+    backgroundColor: "{colors.hover-fill}"
+    textColor: "{colors.text-primary}"
+  reviews-column:
+    backgroundColor: "{colors.chrome-surface}"
+    width: "960pt"
+    padding: "24pt 20pt 40pt"
+  facet-chip:
+    backgroundColor: "{colors.field-fill}"
+    textColor: "{colors.text-secondary}"
+    typography: "{typography.body}"
+    rounded: "{rounded.inner}"
+    height: "24pt"
+    padding: "0 8pt"
+  facet-chip-active:
+    backgroundColor: "{colors.hover-fill}"
+    textColor: "{colors.text-primary}"
+  review-row:
+    textColor: "{colors.text-primary}"
+    typography: "{typography.field}"
+    rounded: "{rounded.inner}"
+    height: "36pt"
+    padding: "0 8pt"
+  review-row-hover:
+    backgroundColor: "{colors.hover-fill}"
+  review-row-selected:
+    backgroundColor: "{colors.pressed-fill}"
+    textColor: "{colors.text-primary}"
 ---
 
 # Design System: Koala
@@ -264,15 +302,15 @@ State colors draw glyphs, 7pt dots, timing bars, and badge numerals. In light ap
 ### Neutral
 The ramp, step 0 to 10. Light: #FFFFFF, #FAFAFA, #F4F4F5, #EBEBED, #DEDEE1, #C8C8CD, #A0A0A8, #6C6C75, #4E4E56, #2E2E33, #18181B. Dark: #111113, #18181B, #1E1E21, #26262A, #303035, #3E3E44, #5A5A62, #8A8A93, #A6A6AE, #D4D4D8, #F4F4F5.
 - **Strip Ground** (strip-ground, step 3 light / 0 dark): behind the tab strip and the page content area.
-- **Chrome Surface** (chrome-surface, step 1 / 2): toolbar, selected tab, bookmarks bar, find bar, dev panel, command bar, Peek card, the Settings page, Koala-authored web pages.
-- **Field Well** (field-fill, step 3 / 1): the resting address field and the context chip.
+- **Chrome Surface** (chrome-surface, step 1 / 2): toolbar, selected tab, bookmarks bar, find bar, dev panel, command bar, Peek card, the Settings page, the home page, Koala-authored web pages.
+- **Field Well** (field-fill, step 3 / 1): the resting address field and the context chip, resting facet chips, and the home page's loading placeholders and unloaded avatars.
 - **Editing Field** (field-editing, step 0 / 0): the address field while focused.
-- **Hover** (hover-fill, step 4 / 3) and **Pressed** (pressed-fill, step 5 / 4): tabs, icon buttons, bookmarks, chips, selected command row.
+- **Hover** (hover-fill, step 4 / 3) and **Pressed** (pressed-fill, step 5 / 4): tabs, icon buttons, bookmarks, chips, selected command row; set facet chips take hover fill; the keyboard-selected review row takes pressed fill.
 - **Hairline** (hairline, step 4 / 4): every 1px separator and every floating-panel border.
 - **Text** primary (step 10), secondary (step 8), tertiary (step 7), disabled (step 5).
 
 ### Named Rules
-**The Action-Only Accent Rule.** Teal marks focus, selection, progress, and the primary action. It never fills a resting surface, never tints a header, and never decorates. The selected command row and selected dev tab are neutral (hover fill), not teal.
+**The Action-Only Accent Rule.** Teal marks focus, selection, progress, and the primary action. It never fills a resting surface, never tints a header, and never decorates. The selected command row and selected dev tab are neutral (hover fill), not teal. The home page's review list is the one list where hover and keyboard selection coexist on the same rows, so its selected row goes one step deeper, to pressed fill, with tertiary text stepped up to secondary.
 
 **The Convention Rule.** State hues mean exactly what an engineer expects (green pass, amber pending, red fail, purple merged) and nothing else. A draft or not-planned state is tertiary text, not a fifth hue.
 
@@ -287,14 +325,14 @@ The ramp, step 0 to 10. Light: #FFFFFF, #FAFAFA, #F4F4F5, #EBEBED, #DEDEE1, #C8C
 
 ### Hierarchy
 - **Command input** (400, 16pt): the command bar's query field only.
-- **Page title** (600, 20pt): the Settings page title, matching the Koala web page heading.
+- **Page title** (600, 20pt): the Settings page title and the home page's section title, matching the Koala web page heading.
 - **Panel heading** (600, 14pt): the PR title in the GitHub context popover, and Settings section headings. The GitHub sign-in panel's heading is 15pt semibold and its device code 28pt semibold mono.
 - **Title** (600, 13pt): popover titles (Downloads, Review queue).
-- **Field** (400, 13pt): address field text and placeholder, command row titles (500 when selected).
+- **Field** (400, 13pt): address field text and placeholder, command row and review row titles (500 when selected).
 - **Body** (400, 12pt): tab titles, dev panel section tabs, popover body copy, bookmarks, find field.
 - **Label** (400, 11pt): row subtitles, guide-word titles, dev filter chips, metadata.
 - **Mono** (400, 12pt): the address field's path at rest, Peek host, console text, storage keys (500) and values, repo slug and branch refs.
-- **Mono small** (11pt): command row URLs, context chip (500), timing columns, review-queue refs; 10pt for guide-word counts (500) and ruler ticks.
+- **Mono small** (11pt): command row URLs, context chip (500), timing columns, review-queue refs, review rows' `repo#number`, team slug, login, and diffstat; 10pt for guide-word, sidebar, and tab counts (500) and ruler ticks.
 - **Badge** (600, 9pt, tabular): error, queue, and download counts on toolbar buttons.
 
 Koala-authored web pages use the same faces through `-apple-system, system-ui` and `ui-monospace, SFMono-Regular`: 13px/1.5 body, 20px/600 heading at -0.01em, 12px mono code; the JSON viewer and view source are 12px mono at 1.6 and 1.55.
@@ -310,7 +348,7 @@ The window is a fixed vertical stack: tab strip (40pt, the native compact titleb
 
 Tabs run 120 to 200pt wide with 4pt gaps and a centered 16pt hairline separator between unselected neighbors; pinned tabs are 40pt icon-only. Past the minimum width the strip scrolls whole tabs and shows a guide word at each overflowing edge. The toolbar holds back, forward, reload at left (28pt buttons, 2pt apart, 8pt from the edge), the flexing address field, then the right cluster.
 
-Spacing is a 4pt grid for structure (row heights, gaps, insets of 4, 8, 12, 16, 20pt) with 2pt half steps inside controls (2pt between buttons, 6pt list padding, 10pt and 14pt control insets). Popovers pad 14pt; sheets pad 20pt. The Settings page is a centered 680pt column with a 20pt minimum gutter: 24pt above the title and above the first section, 40pt between sections and before the footer, 40pt at the end. The command bar is 820pt wide (window width minus 48pt when narrower), centered, 12pt below the chrome; below 720pt it drops its preview pane. Peek insets its card 7% of width (min 24pt) and 5% of height (min 16pt). Split view divides the content with a 1pt hairline.
+Spacing is a 4pt grid for structure (row heights, gaps, insets of 4, 8, 12, 16, 20pt) with 2pt half steps inside controls (2pt between buttons, 6pt list padding, 10pt and 14pt control insets). Popovers pad 14pt; sheets pad 20pt. The Settings page is a centered 680pt column with a 20pt minimum gutter: 24pt above the title and above the first section, 40pt between sections and before the footer, 40pt at the end. The command bar is 820pt wide (window width minus 48pt when narrower), centered, 12pt below the chrome; below 720pt it drops its preview pane. Peek insets its card 7% of width (min 24pt) and 5% of height (min 16pt). Split view divides the content with a 1pt hairline. The home page puts a 200pt sidebar and a 1px vertical hairline beside its section, folding the sidebar away below 900pt of page width; Reviews centers a column up to 960pt with 20pt minimum gutters, and below 720pt its rows drop the login, team, diffstat, and decision words.
 
 ## Elevation & Depth
 
@@ -326,7 +364,7 @@ Koala is flat. Docked chrome conveys depth only by tonal step: strip ground sits
 
 ## Shapes
 
-Continuous-curve corners throughout. Controls (tabs, icon buttons, address field, context chip, command rows, web buttons and inputs) take 6pt; floating panels (command bar, address dropdown, Peek card) take 10pt; inner chips inside panels (dev section tabs, console level chips, bookmark items) take 5pt; the tab close button takes 4pt; status dots are 7pt circles. The selected tab rounds only its top corners and runs down into the toolbar; unselected tab hover fills are fully rounded and inset 3pt top and bottom. Borders are 1px hairlines, or 1.5pt teal for the editing ring.
+Continuous-curve corners throughout. Controls (tabs, icon buttons, address field, context chip, command rows, web buttons and inputs) take 6pt; floating panels (command bar, address dropdown, Peek card) take 10pt; inner chips inside panels (dev section tabs, console level chips, bookmark items, home sidebar rows, facet chips, review rows) take 5pt; the tab close button takes 4pt; status dots are 7pt circles. The selected tab rounds only its top corners and runs down into the toolbar; unselected tab hover fills are fully rounded and inset 3pt top and bottom. Borders are 1px hairlines, or 1.5pt teal for the editing ring.
 
 ## Components
 
@@ -350,8 +388,8 @@ The overflow edge of a scrolling strip: a 9pt semibold drawn chevron in tertiary
 ### Address Field
 The primary action of the window.
 - **Resting:** field well, 6pt, 28pt tall, 10pt inset; host in 13pt primary, path in 12pt tertiary mono; a bookmark star at the trailing edge (tertiary, teal when filled).
-- **Editing:** editing-field fill and a 1.5pt teal ring; the full URL, all selected; the star hides.
-- **Dropdown:** the command bar's sectioned list in a 10pt floating panel with a hairline border, as wide as the field; a field 720pt or wider also shows the preview pane. Focusing an empty field (a new tab) shows the zero state; focusing a page URL shows nothing.
+- **Editing:** editing-field fill and a 1.5pt teal ring and a teal caret; the full URL, all selected; the star hides.
+- **Dropdown:** the command bar's sectioned list in a 10pt floating panel with a hairline border, as wide as the field; a field 720pt or wider also shows the preview pane. Focusing the field opens nothing, on a new tab or a page URL: a blank tab's home page stands in for the zero state. Typing opens the list.
 
 ### Context Chip
 On any GitHub page: field well, 6pt, 24pt tall, `owner/repo · #number` in 11pt medium mono secondary, a leading state glyph and a trailing 7pt checks dot. Hover and pressed fills match the icon button.
@@ -390,7 +428,7 @@ The error page, JSON viewer, and view source mirror the chrome tokens through CS
 ### Settings Page
 A searchable native page (koala://settings) in a browser tab, not a window: one column you filter by typing, on chrome surface, flat rows between hairlines, no cards.
 - **Column:** 680pt maximum with a 20pt minimum gutter. It centers on the full page width even while a scroller is visible, so nothing shifts as results change.
-- **Pinned header:** "Settings" in 20pt semibold primary; a 32pt search field (field well, 6pt, 10pt inset, 13pt magnifying glass and text) that takes editing fill and a 1.5pt teal ring when focused, with a trailing 11pt tertiary hint, ⌘F at rest and esc plus a clear button while a query is present. Below it the section index (General, GitHub, Keywords, Extensions, Browsing Data) in dev-section-tab grammar: 26pt, 5pt corners, 9pt insets, 12pt text, current section in hover fill and semibold primary. While searching, each chip shows its match count in 10pt medium mono tertiary and a zero-match chip is disabled. A hairline closes the header; the search field is focused when the page appears.
+- **Pinned header:** "Settings" in 20pt semibold primary; a 32pt search field (field well, 6pt, 10pt inset, 13pt magnifying glass and text) that takes editing fill, a 1.5pt teal ring, and a teal caret when focused, with a trailing 11pt tertiary hint, ⌘F at rest and esc plus a clear button while a query is present. Below it the section index (General, GitHub, Keywords, Extensions, Browsing Data) in dev-section-tab grammar: 26pt, 5pt corners, 9pt insets, 12pt text, current section in hover fill and semibold primary. While searching, each chip shows its match count in 10pt medium mono tertiary and a zero-match chip is disabled. A hairline closes the header; the search field is focused when the page appears.
 - **Sections:** 14pt semibold heading, 12pt tertiary one-line summary 4pt below, 12pt to the first row; 40pt between sections.
 - **Rows:** flat, at least 44pt, 12pt vertical insets, a 1px hairline above each. 13pt primary title, 11pt tertiary detail 3pt below, the native control trailing with a 16pt minimum gap.
 - **Search:** every query word must start a word in the row's section, title, detail, or terms (as in the command bar); non-matching rows and empty sections disappear, and matched word starts are set semibold at the text's own size and face. No matches shows a centered message and a Clear Search button.
@@ -400,6 +438,18 @@ A searchable native page (koala://settings) in a browser tab, not a window: one 
 - **Extensions:** 32pt icon, semibold name with the version in 11pt mono tertiary, 12pt secondary description, 11pt tertiary access summary, then inline 11pt borderless Pin to Toolbar, Options…, and Remove… (Remove in tertiary) tinted accentText. A disabled extension dims its icon and content; its switch stays at full strength.
 - **Footer:** the version and build in 11pt mono tertiary, selectable.
 - **Tab integration:** the tab and command rows show the `gearshape` SF Symbol in place of a favicon; the address field reads "Settings" at rest and shows the koala:// URL while editing; reload is disabled; ⌘F focuses the page search instead of the find bar; ⌘, reveals the one settings tab (focusing its search) or opens it.
+
+### Home Page
+What a blank tab shows (no URL and no web view yet; ⌘T, a new window): a native page on chrome surface, a sections sidebar beside the current section, Reviews first. The address field keeps the caret, so an address typed at once goes straight there. Flat list and facets, no cards, no greeting.
+- **Sidebar:** 200pt, 24pt top and 10pt side insets, rows 2pt apart, then a 1px vertical hairline. Rows in dev-section-tab grammar at 28pt: 8pt insets, 5pt corners, a 16pt-wide 13pt medium SF Symbol (tertiary, primary when current), 8pt gap, 12pt title in secondary (semibold primary on hover fill when current), and a trailing 10pt medium mono tertiary count. Below 900pt of page width the sidebar folds away.
+- **Column:** up to 960pt with 20pt minimum gutters, centered; 24pt above the header, 10pt below it, then a hairline across the section.
+- **Header:** "Reviews" in 20pt semibold primary on a 28pt line, trailing "Updated just now" in 11pt tabular tertiary and a 28pt refresh icon button (13pt medium arrow.clockwise in secondary, a small spinner while refreshing). 12pt below, the Review Requested / My PRs tabs in dev-section-tab grammar (26pt, 5pt, 9pt insets, 2pt apart), each with a 10pt medium mono tertiary count, on ⌥⌘1 and ⌥⌘2. 12pt below, the shared 32pt page search field. 10pt below, the 24pt facet row with the sort menu trailing.
+- **Facet chips:** 24pt, 5pt corners, 8pt insets, 6pt apart, scrolling horizontally rather than wrapping. A menu chip (Repository, Author, Checks) at rest is field well with its 12pt name in secondary and an 8pt semibold tertiary chevron; set, it takes hover fill, shows the value in 12pt medium primary (mono for repository and author), and ends in an 18pt clear button (8pt bold xmark, tertiary). Toggle chips (Direct only, shown only when team requests exist; Hide drafts) take hover fill, 12pt medium primary, and a 9pt bold checkmark when on. While anything is filtered a borderless 12pt secondary Clear follows, with hover fill. Sort is a borderless menu: 12pt secondary title and 8pt semibold chevron. Switching tabs clears every filter.
+- **Rows:** 36pt, 8pt insets, 5pt corners, flat, no separators. A 16pt column with the 12pt state glyph (open or draft); the 13pt primary title, which truncates first; `repo#number` in 11pt mono (repository secondary, number tertiary), which never truncates; a team request adds a 9pt medium person.2 and the team slug in 11pt mono tertiary. Trailing, 12pt apart: a 120pt column holding a 16pt avatar (hairline ring, field-well disc until it loads) and the author's login in 11pt mono secondary on Review Requested, or on My PRs the review decision (a 10pt semibold glyph in its convention color, checkmark pass, exclamationmark fail, circle.dotted tertiary, beside its words in 11pt secondary); the diffstat `+48 −9` in 11pt mono tertiary, neutral, right-aligned in 84pt; the 7pt checks dot; the age (now, 5m, 3h, 2d, 6w, 4mo) in 11pt tabular tertiary, right-aligned in 30pt. Matched word starts are semibold at their own size and face, as in Settings. Below 720pt the login, team, diffstat, and decision words drop.
+- **Hover / Selected:** pointer hover takes hover fill. The keyboard-selected row takes pressed fill, one ramp step deeper, so Return's target is never ambiguous; its title goes to 500 and its tertiary text steps up to secondary to clear 4.5:1 on that fill. Click opens in this tab, ⌘-click in a new tab; the context menu offers Open in New Tab, Copy Link, Copy Branch, and Copy Checkout Command.
+- **States:** signed out, the header keeps only its title, and 32pt below the hairline sit a 13pt secondary sentence and the Sign In… primary button. Loading shows six static skeleton rows in field well that mirror the row's columns (glyph, title bar, avatar and login, diffstat, dot, age), while the tabs, search, and facets hold their space invisibly so rows land where the placeholders sit. A failed first load gives that space back and shows the error line (11pt fail triangle, 12pt secondary message, small Try Again); a later failure shows the same line above the rows. Empty is a 13pt secondary sentence over a 12pt tertiary line; filtered empty is "No pull requests match." with a small Clear Filters. Search and facets stay hidden until there is something to filter. A truncated list ends 16pt below the rows with "Showing the N most recently updated of M." in 11pt tabular tertiary and an 11pt medium secondary Open on GitHub.
+- **Keyboard:** ⌘F focuses the search field instead of the find bar; ⌘R and the reload button refresh the list; the arrow keys in the search field move the selection and scroll it into view, Return opens it (or the first row), ⌘Return opens it in a new tab, and Esc clears the query. Zoom, print, and view source are disabled.
+- **Accent:** teal appears on this page only as the search field's focus ring and caret and the Sign In… button.
 
 ## Do's and Don'ts
 

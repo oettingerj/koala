@@ -7,11 +7,19 @@ protocol SearchablePage: NSView {
     func focusSearch()
 }
 
+/// A native page whose content ⌘R refreshes (Reviews), instead of reloading a web view.
+@MainActor
+protocol RefreshablePage: NSView {
+    func refresh()
+}
+
 /// The search field native pages share. Esc clears it.
 struct PageSearchField: View {
     let prompt: String
     @Binding var text: String
     var focused: FocusState<Bool>.Binding
+    /// Arrow keys and Return, for pages whose list the field drives.
+    var onKey: ((KeyPress) -> KeyPress.Result)?
 
     var body: some View {
         HStack(spacing: 8) {
@@ -27,6 +35,7 @@ struct PageSearchField: View {
                     text = ""
                     return .handled
                 }
+                .onKeyPress(keys: [.upArrow, .downArrow, .return]) { press in onKey?(press) ?? .ignored }
             if text.isEmpty {
                 Text("⌘F").font(.system(size: 11).monospacedDigit()).foregroundStyle(settingsTertiary).accessibilityHidden(true)
             } else {
@@ -62,5 +71,40 @@ struct PageColumn<Content: View>: View {
             .frame(width: column, alignment: .leading)
             .frame(maxWidth: .infinity)
             .onGeometryChange(for: CGFloat.self, of: \.size.width) { pageWidth = $0 }
+    }
+}
+
+/// A native page's search query. Like the command bar, every query word must start a word in the row's text,
+/// so "pin" finds Pin to Toolbar but not "typing".
+struct PageFilter {
+    var query = ""
+
+    var words: [String] { Self.words(in: query) }
+    var isActive: Bool { !words.isEmpty }
+
+    private static func words(in text: String) -> [String] {
+        text.lowercased().split { !$0.isLetter && !$0.isNumber && $0 != "%" }.map(String.init)
+    }
+
+    func matches(_ text: String) -> Bool {
+        let haystack = Self.words(in: text)
+        return words.allSatisfy { word in haystack.contains { $0.hasPrefix(word) } }
+    }
+
+    /// Sets the matched word starts in semibold at the text's own size, so a filtered row shows why it matched.
+    func highlight(_ text: String, size: CGFloat, design: Font.Design = .default) -> AttributedString {
+        var result = AttributedString(text)
+        for word in words {
+            var searchStart = text.startIndex
+            while let range = text.range(of: word, options: .caseInsensitive, range: searchStart..<text.endIndex) {
+                let startsWord = range.lowerBound == text.startIndex || !text[text.index(before: range.lowerBound)].isLetter
+                    && !text[text.index(before: range.lowerBound)].isNumber
+                if startsWord, let marked = Range(range, in: result) {
+                    result[marked].font = .system(size: size, weight: .semibold, design: design)
+                }
+                searchStart = range.upperBound
+            }
+        }
+        return result
     }
 }
