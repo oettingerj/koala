@@ -1,6 +1,6 @@
 import Foundation
 
-/// Live state of a pull request or issue, as shown in the tab strip and context chip.
+/// Live state of a pull request or issue, as shown in the tab strip and context popover.
 public struct GitHubStatus: Equatable, Sendable {
     public enum State: Equatable, Sendable {
         case open, draft, merged, closed
@@ -350,21 +350,6 @@ public actor GitHubClient {
             guard let name = node["nameWithOwner"] as? String, let url = (node["url"] as? String).flatMap(URL.init(string:)) else { return nil }
             return GitHubRepository(nameWithOwner: name, description: node["description"] as? String, url: url)
         }
-    }
-
-    /// The newest open pull request from `headRef`, or nil when the branch has none.
-    public func pullRequest(owner: String, repo: String, headRef: String) async throws -> URL? {
-        let query = """
-        query($owner: String!, $repo: String!, $head: String!) { repository(owner: $owner, name: $repo) {
-          pullRequests(headRefName: $head, states: [OPEN], first: 1, orderBy: {field: UPDATED_AT, direction: DESC}) {
-            nodes { url } } } }
-        """
-        return Self.decodePullRequestURL(try await graphQL(query, variables: ["owner": owner, "repo": repo, "head": headRef]))
-    }
-
-    static func decodePullRequestURL(_ data: [String: Any]) -> URL? {
-        let nodes = ((data["repository"] as? [String: Any])?["pullRequests"] as? [String: Any])?["nodes"] as? [[String: Any]]
-        return (nodes?.first?["url"] as? String).flatMap(URL.init(string:))
     }
 
     /// Resolves a branch or tag to its commit SHA. Works signed out for public repositories.

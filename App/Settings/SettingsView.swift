@@ -104,7 +104,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     var summary: String {
         switch self {
         case .general: "How the address field searches, and which browser opens links."
-        case .github: "Pull request and CI status in tabs, and where Open in Editor finds your clones."
+        case .github: "Pull request and CI status in tabs, and the review queue."
         case .keywords: "Type a keyword and a space in the address field or command bar to search that site."
         case .extensions: "Safari-compatible web extensions, including most Manifest V3 Chrome extensions."
         case .sites: "What each site may use, and what Koala keeps for it."

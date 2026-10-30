@@ -163,33 +163,23 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     // MARK: GitHub
 
     private var github: GitHubService { .shared }
-    private var popover: NSPopover?
+    private let popover = PopoverPresenter()
     private var signInPanel: NSPanel?
-
-    private func showPopover(_ controller: NSViewController, from view: NSView) {
-        popover?.close()
-        let popover = NSPopover()
-        popover.behavior = .transient
-        popover.contentViewController = controller
-        popover.show(relativeTo: view.bounds, of: view, preferredEdge: .maxY)
-        self.popover = popover
-    }
 
     @objc func showGitHubContext(_ sender: Any?) {
         guard let tab = tabs.focused, let page = GitHubURL(tab.url) else { return }
-        let view = GitHubContextPopover(github: page, status: github.status(for: tab.url), isSignedIn: github.isSignedIn,
-                                        hasClone: github.clones.clone(for: page) != nil) { [weak self] action in
-            self?.popover?.close()
+        let view = GitHubContextPopover(github: page, status: github.status(for: tab.url), isSignedIn: github.isSignedIn) { [weak self] action in
+            self?.popover.close()
             self?.performGitHub(action, page: page)
         }
-        showPopover(GitHubHosting.contextPopover(view), from: rootView.toolbar.githubChip)
+        GitHubHosting.show(view, in: popover, from: rootView.toolbar.addressField)
     }
 
     @objc func showReviewQueue(_ sender: Any?) {
         let view = ReviewQueuePopover(items: github.queue, isSignedIn: github.isSignedIn,
-                                      open: { [weak self] url in self?.popover?.close(); self?.openTab(url: url, select: true) },
-                                      signIn: { [weak self] in self?.popover?.close(); self?.signInToGitHub(nil) })
-        showPopover(GitHubHosting.queuePopover(view), from: rootView.toolbar.queueButton)
+                                      open: { [weak self] url in self?.popover.close(); self?.openTab(url: url, select: true) },
+                                      signIn: { [weak self] in self?.popover.close(); self?.signInToGitHub(nil) })
+        GitHubHosting.show(view, in: popover, from: rootView.toolbar.queueButton)
     }
 
     /// A child panel rather than a sheet: the verification page opens as a tab in this window,
@@ -226,11 +216,6 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         performGitHub(.copyPermalink, page: page)
     }
 
-    @objc func openInEditor(_ sender: Any?) {
-        guard let page = GitHubURL(tabs.focused?.url) else { return }
-        performGitHub(.openInEditor, page: page)
-    }
-
     /// Opens the first failing check's page; for GitHub Actions that is the job's log.
     @objc func openFailingCheck(_ sender: Any?) {
         guard let url = failingCheckURL else { return NSSound.beep() }
@@ -239,23 +224,6 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
 
     private var failingCheckURL: URL? {
         github.status(for: tabs.focused?.url)?.checkRuns.first { $0.result == .failing }?.url
-    }
-
-    /// Opens the pull request for the branch checked out in this repository's local clone, or
-    /// GitHub's page for opening one when the branch has none yet.
-    @objc func openLocalBranchPullRequest(_ sender: Any?) {
-        guard let page = GitHubURL(tabs.focused?.url), let clone = github.clones.clone(for: page) else { return NSSound.beep() }
-        guard let branch = LocalClones.currentBranch(at: clone) else {
-            return report("\((clone.path as NSString).abbreviatingWithTildeInPath) isn’t on a branch.", failed: true)
-        }
-        let opener = tabs.focused
-        Task {
-            let found = try? await github.client.pullRequest(owner: page.owner, repo: page.repo, headRef: branch)
-            let encoded = branch.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? branch
-            let compare = URL(string: "https://github.com/\(page.slug)/compare/\(encoded)?expand=1")
-            guard let url = (found ?? nil) ?? compare else { return }
-            openTab(url: url, select: true, opener: opener)
-        }
     }
 
     @objc func copyCheckoutCommand(_ sender: Any?) {
@@ -278,8 +246,6 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
                 guard let sha, let url = page.permalink(sha: sha) else { return NSSound.beep() }
                 Pasteboard.copy(url: url, title: "")
             }
-        case .openInEditor:
-            if !github.openInEditor(page) { promptForCodeRoot(then: page) }
         case .signIn:
             signInToGitHub(nil)
         case .open(let url):
@@ -290,34 +256,6 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     private func copyString(_ string: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(string, forType: .string)
-    }
-
-    /// No clone matched: offer to pick the code folder (once), or copy a clone command.
-    private func promptForCodeRoot(then page: GitHubURL) {
-        guard let window else { return }
-        let alert = NSAlert()
-        alert.messageText = "No local clone of \(page.slug)"
-        alert.informativeText = github.codeRoot == nil
-            ? "Choose the folder where you keep your code, and Koala will find clones in it."
-            : "Koala didn’t find this repository under \(github.codeRoot!.path). You can copy a clone command instead."
-        if github.codeRoot == nil { alert.addButton(withTitle: "Choose Folder…") }
-        alert.addButton(withTitle: "Copy Clone Command")
-        alert.addButton(withTitle: "Cancel")
-        let needsRoot = github.codeRoot == nil
-        alert.beginSheetModal(for: window) { [weak self] response in
-            if needsRoot && response == .alertFirstButtonReturn {
-                let panel = NSOpenPanel()
-                panel.canChooseDirectories = true
-                panel.canChooseFiles = false
-                panel.prompt = "Use Folder"
-                panel.begin { result in
-                    guard result == .OK, let url = panel.url else { return }
-                    GitHubService.shared.setCodeRoot(url)
-                }
-            } else if response == (needsRoot ? .alertSecondButtonReturn : .alertFirstButtonReturn) {
-                self?.copyString("git clone git@github.com:\(page.slug).git")
-            }
-        }
     }
 
     // MARK: Downloads, find, zoom, import
@@ -332,7 +270,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
             DownloadManager.shared.retry(item, in: self?.tabs.focused?.webView)
         }
         let button = rootView.toolbar.downloadsButton
-        showPopover(DownloadsHosting.popover(view), from: button.isHidden ? rootView.toolbar.addressField : button)
+        DownloadsHosting.show(view, in: popover, from: button.isHidden ? rootView.toolbar.addressField : button)
     }
 
     @objc func printPage(_ sender: Any?) {
@@ -1145,14 +1083,12 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         case #selector(copyPermalink(_:)):
             if case .blob = GitHubURL(tabs.focused?.url)?.kind { return true }
             return false
-        case #selector(openInEditor(_:)), #selector(showGitHubContext(_:)):
+        case #selector(showGitHubContext(_:)):
             return GitHubURL(tabs.focused?.url) != nil
         case #selector(copyCheckoutCommand(_:)):
             if case .pullRequest = GitHubURL(tabs.focused?.url)?.kind { return true }
             return false
         case #selector(openFailingCheck(_:)): return failingCheckURL != nil
-        case #selector(openLocalBranchPullRequest(_:)):
-            return GitHubURL(tabs.focused?.url).flatMap(github.clones.clone(for:)) != nil
         case #selector(signInToGitHub(_:)): return !github.isSignedIn
         case #selector(signOutOfGitHub(_:)): return github.isSignedIn
         case #selector(findNext(_:)), #selector(findPrevious(_:)):
@@ -1493,8 +1429,15 @@ final class BrowserRootView: NSView {
         didSet {
             devPanelModel.isPresented = showsDevPanel || devPanelModel.isDetached
             if !devPanelModel.isPresented { devPanelModel.close() }
-            devPanel.isHidden = !showsDevPanel
-            devPanelHandle.isHidden = !showsDevPanel
+            // Out of the view tree while closed: a sheet's dimming snapshots the window every
+            // frame of its animation, and a hidden hosting view still lays out and renders.
+            if showsDevPanel {
+                addSubview(devPanel)
+                addSubview(devPanelHandle)
+            } else {
+                devPanel.removeFromSuperview()
+                devPanelHandle.removeFromSuperview()
+            }
             needsLayout = true
         }
     }
@@ -1508,13 +1451,11 @@ final class BrowserRootView: NSView {
         toolbar = ToolbarView(tabs: tabs)
         super.init(frame: .zero)
         content.wantsLayer = true
-        [content, strip, toolbar, bookmarksBar, findBar, devPanel, devPanelHandle].forEach(addSubview)
+        [content, strip, toolbar, bookmarksBar, findBar].forEach(addSubview)
         findBar.onVisibilityChange = { [weak self] in self?.needsLayout = true }
         splitDivider.isHidden = true
         bookmarksBar.isHidden = !showsBookmarksBar
         toolbar.showsHairline = !showsBookmarksBar
-        devPanel.isHidden = true
-        devPanelHandle.isHidden = true
         devPanelHandle.onDrag = { [weak self] delta in
             guard let self else { return }
             devPanelHeight = max(200, min(bounds.height * 0.8, devPanelHeight + delta))

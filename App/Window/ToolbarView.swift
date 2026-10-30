@@ -12,7 +12,6 @@ final class ToolbarView: NSView {
     private lazy var reloadButton = IconButton(symbol: "arrow.clockwise", label: "Reload", action: #selector(BrowserWindowController.reloadOrStop(_:)))
     private lazy var devButton = IconButton(symbol: "chevron.left.forwardslash.chevron.right", label: "Dev Panel",
                                             pointSize: 12, action: #selector(BrowserWindowController.toggleDevPanel(_:)))
-    let githubChip = GitHubChip()
     private(set) lazy var downloadsButton = IconButton(symbol: "arrow.down.circle", label: "Downloads", pointSize: 13,
                                                   action: #selector(BrowserWindowController.showDownloads(_:)))
     private let downloadsBadge = NSTextField(labelWithString: "")
@@ -46,9 +45,6 @@ final class ToolbarView: NSView {
         layer?.addSublayer(progressBar)
         queueBadge.font = .monospacedDigitSystemFont(ofSize: 9, weight: .semibold)
         queueBadge.textColor = Theme.textSecondary
-        githubChip.target = nil
-        githubChip.action = #selector(BrowserWindowController.showGitHubContext(_:))
-        githubChip.isHidden = true
         downloadsBadge.font = .monospacedDigitSystemFont(ofSize: 9, weight: .semibold)
         downloadsBadge.textColor = Theme.accent
         downloadsButton.isHidden = true
@@ -62,7 +58,7 @@ final class ToolbarView: NSView {
         privateBadge.setAccessibilityElement(true)
         privateBadge.setAccessibilityRole(.staticText)
         privateBadge.setAccessibilityLabel("Private window")
-        [privateBadge, backButton, forwardButton, reloadButton, addressField, githubChip, downloadsButton, downloadsBadge,
+        [privateBadge, backButton, forwardButton, reloadButton, addressField, downloadsButton, downloadsBadge,
          extensionsMenuButton, queueButton, queueBadge, devButton].forEach(addSubview)
         setAccessibilityElement(true)
         setAccessibilityRole(.toolbar)
@@ -121,11 +117,6 @@ final class ToolbarView: NSView {
             downloadsBadge.frame.origin = NSPoint(x: downloadsButton.frame.maxX - 9, y: downloadsButton.frame.maxY - 11)
         }
         downloadsBadge.isHidden = downloadsButton.isHidden
-        if !githubChip.isHidden {
-            let width = min(githubChip.intrinsicContentSize.width, 280)
-            trailing -= width + 6
-            githubChip.frame = NSRect(x: trailing, y: (bounds.height - 24) / 2, width: width, height: 24)
-        }
         addressField.frame = NSRect(x: x, y: (bounds.height - fieldHeight) / 2, width: trailing - x - 8, height: fieldHeight)
 
         CATransaction.begin()
@@ -202,9 +193,6 @@ final class ToolbarView: NSView {
         reloadButton.isEnabled = tab?.page == nil
         addressField.show(tab?.url)
         addressField.security = tab?.security ?? .none
-        let github = GitHubURL(tab?.url)
-        githubChip.isHidden = github == nil
-        if let github { githubChip.show(github, status: GitHubService.shared.status(for: tab?.url)) }
         syncExtensionButtons(for: tab)
         let downloads = DownloadManager.shared
         downloadsButton.isHidden = downloads.items.isEmpty

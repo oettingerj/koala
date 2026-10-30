@@ -1,7 +1,7 @@
 import Foundation
 
-/// What a github.com URL points at. Pure parsing; drives tab badges, the context chip,
-/// permalinks, and open-in-editor.
+/// What a github.com URL points at. Pure parsing; drives tab badges, the context popover,
+/// and permalinks.
 public struct GitHubURL: Equatable, Hashable, Sendable {
     public enum Kind: Equatable, Hashable, Sendable {
         case repository
@@ -88,17 +88,6 @@ public struct GitHubURL: Equatable, Hashable, Sendable {
         switch kind {
         case .pullRequest(let number), .issue(let number): number
         default: nil
-        }
-    }
-
-    /// Short label for the context chip: "swiftlang/swift · #123".
-    public var label: String {
-        switch kind {
-        case .pullRequest(let n), .issue(let n): "\(slug) · #\(n)"
-        case .commit(let sha): "\(slug) · \(sha.prefix(7))"
-        case .blob(_, let path, _), .tree(_, let path): path.isEmpty ? slug : "\(slug) · \(path.split(separator: "/").last ?? "")"
-        case .actionsRun(let id): "\(slug) · run \(id)"
-        default: slug
         }
     }
 

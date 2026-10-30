@@ -2,7 +2,7 @@ import AppKit
 import BrowserKit
 import SwiftUI
 
-/// Colors and glyphs for GitHub state, shared by the tab strip, chip, and popovers.
+/// Colors and glyphs for GitHub state, shared by the tab strip, command bar, and popovers.
 enum GitHubStyle {
     static func glyph(_ state: GitHubStatus.State) -> (symbol: String, color: NSColor, label: String) {
         switch state {
@@ -55,16 +55,15 @@ enum GitHubStyle {
     }
 }
 
-// MARK: Context chip popover
+// MARK: Context popover
 
 struct GitHubContextPopover: View {
     let github: GitHubURL
     let status: GitHubStatus?
     let isSignedIn: Bool
-    let hasClone: Bool
     var perform: (Action) -> Void
 
-    enum Action { case copyBranch(String), copyCheckout(Int), copyPermalink, openInEditor, signIn, open(URL) }
+    enum Action { case copyBranch(String), copyCheckout(Int), copyPermalink, signIn, open(URL) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -129,9 +128,6 @@ struct GitHubContextPopover: View {
                     Button("Copy Checkout") { perform(.copyCheckout(number)) }.help("gh pr checkout \(number)")
                 }
                 if case .blob = github.kind { Button("Copy Permalink") { perform(.copyPermalink) } }
-                Button("Open in Editor") { perform(.openInEditor) }
-                    .disabled(!hasClone)
-                    .help(hasClone ? "Open the local clone" : "No local clone found. Choose your code folder in Settings › GitHub.")
             }
             .controlSize(.small)
         }
@@ -277,7 +273,7 @@ struct GitHubSignInView: View {
 
 @MainActor
 enum GitHubHosting {
-    static func contextPopover(_ view: GitHubContextPopover) -> NSViewController { popoverController(view) }
-    static func queuePopover(_ view: ReviewQueuePopover) -> NSViewController { popoverController(view) }
+    static func show(_ view: GitHubContextPopover, in popover: PopoverPresenter, from anchor: NSView) { popover.show(view, from: anchor) }
+    static func show(_ view: ReviewQueuePopover, in popover: PopoverPresenter, from anchor: NSView) { popover.show(view, from: anchor) }
     static func signInPanel(_ view: GitHubSignInView) -> NSViewController { NSHostingController(rootView: view) }
 }

@@ -32,19 +32,11 @@ enum SettingEntries {
     static let githubAccount = SettingEntry(
         id: "github-account", section: .github, title: "Account",
         terms: ["sign in", "sign out", "login", "token", "review queue"])
-    static let codeFolder = SettingEntry(
-        id: "code-folder", section: .github, title: "Code folder",
-        detail: "Open in Editor looks here for local clones of the repository you’re viewing.",
-        terms: ["clones", "repositories", "path", "directory"])
-    static let editor = SettingEntry(
-        id: "editor", section: .github, title: "Editor",
-        detail: "Open in Editor (⌥⌘E) opens the file at the line you’re viewing.",
-        terms: CodeEditor.allCases.map(\.name) + ["ide", "open in editor"])
     static let dockBadge = SettingEntry(
         id: "dock-badge", section: .github, title: "Show review count on Dock icon",
         detail: "Pull requests waiting on your review.",
         terms: ["badge", "dock", "notifications", "review queue", "count"])
-    static let github = [githubAccount, codeFolder, editor, dockBadge]
+    static let github = [githubAccount, dockBadge]
 
     static let importData = SettingEntry(
         id: "import", section: .data, title: "Import",
@@ -172,48 +164,10 @@ struct GeneralSettings: View {
 
 struct GitHubSettings: View {
     @Bindable private var github = GitHubService.shared
-    @State private var editor = GitHubService.shared.editor
 
     var body: some View {
         VStack(spacing: 0) {
             SettingsRowFrame(SettingEntries.githubAccount) { account }
-            SettingRow(SettingEntries.codeFolder) {
-                if let root = github.codeRoot {
-                    HStack(spacing: 6) {
-                        Text((root.path as NSString).abbreviatingWithTildeInPath)
-                            .font(.mono(size: 11)).foregroundStyle(settingsSecondary)
-                            .lineLimit(1).truncationMode(.middle)
-                            .textSelection(.enabled)
-                            .help(root.path)
-                        Text(github.clones.clones.count == 1 ? "1 clone" : "\(github.clones.clones.count) clones")
-                            .font(.system(size: 11).monospacedDigit()).foregroundStyle(settingsTertiary)
-                            .fixedSize()
-                    }
-                } else {
-                    SettingDetail(text: SettingEntries.codeFolder.detail)
-                }
-            } control: {
-                HStack(spacing: 8) {
-                    if let root = github.codeRoot {
-                        Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([root]) }
-                    }
-                    Button("Choose…", action: chooseCodeFolder)
-                }
-            }
-            SettingRow(SettingEntries.editor) {
-                HStack(spacing: 8) {
-                    if let icon = Self.icon(of: editor) {
-                        Image(nsImage: icon).resizable().frame(width: 18, height: 18).accessibilityHidden(true)
-                    } else {
-                        Text("Not installed").font(.system(size: 11)).foregroundStyle(settingsTertiary)
-                    }
-                    Picker("Editor", selection: $editor) {
-                        ForEach(CodeEditor.allCases) { editor in Text(editor.name).tag(editor) }
-                    }
-                    .labelsHidden()
-                    .onChange(of: editor) { _, value in github.editor = value }
-                }
-            }
             SettingRow(SettingEntries.dockBadge) {
                 Toggle("Show review count on Dock icon", isOn: $github.showsDockBadge).settingsSwitch()
             }
@@ -284,18 +238,6 @@ struct GitHubSettings: View {
         }
     }
 
-    private func chooseCodeFolder() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.prompt = "Use Folder"
-        panel.directoryURL = github.codeRoot
-        if panel.runModal() == .OK, let url = panel.url { github.setCodeRoot(url) }
-    }
-
-    private static func icon(of editor: CodeEditor) -> NSImage? {
-        NSWorkspace.shared.urlForApplication(withBundleIdentifier: editor.bundleIdentifier).map { NSWorkspace.shared.icon(forFile: $0.path) }
-    }
 }
 
 // MARK: Browsing data

@@ -138,12 +138,6 @@ components:
   address-field-editing:
     backgroundColor: "{colors.field-editing}"
     textColor: "{colors.text-primary}"
-  context-chip:
-    backgroundColor: "{colors.field-fill}"
-    textColor: "{colors.text-secondary}"
-    typography: "{typography.mono-small}"
-    rounded: "{rounded.control}"
-    height: "24pt"
   command-bar:
     backgroundColor: "{colors.chrome-surface}"
     rounded: "{rounded.panel}"
@@ -303,7 +297,7 @@ State colors draw glyphs, 7pt dots, timing bars, and badge numerals. In light ap
 The ramp, step 0 to 10. Light: #FFFFFF, #FAFAFA, #F4F4F5, #EBEBED, #DEDEE1, #C8C8CD, #A0A0A8, #6C6C75, #4E4E56, #2E2E33, #18181B. Dark: #111113, #18181B, #1E1E21, #26262A, #303035, #3E3E44, #5A5A62, #8A8A93, #A6A6AE, #D4D4D8, #F4F4F5.
 - **Strip Ground** (strip-ground, step 3 light / 0 dark): behind the tab strip and the page content area.
 - **Chrome Surface** (chrome-surface, step 1 / 2): toolbar, selected tab, bookmarks bar, find bar, dev panel, command bar, Peek card, the Settings page, the home page, Koala-authored web pages.
-- **Field Well** (field-fill, step 3 / 1): the resting address field and the context chip, resting facet chips, and the home page's loading placeholders and unloaded avatars.
+- **Field Well** (field-fill, step 3 / 1): the resting address field, resting facet chips, and the home page's loading placeholders and unloaded avatars.
 - **Editing Field** (field-editing, step 0 / 0): the address field while focused.
 - **Hover** (hover-fill, step 4 / 3) and **Pressed** (pressed-fill, step 5 / 4): tabs, icon buttons, bookmarks, chips, selected command row; set facet chips take hover fill; the keyboard-selected review row takes pressed fill.
 - **Hairline** (hairline, step 4 / 4): every 1px separator and every floating-panel border.
@@ -332,7 +326,7 @@ The ramp, step 0 to 10. Light: #FFFFFF, #FAFAFA, #F4F4F5, #EBEBED, #DEDEE1, #C8C
 - **Body** (400, 12pt): tab titles, dev panel section tabs, popover body copy, bookmarks, find field.
 - **Label** (400, 11pt): row subtitles, guide-word titles, dev filter chips, metadata.
 - **Mono** (400, 12pt): the address field's path at rest, Peek host, console text, storage keys (500) and values, repo slug and branch refs.
-- **Mono small** (11pt): command row URLs, context chip (500), timing columns, review-queue refs, review rows' `repo#number`, team slug, login, and diffstat; 10pt for guide-word, sidebar, and tab counts (500) and ruler ticks.
+- **Mono small** (11pt): command row URLs, timing columns, review-queue refs, review rows' `repo#number`, team slug, login, and diffstat; 10pt for guide-word, sidebar, and tab counts (500) and ruler ticks.
 - **Badge** (600, 9pt, tabular): error, queue, and download counts on toolbar buttons.
 
 Koala-authored web pages use the same faces through `-apple-system, system-ui` and an embedded 0xProto `@font-face` (falling back to `ui-monospace, SFMono-Regular`): 13px/1.5 body, 20px/600 heading at -0.01em, 12px mono code; the JSON viewer and view source are 12px mono at 1.6 and 1.55.
@@ -364,7 +358,7 @@ Koala is flat. Docked chrome conveys depth only by tonal step: strip ground sits
 
 ## Shapes
 
-Continuous-curve corners throughout. Controls (tabs, icon buttons, address field, context chip, command rows, web buttons and inputs) take 6pt; floating panels (command bar, address dropdown, Peek card) take 10pt; inner chips inside panels (dev section tabs, console level chips, bookmark items, home sidebar rows, facet chips, review rows) take 5pt; the tab close button takes 4pt; status dots are 7pt circles. The selected tab rounds only its top corners and runs down into the toolbar; unselected tab hover fills are fully rounded and inset 3pt top and bottom. Borders are 1px hairlines, or 1.5pt teal for the editing ring.
+Continuous-curve corners throughout. Controls (tabs, icon buttons, address field, command rows, web buttons and inputs) take 6pt; floating panels (command bar, address dropdown, Peek card) take 10pt; inner chips inside panels (dev section tabs, console level chips, bookmark items, home sidebar rows, facet chips, review rows) take 5pt; the tab close button takes 4pt; status dots are 7pt circles. The selected tab rounds only its top corners and runs down into the toolbar; unselected tab hover fills are fully rounded and inset 3pt top and bottom. Borders are 1px hairlines, or 1.5pt teal for the editing ring.
 
 ## Components
 
@@ -390,9 +384,6 @@ The primary action of the window.
 - **Resting:** field well, 6pt, 28pt tall, 10pt inset; host in 13pt primary, path in 12pt tertiary mono; a bookmark star at the trailing edge (tertiary, teal when filled).
 - **Editing:** editing-field fill and a 1.5pt teal ring and a teal caret; the full URL, all selected; the star hides.
 - **Dropdown:** the command bar's sectioned list in a 10pt floating panel with a hairline border, as wide as the field; a field 720pt or wider also shows the preview pane. Focusing the field opens nothing, on a new tab or a page URL: a blank tab's home page stands in for the zero state. Typing opens the list.
-
-### Context Chip
-On any GitHub page: field well, 6pt, 24pt tall, `owner/repo · #number` in 11pt medium mono secondary, a leading state glyph and a trailing 7pt checks dot. Hover and pressed fills match the icon button.
 
 ### Command Bar
 - **Container:** 820pt, so the list and its preview fit side by side and the width never changes while typing; 10pt radius, chrome surface, 1px hairline border, system shadow; 16pt query field with an 18pt search glyph, a hairline under the field. The list scrolls past 520pt; reaching a section's first row by keyboard scrolls its header into view.

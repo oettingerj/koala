@@ -3,8 +3,7 @@ import BrowserKit
 import Observation
 import os
 
-/// App-wide GitHub state: sign-in, live PR/issue status for open tabs, the review queue,
-/// and local clones for "Open in Editor".
+/// App-wide GitHub state: sign-in, live PR/issue status for open tabs, and the review queue.
 @MainActor
 @Observable
 final class GitHubService {
@@ -24,15 +23,7 @@ final class GitHubService {
     private(set) var isRefreshingPulls = false
     /// The toolbar's review queue, from `pulls`.
     var queue: [GitHubQueueItem] { pulls.queue }
-    private(set) var clones = LocalClones()
     private(set) var lastError: String?
-
-    var editor: CodeEditor {
-        get { CodeEditor(rawValue: UserDefaults.standard.string(forKey: "CodeEditor") ?? "") ?? .vscode }
-        set { UserDefaults.standard.set(newValue.rawValue, forKey: "CodeEditor") }
-    }
-
-    private(set) var codeRoot: URL?
 
     /// Shows how many pull requests wait on your review on the Dock icon.
     var showsDockBadge = UserDefaults.standard.object(forKey: "DockReviewBadge") as? Bool ?? true {
@@ -52,7 +43,6 @@ final class GitHubService {
     private static let pollInterval: Duration = .seconds(60)
 
     private init() {
-        restoreCodeRoot()
         startPolling()
     }
 
@@ -183,44 +173,6 @@ final class GitHubService {
         pendingStatuses = []
         pulls = GitHubPulls()
         pullsUpdatedAt = nil
-    }
-
-    // MARK: Local clones
-
-    /// Remembers the folder that holds clones. Security-scoped, which also keeps bookmarks saved while sandboxed working.
-    func setCodeRoot(_ url: URL) {
-        guard let bookmark = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) else { return }
-        UserDefaults.standard.set(bookmark, forKey: "CodeRootBookmark")
-        restoreCodeRoot()
-    }
-
-    private func restoreCodeRoot() {
-        guard let data = UserDefaults.standard.data(forKey: "CodeRootBookmark") else { return }
-        var stale = false
-        guard let url = try? URL(resolvingBookmarkData: data, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &stale),
-              url.startAccessingSecurityScopedResource() else { return }
-        codeRoot = url
-        rescanClones()
-    }
-
-    func rescanClones() {
-        guard let codeRoot else { return }
-        Task.detached(priority: .utility) {
-            let found = LocalClones.scan(root: codeRoot)
-            await MainActor.run { GitHubService.shared.clones = found }
-        }
-    }
-
-    /// Opens the file behind a GitHub page in the chosen editor. Returns false when no clone matches.
-    @discardableResult
-    func openInEditor(_ github: GitHubURL) -> Bool {
-        guard let (file, line) = clones.file(for: github) else { return false }
-        if let url = editor.url(for: file, line: line) {
-            NSWorkspace.shared.open(url)
-        } else if let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: editor.bundleIdentifier) {
-            NSWorkspace.shared.open([file], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
-        }
-        return true
     }
 
     // MARK: Command bar

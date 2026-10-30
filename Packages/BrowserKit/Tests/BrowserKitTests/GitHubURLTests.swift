@@ -43,11 +43,6 @@ import Testing
         #expect(parsed.permalink(sha: "deadbeef")?.absoluteString == "https://github.com/a/b/blob/deadbeef/Sources/My%20File.swift#L3-L9")
     }
 
-    @Test func labels() throws {
-        #expect(try #require(parse("https://github.com/a/b/pull/7")).label == "a/b · #7")
-        #expect(try #require(parse("https://github.com/a/b/blob/main/x/y.swift")).label == "a/b · y.swift")
-    }
-
     @Test func shorthandJumps() {
         #expect(GitHubURL.shorthand("swiftlang/swift#42")?.absoluteString == "https://github.com/swiftlang/swift/pull/42")
         #expect(GitHubURL.shorthand("not a ref") == nil)
