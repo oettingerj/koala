@@ -356,7 +356,7 @@ enum BookmarkMenus {
             let name = title.stringValue.trimmingCharacters(in: .whitespaces)
             let url = AddressInput.resolve(address.stringValue)
             guard response == .alertFirstButtonReturn, !name.isEmpty else { return }
-            MainActor.assumeIsolated { Task { try? await library.update(bookmark, title: name, url: url) } }
+            MainActor.assumeIsolated { _ = Task { try? await library.update(bookmark, title: name, url: url) } }
         }
     }
 
