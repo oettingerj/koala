@@ -215,7 +215,7 @@ final class GitHubSignIn {
             } catch GitHubDeviceFlow.Failure.expired {
                 phase = .failed("The code expired. Try again.")
             } catch GitHubDeviceFlow.Failure.misconfigured(let message) {
-                phase = .failed("GitHub rejected the request: \(message). Check that device flow is enabled for Koala’s GitHub App.")
+                phase = .failed("GitHub rejected the request: \(message). Check that device flow is enabled for Koala’s OAuth app.")
             } catch {
                 phase = .failed("Couldn’t reach GitHub. Check your connection and try again.")
             }
@@ -251,6 +251,8 @@ struct GitHubSignInView: View {
                     ProgressView().controlSize(.small)
                     Text("Waiting for approval").font(.system(size: 11)).foregroundStyle(Color(nsColor: Theme.textTertiary))
                 }
+                Text("If an organization restricts third-party apps, choose Request next to it on GitHub so its owners can approve Koala.")
+                    .font(.system(size: 11)).foregroundStyle(Color(nsColor: Theme.textTertiary)).fixedSize(horizontal: false, vertical: true)
             case .failed(let message):
                 Text(message).font(.system(size: 12)).foregroundStyle(Color(nsColor: Theme.fail)).fixedSize(horizontal: false, vertical: true)
                 Button("Try Again") { model.start() }

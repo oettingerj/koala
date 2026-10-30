@@ -7,6 +7,16 @@ public enum GitHubKeychain {
     private static let account = "oauth-token"
 
     public static func read() -> String? {
+        guard let token = stored() else { return nil }
+        // Tokens from Koala's old GitHub App only reach organizations that installed it; sign in again.
+        if token.hasPrefix("ghu_") {
+            delete()
+            return nil
+        }
+        return token
+    }
+
+    private static func stored() -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -43,9 +53,10 @@ public enum GitHubKeychain {
     }
 }
 
-/// GitHub's device flow for Koala's GitHub App: show a code, the user approves it on github.com,
+/// GitHub's device flow for Koala's OAuth app: show a code, the user approves it on github.com,
 /// Koala polls for the token. Needs only the client ID (no secret), so nothing sensitive ships in
-/// the app. The app's permissions, not OAuth scopes, decide what the token can read.
+/// the app. An OAuth token acts as the user, so it reaches every organization they belong to without
+/// an app install; organizations that restrict OAuth apps still need to approve Koala once.
 public struct GitHubDeviceFlow: Sendable {
     public struct Code: Decodable, Sendable, Equatable {
         public let deviceCode: String
@@ -64,7 +75,9 @@ public struct GitHubDeviceFlow: Sendable {
         case denied, expired, misconfigured(String), network
     }
 
-    public static let clientID = "Iv23lioS0vGo6UDwmuPr"
+    public static let clientID = "Ov23likoyIsSo7ozGaTI"
+    /// `repo` is the only scope that reads private repositories; `read:org` names the teams asked to review.
+    public static let scopes = "repo read:org"
     private let session: URLSession
 
     public init(session: URLSession = .shared) {
@@ -72,7 +85,7 @@ public struct GitHubDeviceFlow: Sendable {
     }
 
     public func requestCode() async throws -> Code {
-        let data = try await post("https://github.com/login/device/code", ["client_id": Self.clientID])
+        let data = try await post("https://github.com/login/device/code", ["client_id": Self.clientID, "scope": Self.scopes])
         if let error = try? JSONDecoder().decode(ErrorBody.self, from: data) {
             throw Failure.misconfigured(error.errorDescription ?? error.error)
         }
