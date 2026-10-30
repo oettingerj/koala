@@ -69,9 +69,9 @@ struct GitHubContextPopover: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 6) {
-                Text(github.slug).font(.system(size: 12, design: .monospaced)).foregroundStyle(Color(nsColor: Theme.textSecondary))
+                Text(github.slug).font(.mono(size: 12)).foregroundStyle(Color(nsColor: Theme.textSecondary))
                 if let number = github.number {
-                    Text(verbatim: "#\(number)").font(.system(size: 12, design: .monospaced)).foregroundStyle(Color(nsColor: Theme.textTertiary))
+                    Text(verbatim: "#\(number)").font(.mono(size: 12)).foregroundStyle(Color(nsColor: Theme.textTertiary))
                 }
             }
             if let status {
@@ -82,9 +82,9 @@ struct GitHubContextPopover: View {
                 }
                 if let head = status.headRef, let base = status.baseRef {
                     HStack(spacing: 6) {
-                        Text(head).font(.system(size: 12, design: .monospaced))
+                        Text(head).font(.mono(size: 12))
                         Image(systemName: "arrow.right").font(.system(size: 9)).foregroundStyle(Color(nsColor: Theme.textTertiary))
-                        Text(base).font(.system(size: 12, design: .monospaced)).foregroundStyle(Color(nsColor: Theme.textSecondary))
+                        Text(base).font(.mono(size: 12)).foregroundStyle(Color(nsColor: Theme.textSecondary))
                         Spacer()
                         Button("Copy Branch") { perform(.copyBranch(head)) }.controlSize(.small)
                     }
@@ -173,7 +173,7 @@ struct ReviewQueuePopover: View {
                                 .frame(width: 14)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(item.title).font(.system(size: 12, weight: .medium)).foregroundStyle(Color(nsColor: Theme.textPrimary)).lineLimit(2)
-                                Text(verbatim: "\(item.repo)#\(item.number)").font(.system(size: 11, design: .monospaced))
+                                Text(verbatim: "\(item.repo)#\(item.number)").font(.mono(size: 11))
                                     .foregroundStyle(Color(nsColor: Theme.textTertiary))
                             }
                             Spacer()
@@ -239,7 +239,7 @@ struct GitHubSignInView: View {
             case .waiting(let code):
                 Text("Enter this code on GitHub to let Koala read pull request and issue status.")
                     .font(.system(size: 12)).foregroundStyle(Color(nsColor: Theme.textSecondary)).fixedSize(horizontal: false, vertical: true)
-                Text(code.userCode).font(.system(size: 28, weight: .semibold, design: .monospaced)).textSelection(.enabled)
+                Text(code.userCode).font(.mono(size: 28, weight: .semibold)).textSelection(.enabled)
                     .tracking(2)
                 HStack {
                     Button("Copy Code and Open GitHub") {

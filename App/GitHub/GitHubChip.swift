@@ -29,7 +29,7 @@ final class GitHubChip: NSButton {
         checks = status?.checks ?? .none
         image = status.flatMap { GitHubStyle.image($0.state, size: 11) }
         attributedTitle = NSAttributedString(string: (image == nil ? "" : " ") + github.label, attributes: [
-            .font: NSFont.monospacedSystemFont(ofSize: 11, weight: .medium), .foregroundColor: Theme.textSecondary,
+            .font: Theme.mono(ofSize: 11, weight: .medium), .foregroundColor: Theme.textSecondary,
         ])
         var description = github.label
         if let status { description += ", " + GitHubStyle.glyph(status.state).label.lowercased() }

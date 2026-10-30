@@ -65,7 +65,7 @@ public enum ErrorPage {
         <!doctype html>
         <html><head><meta charset="utf-8"><title>\(escape(headline))</title>
         <meta name="color-scheme" content="light dark">
-        <style>
+        <style>\(MonoFont.cssFontFace)
           :root { --bg: #FAFAFA; --fg: #18181B; --muted: #6C6C75; --rule: #DEDEE1; --accent: #0B7A6D; --on-accent: #FFFFFF; }
           @media (prefers-color-scheme: dark) {
             :root { --bg: #1E1E21; --fg: #F4F4F5; --muted: #8A8A93; --rule: #303035; --accent: #2CC3AE; --on-accent: #0B1F1C; }
@@ -76,7 +76,7 @@ public enum ErrorPage {
           h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 8px; }
           p { margin: 0 0 4px; color: var(--muted); }
           p.note { margin-top: 8px; color: var(--fg); }
-          code { font: 12px/1.5 ui-monospace, SFMono-Regular, monospace; color: var(--muted); word-break: break-all; }
+          code { font: 12px/1.5 \(MonoFont.cssFamily); color: var(--muted); word-break: break-all; }
           .url { display: block; margin: 16px 0 20px; padding-top: 12px; border-top: 1px solid var(--rule); }
           a.retry { display: inline-block; padding: 5px 12px; border-radius: 6px; background: var(--accent);
                     color: var(--on-accent); text-decoration: none; font-weight: 500; }

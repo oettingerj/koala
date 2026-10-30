@@ -49,6 +49,8 @@ public struct GitHubPull: Equatable, Sendable, Identifiable {
     public var url: URL
     public var author: String?
     public var authorAvatarURL: URL?
+    /// Opened by an app, such as Dependabot or Renovate, rather than a person.
+    public var isBot: Bool
     public var isDraft: Bool
     public var createdAt: Date?
     public var updatedAt: Date?
@@ -65,7 +67,7 @@ public struct GitHubPull: Equatable, Sendable, Identifiable {
     public var id: String { "\(repo)#\(number)" }
 
     public init(repo: String, number: Int, title: String, url: URL, author: String? = nil, authorAvatarURL: URL? = nil,
-                isDraft: Bool = false, createdAt: Date? = nil, updatedAt: Date? = nil, additions: Int = 0, deletions: Int = 0,
+                isBot: Bool = false, isDraft: Bool = false, createdAt: Date? = nil, updatedAt: Date? = nil, additions: Int = 0, deletions: Int = 0,
                 headRef: String? = nil, baseRef: String? = nil, reviewDecision: String? = nil, checks: GitHubStatus.Checks = .none,
                 isTeamRequest: Bool = false, requestedTeam: String? = nil) {
         self.repo = repo
@@ -74,6 +76,7 @@ public struct GitHubPull: Equatable, Sendable, Identifiable {
         self.url = url
         self.author = author
         self.authorAvatarURL = authorAvatarURL
+        self.isBot = isBot
         self.isDraft = isDraft
         self.createdAt = createdAt
         self.updatedAt = updatedAt
@@ -270,7 +273,7 @@ public actor GitHubClient {
         fragment Pull on PullRequest {
           number title url isDraft createdAt updatedAt additions deletions headRefName baseRefName reviewDecision
           repository { nameWithOwner }
-          author { login avatarUrl(size: 40) }
+          author { __typename login avatarUrl(size: 40) }
           commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
           reviewRequests(first: 10) { nodes { requestedReviewer { __typename ... on Team { name } } } }
         }
@@ -312,6 +315,7 @@ public actor GitHubClient {
         return GitHubPull(repo: repo, number: number, title: title, url: url,
                           author: author?["login"] as? String,
                           authorAvatarURL: (author?["avatarUrl"] as? String).flatMap(URL.init(string:)),
+                          isBot: author?["__typename"] as? String == "Bot",
                           isDraft: node["isDraft"] as? Bool ?? false,
                           createdAt: date("createdAt"), updatedAt: date("updatedAt"),
                           additions: node["additions"] as? Int ?? 0, deletions: node["deletions"] as? Int ?? 0,

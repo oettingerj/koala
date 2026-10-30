@@ -114,7 +114,7 @@ private struct KeywordRow: View {
                 GridRow {
                     label("Keyword")
                     TextField("gh", text: $draft.search.keyword)
-                        .font(.system(size: 12, design: .monospaced))
+                        .font(.mono(size: 12))
                         .focused($keywordFocused)
                         .frame(maxWidth: 140)
                         .gridColumnAlignment(.leading)
@@ -126,7 +126,7 @@ private struct KeywordRow: View {
                 GridRow {
                     label("URL")
                     TextField("https://github.com/search?q=%s", text: $draft.search.template)
-                        .font(.system(size: 12, design: .monospaced))
+                        .font(.mono(size: 12))
                 }
             }
             .textFieldStyle(.roundedBorder)
@@ -160,8 +160,8 @@ private struct KeywordChip: View {
     @Environment(\.settingsFilter) private var filter
 
     var body: some View {
-        Text(filter.highlight(keyword.isEmpty ? "—" : keyword, size: 12, design: .monospaced))
-            .font(.system(size: 12, weight: .medium, design: .monospaced))
+        Text(filter.highlight(keyword.isEmpty ? "—" : keyword, size: 12, mono: true))
+            .font(.mono(size: 12, weight: .medium))
             .foregroundStyle(keyword.isEmpty ? settingsTertiary : settingsPrimary)
             .lineLimit(1).truncationMode(.tail)
             .padding(.horizontal, 6).frame(height: 22)
@@ -177,7 +177,7 @@ private struct TemplateText: View {
 
     var body: some View {
         Text(attributed)
-            .font(.system(size: 11, design: .monospaced))
+            .font(.mono(size: 11))
             .lineLimit(1).truncationMode(.middle)
             .help(template)
     }
@@ -187,9 +187,9 @@ private struct TemplateText: View {
         for prefix in ["https://", "http://"] where rest.hasPrefix(prefix) { rest = rest.dropFirst(prefix.count) }
         if rest.hasPrefix("www.") { rest = rest.dropFirst(4) }
         let split = rest.firstIndex { $0 == "/" || $0 == "?" } ?? rest.endIndex
-        var host = filter.highlight(String(rest[..<split]), size: 11, design: .monospaced)
+        var host = filter.highlight(String(rest[..<split]), size: 11, mono: true)
         host.foregroundColor = settingsSecondary
-        var remainder = filter.highlight(String(rest[split...]), size: 11, design: .monospaced)
+        var remainder = filter.highlight(String(rest[split...]), size: 11, mono: true)
         remainder.foregroundColor = settingsTertiary
         return host + remainder
     }

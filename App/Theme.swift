@@ -1,4 +1,6 @@
 import AppKit
+import BrowserKit
+import SwiftUI
 
 /// Koala's design tokens. One 11-step neutral ramp is the only tonal scale; every surface,
 /// hairline, and text color is a step on it. Chroma is reserved for the accent and state.
@@ -60,7 +62,13 @@ enum Theme {
     static let tabTitle = NSFont.systemFont(ofSize: 12, weight: .regular)
     static let tabTitleSelected = NSFont.systemFont(ofSize: 12, weight: .medium)
     static let field = NSFont.systemFont(ofSize: 13, weight: .regular)
-    static let fieldMono = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+    static let fieldMono = mono(ofSize: 12)
+
+    /// 0xProto, the monospace face. It ships Regular and Bold only: semibold and heavier set Bold.
+    static func mono(ofSize size: CGFloat, weight: NSFont.Weight = .regular) -> NSFont {
+        NSFont(name: weight.rawValue >= NSFont.Weight.semibold.rawValue ? MonoFont.bold : MonoFont.regular, size: size)
+            ?? .monospacedSystemFont(ofSize: size, weight: weight)
+    }
 
     // MARK: Geometry (4pt grid)
 
@@ -108,5 +116,12 @@ extension NSView {
         var cg = color.cgColor
         effectiveAppearance.performAsCurrentDrawingAppearance { cg = color.cgColor }
         return cg
+    }
+}
+
+extension Font {
+    /// SwiftUI's handle on `Theme.mono`.
+    static func mono(size: CGFloat, weight: NSFont.Weight = .regular) -> Font {
+        Font(Theme.mono(ofSize: size, weight: weight))
     }
 }

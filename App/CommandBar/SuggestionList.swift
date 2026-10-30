@@ -92,7 +92,7 @@ struct SuggestionRow: View {
                 if let url = subtitleURL {
                     // Same reading as the address field: host first, path quieter.
                     Text("\(Text(url.host).foregroundStyle(Color(nsColor: Theme.textSecondary)))\(Text(url.remainder).foregroundStyle(Color(nsColor: Theme.textTertiary)))")
-                        .font(.system(size: 11, design: .monospaced))
+                        .font(.mono(size: 11))
                         .lineLimit(1)
                         .truncationMode(.middle)
                 } else if let subtitle = subtitleText {
@@ -217,7 +217,7 @@ struct SearchKeywordChip: View {
 
     var body: some View {
         Text(keyword)
-            .font(.system(size: 12, weight: .medium, design: .monospaced))
+            .font(.mono(size: 12, weight: .medium))
             .foregroundStyle(Color(nsColor: Theme.textPrimary))
             .padding(.horizontal, 6)
             .frame(height: 22)

@@ -357,7 +357,7 @@ final class GuideButton: NSButton {
         let title = NSMutableAttributedString()
         if count > 1 {
             title.append(NSAttributedString(string: "\(count) ", attributes: [
-                .font: NSFont.monospacedSystemFont(ofSize: 10, weight: .medium), .foregroundColor: Theme.textTertiary,
+                .font: Theme.mono(ofSize: 10, weight: .medium), .foregroundColor: Theme.textTertiary,
             ]))
         }
         title.append(NSAttributedString(string: nearest.displayTitle, attributes: [

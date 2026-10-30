@@ -4,6 +4,7 @@ import SwiftUI
 
 /// The home page's Reviews: pull requests waiting on your review (directly or through a team) and
 /// your own, in one flat list per tab that you narrow by typing and with facet chips.
+/// Drafts and bot pull requests stay out of the list until the Show menu lets them in.
 @MainActor
 @Observable
 final class ReviewsModel {
@@ -35,11 +36,12 @@ final class ReviewsModel {
         didSet { UserDefaults.standard.set(sort.rawValue, forKey: "ReviewsSort") }
     }
     var query = ""
-    var directOnly = false
     var repo: String?
     var author: String?
     var checks: GitHubStatus.Checks?
-    var hideDrafts = false
+    var showTeamRequests = true
+    var showDrafts = false
+    var showBots = false
     /// The row arrow keys move and Return opens.
     var selection: GitHubPull.ID?
     var focusRequest = 0
@@ -61,11 +63,10 @@ final class ReviewsModel {
     var rows: [GitHubPull] {
         let filter = filter
         let rows = all.filter { pull in
-            (!directOnly || !pull.isTeamRequest)
+            isShown(pull)
                 && (repo == nil || pull.repo == repo)
                 && (author == nil || pull.author == author)
                 && (checks == nil || pull.checks == checks)
-                && (!hideDrafts || !pull.isDraft)
                 && (!filter.isActive || filter.matches(Self.haystack(pull)))
         }
         return switch sort {
@@ -83,16 +84,35 @@ final class ReviewsModel {
     var authors: [String] { Array(Set(all.compactMap(\.author))).sorted { $0.localizedStandardCompare($1) == .orderedAscending } }
     var hasTeamRequests: Bool { all.contains(where: \.isTeamRequest) }
 
-    var isFiltered: Bool { filter.isActive || directOnly || repo != nil || author != nil || checks != nil || hideDrafts }
+    /// Whether the Show menu lets this kind of pull request into the list.
+    func isShown(_ pull: GitHubPull) -> Bool {
+        (showTeamRequests || !pull.isTeamRequest) && (showDrafts || !pull.isDraft) && (showBots || !pull.isBot)
+    }
+
+    /// Pull requests in the current tab that the Show menu leaves out.
+    var hiddenCount: Int { all.count { !isShown($0) } }
+
+    /// The Show menu differs from its defaults.
+    var isShowChanged: Bool { !showTeamRequests || showDrafts || showBots }
+
+    var isFiltered: Bool { filter.isActive || repo != nil || author != nil || checks != nil || isShowChanged }
 
     func clearFilters() {
         query = ""
-        directOnly = false
         repo = nil
         author = nil
         checks = nil
-        hideDrafts = false
+        showTeamRequests = true
+        showDrafts = false
+        showBots = false
         selection = nil
+    }
+
+    /// Lets every kind of pull request into the list.
+    func showAll() {
+        showTeamRequests = true
+        showDrafts = true
+        showBots = true
     }
 
     // MARK: Keyboard
@@ -209,8 +229,8 @@ struct ReviewsSection: View {
                     HStack(spacing: 5) {
                         Text(tab.title)
                         if github.pullsUpdatedAt != nil {
-                            Text("\(model.pulls(in: tab).count)")
-                                .font(.system(size: 10, weight: .medium, design: .monospaced)).foregroundStyle(settingsTertiary)
+                            Text("\(model.pulls(in: tab).count(where: model.isShown))")
+                                .font(.mono(size: 10, weight: .medium)).foregroundStyle(settingsTertiary)
                         }
                     }
                     .font(.system(size: 12, weight: isCurrent ? .semibold : .regular))
@@ -231,10 +251,6 @@ struct ReviewsSection: View {
         HStack(spacing: 6) {
             ScrollView(.horizontal) {
                 HStack(spacing: 6) {
-                    if model.tab == .requested, model.hasTeamRequests {
-                        FacetToggle(title: "Direct only", isOn: $model.directOnly,
-                                    help: "Only reviews asked of you, not of your teams")
-                    }
                     FacetMenu(title: "Repository", value: model.repo, options: model.repos, selection: $model.repo, mono: true)
                     if model.tab == .requested {
                         FacetMenu(title: "Author", value: model.author, options: model.authors, selection: $model.author, mono: true)
@@ -242,7 +258,7 @@ struct ReviewsSection: View {
                     FacetMenu(title: "Checks", value: model.checks.map(Self.checksTitle),
                               options: [GitHubStatus.Checks.failing, .pending, .passing, .none], selection: $model.checks,
                               label: Self.checksTitle)
-                    FacetToggle(title: "Hide drafts", isOn: $model.hideDrafts, help: "Leave out draft pull requests")
+                    showMenu
                     if model.isFiltered {
                         Button { model.clearFilters() } label: {
                             Text("Clear").font(.system(size: 12)).foregroundStyle(settingsSecondary)
@@ -271,6 +287,42 @@ struct ReviewsSection: View {
             .accessibilityLabel("Sort: \(model.sort.title)")
         }
         .frame(height: 24)
+    }
+
+    /// One menu for the kinds of pull request the list includes, each with how many the tab has.
+    /// At rest it counts what it leaves out; changed, it fills like a set facet.
+    private var showMenu: some View {
+        let all = model.all, hidden = model.hiddenCount
+        return Menu {
+            if model.tab == .requested, model.hasTeamRequests {
+                Toggle(isOn: $model.showTeamRequests) { Text("Team Requests") }
+                    .badge(all.count(where: \.isTeamRequest))
+            }
+            Toggle(isOn: $model.showDrafts) { Text("Drafts") }
+                .badge(all.count(where: \.isDraft))
+            Toggle(isOn: $model.showBots) { Text("Bots") }
+                .badge(all.count(where: \.isBot))
+            if hidden > 0 {
+                Divider()
+                Button("Show All") { model.showAll() }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Text("Show").font(.system(size: 12, weight: model.isShowChanged ? .medium : .regular))
+                    .foregroundStyle(model.isShowChanged ? settingsPrimary : settingsSecondary)
+                if hidden > 0 {
+                    Text("\(hidden) hidden").font(.mono(size: 10, weight: .medium))
+                        .foregroundStyle(settingsTertiary)
+                }
+                Image(systemName: "chevron.down").font(.system(size: 8, weight: .semibold)).foregroundStyle(settingsTertiary)
+            }
+            .padding(.horizontal, 8).frame(height: 24)
+            .background(RoundedRectangle(cornerRadius: 5).fill(Color(nsColor: model.isShowChanged ? Theme.hoverFill : Theme.fieldFill)))
+            .contentShape(Rectangle())
+        }
+        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+        .help("Choose whether team requests, drafts, and bot pull requests appear")
+        .accessibilityLabel(hidden > 0 ? "Show, \(hidden) hidden" : "Show")
     }
 
     static func checksTitle(_ checks: GitHubStatus.Checks) -> String {
@@ -393,6 +445,10 @@ struct ReviewsSection: View {
             if model.isFiltered {
                 Text("No pull requests match.").font(.system(size: 13)).foregroundStyle(settingsSecondary)
                 Button("Clear Filters") { model.clearFilters() }.controlSize(.small)
+            } else if model.hiddenCount > 0 {
+                Text(model.hiddenCount == 1 ? "1 pull request is hidden." : "\(model.hiddenCount) pull requests are hidden.")
+                    .font(.system(size: 13)).foregroundStyle(settingsSecondary)
+                Button("Show All") { model.showAll() }.controlSize(.small)
             } else {
                 Text(model.tab == .requested ? "Nothing waiting on your review." : "You have no open pull requests.")
                     .font(.system(size: 13)).foregroundStyle(settingsSecondary)
@@ -445,14 +501,14 @@ private struct PullRow: View {
                     .lineLimit(1)
                 // The reference is what an engineer copies, so the title truncates first.
                 HStack(spacing: 0) {
-                    Text(filter.highlight(pull.repo, size: 11, design: .monospaced)).foregroundStyle(settingsSecondary)
+                    Text(filter.highlight(pull.repo, size: 11, mono: true)).foregroundStyle(settingsSecondary)
                     Text(verbatim: "#\(pull.number)").foregroundStyle(quiet)
                 }
-                .font(.system(size: 11, design: .monospaced)).lineLimit(1).fixedSize()
+                .font(.mono(size: 11)).lineLimit(1).fixedSize()
                 if !isCompact, pull.isTeamRequest, let team = pull.requestedTeam {
                     HStack(spacing: 3) {
                         Image(systemName: "person.2").font(.system(size: 9, weight: .medium)).accessibilityHidden(true)
-                        Text(filter.highlight(team, size: 11, design: .monospaced)).font(.system(size: 11, design: .monospaced)).lineLimit(1)
+                        Text(filter.highlight(team, size: 11, mono: true)).font(.mono(size: 11)).lineLimit(1)
                     }
                     .foregroundStyle(quiet)
                     .help("Requested of the \(team) team")
@@ -491,7 +547,7 @@ private struct PullRow: View {
                 HStack(spacing: 6) {
                     AvatarView(url: pull.authorAvatarURL)
                     if !isCompact, let author = pull.author {
-                        Text(filter.highlight(author, size: 11, design: .monospaced)).font(.system(size: 11, design: .monospaced))
+                        Text(filter.highlight(author, size: 11, mono: true)).font(.mono(size: 11))
                             .foregroundStyle(settingsSecondary).lineLimit(1)
                     }
                 }
@@ -504,7 +560,7 @@ private struct PullRow: View {
                     Text(verbatim: "+\(pull.additions)")
                     Text(verbatim: "−\(pull.deletions)")
                 }
-                .font(.system(size: 11, design: .monospaced)).foregroundStyle(quiet)
+                .font(.mono(size: 11)).foregroundStyle(quiet)
                 .frame(width: 84, alignment: .trailing)
             }
             Circle().fill(Color(nsColor: GitHubStyle.color(pull.checks) ?? .clear)).frame(width: 7, height: 7)
@@ -588,7 +644,7 @@ private struct FacetMenu<Value: Hashable>: View {
             } label: {
                 HStack(spacing: 4) {
                     if let value {
-                        Text(value).font(.system(size: 12, weight: .medium, design: mono ? .monospaced : .default))
+                        Text(value).font(mono ? .mono(size: 12, weight: .medium) : .system(size: 12, weight: .medium))
                             .foregroundStyle(settingsPrimary).lineLimit(1)
                     } else {
                         Text(title).font(.system(size: 12)).foregroundStyle(settingsSecondary)
@@ -611,30 +667,6 @@ private struct FacetMenu<Value: Hashable>: View {
         }
         .background(RoundedRectangle(cornerRadius: 5).fill(Color(nsColor: value == nil ? Theme.fieldFill : Theme.hoverFill)))
         .opacity(options.isEmpty ? 0.5 : 1)
-    }
-}
-
-/// A facet that is on or off.
-private struct FacetToggle: View {
-    let title: String
-    @Binding var isOn: Bool
-    let help: String
-
-    var body: some View {
-        Button { isOn.toggle() } label: {
-            HStack(spacing: 4) {
-                if isOn { Image(systemName: "checkmark").font(.system(size: 9, weight: .bold)) }
-                Text(title)
-            }
-            .font(.system(size: 12, weight: isOn ? .medium : .regular))
-            .foregroundStyle(isOn ? settingsPrimary : settingsSecondary)
-            .padding(.horizontal, 8).frame(height: 24)
-            .background(RoundedRectangle(cornerRadius: 5).fill(Color(nsColor: isOn ? Theme.hoverFill : Theme.fieldFill)))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help(help)
-        .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 }
 

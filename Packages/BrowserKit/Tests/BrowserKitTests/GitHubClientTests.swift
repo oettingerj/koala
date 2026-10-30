@@ -55,11 +55,11 @@ import Testing
            {"number":1,"title":"Direct","url":"https://github.com/a/b/pull/1","repository":{"nameWithOwner":"a/b"},
             "isDraft":false,"createdAt":"2026-10-01T12:00:00Z","updatedAt":"2026-10-29T08:30:00Z","additions":48,"deletions":9,
             "headRefName":"fix/refresh","baseRefName":"main","reviewDecision":"REVIEW_REQUIRED",
-            "author":{"login":"mira","avatarUrl":"https://avatars.githubusercontent.com/u/2?s=40"},
+            "author":{"__typename":"User","login":"mira","avatarUrl":"https://avatars.githubusercontent.com/u/2?s=40"},
             "commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"PENDING"}}}]},
             "reviewRequests":{"nodes":[{"requestedReviewer":{"__typename":"User"}}]}},
            {"number":2,"title":"Team","url":"https://github.com/a/c/pull/2","repository":{"nameWithOwner":"a/c"},
-            "isDraft":true,"author":null,"commits":{"nodes":[]},
+            "isDraft":true,"author":{"__typename":"Bot","login":"renovate"},"commits":{"nodes":[]},
             "reviewRequests":{"nodes":[{"requestedReviewer":{"__typename":"User"}},{"requestedReviewer":{"__typename":"Team","name":"platform"}}]}}]},
          "mine":{"issueCount":0,"nodes":[]}}
         """)
@@ -69,6 +69,7 @@ import Testing
         #expect(pulls.reviewRequestedTotal == 73)
         let direct = pulls.reviewRequested[0]
         #expect(direct.author == "mira")
+        #expect(!direct.isBot)
         #expect(direct.checks == .pending)
         #expect(direct.additions == 48 && direct.deletions == 9)
         #expect(direct.headRef == "fix/refresh")
@@ -76,7 +77,7 @@ import Testing
         let team = pulls.reviewRequested[1]
         #expect(team.requestedTeam == "platform")
         #expect(team.isDraft)
-        #expect(team.author == nil)
+        #expect(team.isBot)
         #expect(team.checks == GitHubStatus.Checks.none)
     }
 

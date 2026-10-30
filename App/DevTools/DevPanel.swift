@@ -75,7 +75,7 @@ struct DevPanel: View {
             if model.tab?.devTools.captureID != nil {
                 Image(systemName: "record.circle").foregroundStyle(Color(nsColor: Theme.accent)).help("Detailed capture is active")
             }
-            Text(model.origin ?? model.tab?.url?.host() ?? "No page").font(.system(size: 11, design: .monospaced)).lineLimit(1)
+            Text(model.origin ?? model.tab?.url?.host() ?? "No page").font(.mono(size: 11)).lineLimit(1)
                 .help(model.tab?.url?.absoluteString ?? "No page")
         }.foregroundStyle(devSecondary).fixedSize()
     }

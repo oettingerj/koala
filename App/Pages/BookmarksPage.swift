@@ -151,7 +151,7 @@ private struct BookmarkRow: View {
                 .font(.system(size: 13)).foregroundStyle(settingsPrimary).lineLimit(1)
             if let url {
                 Text(DisplayURL(url).map { $0.host + $0.remainder } ?? url.absoluteString)
-                    .font(.system(size: 11, design: .monospaced)).foregroundStyle(settingsTertiary)
+                    .font(.mono(size: 11)).foregroundStyle(settingsTertiary)
                     .lineLimit(1).truncationMode(.middle)
             }
             Spacer(minLength: 8)

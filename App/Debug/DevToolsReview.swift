@@ -113,9 +113,9 @@ import SwiftUI
     private static var sample: GitHubPulls {
         let now = Date()
         func pull(_ repo: String, _ number: Int, _ title: String, author: String, hours: Double, age: Double, add: Int, del: Int,
-                  checks: GitHubStatus.Checks, draft: Bool = false, team: String? = nil, decision: String? = nil, head: String) -> GitHubPull {
+                  checks: GitHubStatus.Checks, draft: Bool = false, bot: Bool = false, team: String? = nil, decision: String? = nil, head: String) -> GitHubPull {
             GitHubPull(repo: repo, number: number, title: title, url: URL(string: "https://github.com/\(repo)/pull/\(number)")!,
-                       author: author, isDraft: draft, createdAt: now.addingTimeInterval(-age * 86_400),
+                       author: author, isBot: bot, isDraft: draft, createdAt: now.addingTimeInterval(-age * 86_400),
                        updatedAt: now.addingTimeInterval(-hours * 3600), additions: add, deletions: del,
                        headRef: head, baseRef: "main", reviewDecision: decision, checks: checks,
                        isTeamRequest: team != nil, requestedTeam: team)
@@ -124,7 +124,7 @@ import SwiftUI
             pull("koala-labs/api", 412, "Fix token refresh race when two requests expire together", author: "mira", hours: 2, age: 9,
                  add: 48, del: 9, checks: .passing, head: "fix/refresh-race"),
             pull("koala-labs/tools", 77, "Bump swift-syntax to 601.0.1", author: "renovate", hours: 3, age: 2,
-                 add: 2, del: 2, checks: .pending, team: "platform", head: "renovate/swift-syntax"),
+                 add: 2, del: 2, checks: .pending, bot: true, team: "platform", head: "renovate/swift-syntax"),
             pull("koala-labs/app", 88, "Migrate the review queue cache to GRDB", author: "devon", hours: 26, age: 8,
                  add: 210, del: 64, checks: .failing, team: "platform", head: "devon/queue-grdb"),
             pull("koala-labs/koala", 31, "Animate Peek promote to tab without a reload", author: "sam", hours: 72, age: 3,

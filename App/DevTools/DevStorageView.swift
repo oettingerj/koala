@@ -57,7 +57,7 @@ struct DevStorageView: View {
                     storageColumns(key: Text("Name"), value: Text("Value"))
                 } cell: { row in
                     storageColumns(key: Text(row.key).foregroundStyle(devPrimary), value: Text(row.value).foregroundStyle(devSecondary))
-                        .font(.system(size: 12, design: .monospaced))
+                        .font(.mono(size: 12))
                 }
                     .overlay { if rows.isEmpty && !model.storageLoading { DevEmpty(title: model.storageFilter.isEmpty ? "No entries" : "No matching entries",
                         detail: model.storageFilter.isEmpty ? "\(model.storageArea) for this site will appear here. Refresh after the page changes storage." : "Try another key or value.", symbol: "externaldrive") } }
@@ -125,7 +125,7 @@ private struct StorageEditor: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(item == nil ? "Add storage entry" : "Edit storage value").font(.system(size: 15, weight: .semibold))
             TextField("Key", text: $key).textFieldStyle(.roundedBorder).disabled(item != nil).accessibilityLabel("Storage key")
-            TextEditor(text: $value).font(.system(size: 12, design: .monospaced)).frame(minHeight: 220)
+            TextEditor(text: $value).font(.mono(size: 12)).frame(minHeight: 220)
                 .border(Color(nsColor: Theme.hairline)).accessibilityLabel("Storage value")
             if let error = model.storageError { Text(error).font(.system(size: 12)).foregroundStyle(Color(nsColor: Theme.fail)) }
             HStack {

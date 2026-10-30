@@ -60,7 +60,7 @@ struct SuggestionPreview: View {
                     .fixedSize(horizontal: false, vertical: true)
                 if let url = displayURL {
                     Text("\(Text(url.host).foregroundStyle(Color(nsColor: Theme.textSecondary)))\(Text(url.remainder).foregroundStyle(Color(nsColor: Theme.textTertiary)))")
-                        .font(.system(size: 11, design: .monospaced))
+                        .font(.mono(size: 11))
                         .lineLimit(3)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -139,7 +139,7 @@ struct SuggestionPreview: View {
         }
         if let count = facts.visitCount, let last = facts.lastVisitedAt {
             rows.append(Fact(label: "Visited",
-                             value: Text("\(Text("\(count)×").font(.system(size: 12, design: .monospaced)))\(Text("  ·  \(RelativeTime.short(last))").foregroundStyle(Color(nsColor: Theme.textSecondary)))"),
+                             value: Text("\(Text("\(count)×").font(.mono(size: 12)))\(Text("  ·  \(RelativeTime.short(last))").foregroundStyle(Color(nsColor: Theme.textSecondary)))"),
                              help: last.formatted(date: .abbreviated, time: .shortened)))
         } else {
             // Holds the row while the visit count loads, so the pane doesn't grow under the pointer.
@@ -163,9 +163,9 @@ struct SuggestionPreview: View {
         }
         if let head = status.headRef, let base = status.baseRef {
             rows.append(Fact(label: "Branch", value: Text("""
-                \(Text(head).font(.system(size: 11, design: .monospaced)))\
+                \(Text(head).font(.mono(size: 11)))\
                 \(Text("  →  ").foregroundStyle(Color(nsColor: Theme.textTertiary)))\
-                \(Text(base).font(.system(size: 11, design: .monospaced)).foregroundStyle(Color(nsColor: Theme.textSecondary)))
+                \(Text(base).font(.mono(size: 11)).foregroundStyle(Color(nsColor: Theme.textSecondary)))
                 """)))
         }
         let review = GitHubStyle.reviewSummary(status)

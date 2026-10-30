@@ -73,7 +73,7 @@ struct DevNetworkView: View {
                            status: Text(row.status.map(String.init) ?? (row.error.isEmpty ? "…" : "Failed"))
                             .foregroundStyle(row.id == model.selectedRequest ? devPrimary : (row.status ?? 0) >= 400 || !row.error.isEmpty ? Color(nsColor: Theme.fail) : devSecondary),
                            time: Text(row.duration.map(devMS) ?? "…").foregroundStyle(devSecondary))
-                    .font(.system(size: 12, design: .monospaced)).help(row.url)
+                    .font(.mono(size: 12)).help(row.url)
             }
                 .overlay { if requests.isEmpty { DevEmpty(title: record.requests.isEmpty ? "Capture an API request" : "No matching requests",
                     detail: record.captureID == nil ? "Resume capture, then reproduce the request. Headers and bounded text payloads stay in memory." : "Fetch and XHR requests from this page appear here while the tools are open. Reload to include requests made during page load.", symbol: "network") } }
@@ -101,7 +101,7 @@ struct DevNetworkView: View {
                                 .frame(width: max(1, geo.size.width * row.duration / end), height: 5)
                                 .offset(x: geo.size.width * row.start / end, y: 5)
                         }.frame(height: 16)
-                    }.font(.system(size: 11, design: .monospaced)).help(row.url)
+                    }.font(.mono(size: 11)).help(row.url)
                 }
             }
                 .overlay { if rows.isEmpty { DevEmpty(title: record.resources.isEmpty ? "Waiting for resources" : "No matching resources",

@@ -77,12 +77,12 @@ typography:
     fontSize: "11pt"
     fontWeight: 400
   mono:
-    fontFamily: "SF Mono, ui-monospace, SFMono-Regular, monospace"
+    fontFamily: "0xProto, ui-monospace, SFMono-Regular, monospace"
     fontSize: "12pt"
     fontWeight: 400
     fontFeature: "tnum"
   mono-small:
-    fontFamily: "SF Mono, ui-monospace, SFMono-Regular, monospace"
+    fontFamily: "0xProto, ui-monospace, SFMono-Regular, monospace"
     fontSize: "11pt"
     fontWeight: 400
     fontFeature: "tnum"
@@ -272,7 +272,7 @@ components:
 
 Koala's chrome is built like a pro editor's frame: neutral, opaque, dense, and exact, at Linear's typographic care and Zed's density. Every surface, hairline, and text color is a step on one 11-step neutral ramp; chroma appears only where it carries meaning (focus, selection, the primary action, and engineering state). The chrome is two thin rows (40pt tab strip, 36pt toolbar) and then the page runs edge to edge below one hairline. Nothing in the chrome is decorative.
 
-The world is native first. SF Pro Text sets the chrome at 11 to 13pt, SF Mono carries anything an engineer would copy (URLs, paths, refs, counts, timings), SF Symbols are the only icon set, and system-owned containers (menus, NSPopover, alerts) keep their platform material. Settings is not one of them: it is a Koala-drawn page in a tab, on chrome surface. Depth comes from tonal steps and 1px hairlines; shadow exists only where a surface floats above the page. Motion is short and never on the input path. It rejects Safari's soft glass toolbar and Arc's color-drenched sidebar.
+The world is native first. SF Pro Text sets the chrome at 11 to 13pt, 0xProto carries anything an engineer would copy (URLs, paths, refs, counts, timings), SF Symbols are the only icon set, and system-owned containers (menus, NSPopover, alerts) keep their platform material. Settings is not one of them: it is a Koala-drawn page in a tab, on chrome surface. Depth comes from tonal steps and 1px hairlines; shadow exists only where a surface floats above the page. Motion is short and never on the input path. It rejects Safari's soft glass toolbar and Arc's color-drenched sidebar.
 
 **Key Characteristics:**
 - One neutral ramp, light and dark derived, is the only tonal scale.
@@ -280,7 +280,7 @@ The world is native first. SF Pro Text sets the chrome at 11 to 13pt, SF Mono ca
 - Engineer-convention state colors: pass green, pending amber, fail red, merged purple.
 - Opaque flat fills, 1px hairlines, no gradients.
 - 6pt radius on controls, 10pt on floating panels.
-- SF Mono with tabular figures for URLs, code, and figures; SF Pro for everything else.
+- 0xProto with tabular figures for URLs, code, and figures; SF Pro for everything else.
 - 80ms hover, 120ms ease-out panels, zero under Reduce Motion.
 
 ## Colors
@@ -319,7 +319,7 @@ The ramp, step 0 to 10. Light: #FFFFFF, #FAFAFA, #F4F4F5, #EBEBED, #DEDEE1, #C8C
 ## Typography
 
 **Body Font:** SF Pro Text (system font)
-**Label/Mono Font:** SF Mono (monospaced system font), tabular figures
+**Label/Mono Font:** 0xProto (bundled, Regular and Bold; semibold and heavier set Bold), tabular figures
 
 **Character:** Platform type at small, careful sizes; weight, not size, carries hierarchy (the selected tab goes from 400 to 500 at the same 12pt). Mono marks anything machine-readable, so a URL or a duration reads as data at a glance.
 
@@ -335,12 +335,12 @@ The ramp, step 0 to 10. Light: #FFFFFF, #FAFAFA, #F4F4F5, #EBEBED, #DEDEE1, #C8C
 - **Mono small** (11pt): command row URLs, context chip (500), timing columns, review-queue refs, review rows' `repo#number`, team slug, login, and diffstat; 10pt for guide-word, sidebar, and tab counts (500) and ruler ticks.
 - **Badge** (600, 9pt, tabular): error, queue, and download counts on toolbar buttons.
 
-Koala-authored web pages use the same faces through `-apple-system, system-ui` and `ui-monospace, SFMono-Regular`: 13px/1.5 body, 20px/600 heading at -0.01em, 12px mono code; the JSON viewer and view source are 12px mono at 1.6 and 1.55.
+Koala-authored web pages use the same faces through `-apple-system, system-ui` and an embedded 0xProto `@font-face` (falling back to `ui-monospace, SFMono-Regular`): 13px/1.5 body, 20px/600 heading at -0.01em, 12px mono code; the JSON viewer and view source are 12px mono at 1.6 and 1.55.
 
 ### Named Rules
-**The Mono Means Data Rule.** SF Mono sets URLs and paths, refs and slugs, counts, timings, and code. Prose, titles, and labels are never mono, and figures that sit in a line of SF Pro use tabular (monospaced) digits.
+**The Mono Means Data Rule.** 0xProto sets URLs and paths, refs and slugs, counts, timings, and code. Prose, titles, and labels are never mono, and figures that sit in a line of SF Pro use tabular (monospaced) digits.
 
-**The Host First Rule.** A URL reads host in primary SF Pro, remainder in tertiary SF Mono, with scheme and "www." dropped. The address field, command rows, and Peek header all follow it; focusing the address field shows the full URL, selected.
+**The Host First Rule.** A URL reads host in primary SF Pro, remainder in tertiary 0xProto, with scheme and "www." dropped. The address field, command rows, and Peek header all follow it; focusing the address field shows the full URL, selected.
 
 ## Layout
 
@@ -410,7 +410,7 @@ A native debugging workbench on chrome surface, docked below a draggable hairlin
 - **Header:** 36pt; Console, Network, Storage, Page. Section tabs are 26pt tall with 5pt corners and 9pt horizontal insets; selected tabs use neutral hover fill and 12pt semibold primary text. Origin and capture indicator yield space to tabs and window actions when needed. Console errors use a red count.
 - **Toolbar:** 40pt with 12pt side insets, 10pt gaps and small native controls. Search uses a 26pt field well with 5pt corners. Overflow actions scroll horizontally rather than compressing labels.
 - **Evidence and details:** Console, Network and Storage use a draggable list/detail split, initially 58% list. At 760pt and wider, the list has a 300pt minimum and details retain roughly 320pt; below 760pt, selection replaces the list with details and a 30pt Back to list row. Split proportion persists and can be adjusted with arrow keys and accessibility actions.
-- **Rows:** virtualized native lists, minimum 28pt rows with 5pt vertical and 12pt horizontal insets; table headings are 26pt. Data uses 11–12pt SF Mono, headings and controls 11–12pt SF Pro, and compact timestamps/footer counts 10pt. Selected rows use neutral hover fill with primary/secondary text in both active and inactive windows. Console rows use neutral backgrounds; semantic glyphs carry severity.
+- **Rows:** virtualized native lists, minimum 28pt rows with 5pt vertical and 12pt horizontal insets; table headings are 26pt. Data uses 11–12pt 0xProto, headings and controls 11–12pt SF Pro, and compact timestamps/footer counts 10pt. Selected rows use neutral hover fill with primary/secondary text in both active and inactive windows. Console rows use neutral backgrounds; semantic glyphs carry severity.
 - **Control selection:** native selected segments and checkboxes use dev-control-selection (Theme.controlSelectionTint) behind white system labels. Action text and capture status use dev-accent-text (Theme.accentText), the text-safe teal role; ordinary row selection stays neutral.
 - **Detail reading:** 12pt selectable mono code, 4pt added line spacing, semibold 12pt section headings and explicit Copy actions. Network exposes native Overview/Headers/Payload/Response segments, formatted JSON and Raw. Resource timing bars use a shared time scale and neutral bars, with fail red for errors.
 - **Anchors:** Console input stays below the evidence area; Console, Network and Storage end in 24pt count/status footers. Empty states state the next useful action; unavailable data is named explicitly.
@@ -458,7 +458,7 @@ What a blank tab shows (no URL and no web view yet; ⌘T, a new window): a nativ
 - **Do** keep chrome surfaces opaque and flat, separated by 1px hairlines one ramp step apart.
 - **Do** reserve teal for focus, selection, progress, and the primary action; use accent-deep behind white text in light appearance.
 - **Do** use pass, pending, fail, and merged only for their engineering meanings, as glyphs, dots, bars, and counts.
-- **Do** set URLs, paths, refs, counts, timings, and code in SF Mono with tabular figures, host first.
+- **Do** set URLs, paths, refs, counts, timings, and code in 0xProto with tabular figures, host first.
 - **Do** use 6pt radius on controls and 10pt on floating panels, continuous curve.
 - **Do** animate hover at 80ms and panels at 120ms ease-out, and drop to zero under Reduce Motion.
 - **Do** tint dark monochrome favicons in dark appearance rather than leaving them invisible.
@@ -468,7 +468,7 @@ What a blank tab shows (no URL and no web view yet; ⌘T, a new window): a nativ
 - **Don't** add gradients, glass, blur, or translucency to Koala-drawn chrome.
 - **Don't** cast shadows from docked chrome, tabs, chips, or buttons; shadow is for floating surfaces only.
 - **Don't** fill resting surfaces or selected list rows with teal.
-- **Don't** set prose, titles, or labels in SF Mono.
+- **Don't** set prose, titles, or labels in 0xProto.
 - **Don't** set small text in light-appearance teal, pass, or pending; their words stay in text tokens.
 - **Don't** animate anything on the input path (typing, tab switching, row selection).
 - **Don't** introduce a second icon family; SF Symbols only.

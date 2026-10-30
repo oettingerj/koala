@@ -142,7 +142,7 @@ private struct HistoryRow: View {
                 .frame(width: 64, alignment: .leading)
             Text(entry.title.isEmpty ? entry.url : entry.title)
                 .font(.system(size: 13)).foregroundStyle(settingsPrimary).lineLimit(1)
-            Text(entry.host).font(.system(size: 11, design: .monospaced)).foregroundStyle(settingsTertiary).lineLimit(1)
+            Text(entry.host).font(.mono(size: 11)).foregroundStyle(settingsTertiary).lineLimit(1)
             Spacer(minLength: 8)
         }
         .padding(.horizontal, 8).frame(height: 30)

@@ -262,7 +262,7 @@ struct SettingsPage: View {
             HStack(spacing: 5) {
                 Text(section.indexTitle)
                 if let matches {
-                    Text("\(matches)").font(.system(size: 10, weight: .medium, design: .monospaced)).foregroundStyle(settingsTertiary)
+                    Text("\(matches)").font(.mono(size: 10, weight: .medium)).foregroundStyle(settingsTertiary)
                 }
             }
             .font(.system(size: 12, weight: isCurrent ? .semibold : .regular))
@@ -320,7 +320,7 @@ struct SettingsPage: View {
         let version = info?["CFBundleShortVersionString"] as? String ?? "—"
         let build = info?["CFBundleVersion"] as? String ?? "—"
         return Text("Koala \(version) (\(build))")
-            .font(.system(size: 11, design: .monospaced)).foregroundStyle(settingsTertiary)
+            .font(.mono(size: 11)).foregroundStyle(settingsTertiary)
             .textSelection(.enabled)
             .padding(.top, 40)
     }

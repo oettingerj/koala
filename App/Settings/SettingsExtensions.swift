@@ -160,8 +160,8 @@ private struct ExtensionRow: View {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         SettingTitle(item.name, weight: .semibold)
-                        Text(filter.highlight(item.version, size: 11, design: .monospaced))
-                            .font(.system(size: 11, design: .monospaced)).foregroundStyle(settingsTertiary)
+                        Text(filter.highlight(item.version, size: 11, mono: true))
+                            .font(.mono(size: 11)).foregroundStyle(settingsTertiary)
                     }
                     if let failure {
                         Text("Didn’t load: \(failure)").font(.system(size: 12)).foregroundStyle(settingsFail).lineLimit(2)

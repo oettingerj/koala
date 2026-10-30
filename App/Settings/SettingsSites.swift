@@ -148,7 +148,7 @@ private struct SiteItem<Controls: View>: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Text(title).font(.system(size: 12, design: .monospaced)).foregroundStyle(settingsPrimary)
+            Text(title).font(.mono(size: 12)).foregroundStyle(settingsPrimary)
                 .lineLimit(1).truncationMode(.middle).textSelection(.enabled)
             if let detail {
                 Text(detail).font(.system(size: 11).monospacedDigit()).foregroundStyle(settingsTertiary)

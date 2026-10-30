@@ -38,8 +38,8 @@ public enum PageTools {
       };
       // A constructed stylesheet: strict JSON endpoints send CSP that blocks <style> elements.
       const sheet = new CSSStyleSheet();
-      sheet.replaceSync(`\(palette)
-        html { background: var(--bg); color: var(--fg); font: 12px/1.6 ui-monospace, SFMono-Regular, monospace; }
+      sheet.replaceSync(`\(MonoFont.cssFontFace)\(palette)
+        html { background: var(--bg); color: var(--fg); font: 12px/1.6 \(MonoFont.cssFamily); }
         body { margin: 0; } header { position: sticky; top: 0; display: flex; gap: 8px; padding: 8px 16px;
           background: var(--bg); border-bottom: 1px solid var(--rule); font-family: -apple-system, system-ui; }
         input { flex: 1; font: 12px -apple-system, system-ui; padding: 4px 8px; border: 1px solid var(--rule);
@@ -81,8 +81,8 @@ public enum PageTools {
         return """
         <!doctype html><html><head><meta charset="utf-8"><meta name="color-scheme" content="light dark">
         <title>Source of \(escape(url.absoluteString))</title>
-        <style>\(palette)
-          html { background: var(--bg); color: var(--fg); font: 12px/1.55 ui-monospace, SFMono-Regular, monospace; }
+        <style>\(MonoFont.cssFontFace)\(palette)
+          html { background: var(--bg); color: var(--fg); font: 12px/1.55 \(MonoFont.cssFamily); }
           body { margin: 0; } table { border-collapse: collapse; width: 100%; }
           .n { color: var(--muted); text-align: right; padding: 0 12px; user-select: none; width: 1%;
                border-right: 1px solid var(--rule); vertical-align: top; }

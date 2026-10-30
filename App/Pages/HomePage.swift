@@ -84,7 +84,7 @@ struct HomePage: View {
                         Text(section.title)
                         Spacer(minLength: 4)
                         if let count = model.count(section), count > 0 {
-                            Text("\(count)").font(.system(size: 10, weight: .medium, design: .monospaced)).foregroundStyle(settingsTertiary)
+                            Text("\(count)").font(.mono(size: 10, weight: .medium)).foregroundStyle(settingsTertiary)
                         }
                     }
                     .font(.system(size: 12, weight: isCurrent ? .semibold : .regular))

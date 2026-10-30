@@ -136,7 +136,7 @@ struct GeneralSettings: View {
             }
             SettingRow(SettingEntries.downloads) {
                 Text((downloadFolder.path as NSString).abbreviatingWithTildeInPath)
-                    .font(.system(size: 11, design: .monospaced)).foregroundStyle(settingsSecondary)
+                    .font(.mono(size: 11)).foregroundStyle(settingsSecondary)
                     .lineLimit(1).truncationMode(.middle).textSelection(.enabled).help(downloadFolder.path)
             } control: {
                 HStack(spacing: 8) {
@@ -181,7 +181,7 @@ struct GitHubSettings: View {
                 if let root = github.codeRoot {
                     HStack(spacing: 6) {
                         Text((root.path as NSString).abbreviatingWithTildeInPath)
-                            .font(.system(size: 11, design: .monospaced)).foregroundStyle(settingsSecondary)
+                            .font(.mono(size: 11)).foregroundStyle(settingsSecondary)
                             .lineLimit(1).truncationMode(.middle)
                             .textSelection(.enabled)
                             .help(root.path)
@@ -229,7 +229,7 @@ struct GitHubSettings: View {
                         SettingTitle(github.account.map { $0.name ?? $0.login } ?? "Signed in to GitHub", weight: .semibold)
                         HStack(spacing: 8) {
                             if let login = github.account?.login {
-                                Text("@\(login)").font(.system(size: 11, design: .monospaced)).foregroundStyle(settingsSecondary)
+                                Text("@\(login)").font(.mono(size: 11)).foregroundStyle(settingsSecondary)
                                     .textSelection(.enabled)
                             }
                             Text(queueSummary).font(.system(size: 11).monospacedDigit()).foregroundStyle(settingsTertiary)

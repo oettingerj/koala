@@ -98,7 +98,7 @@ struct DevSplit<Items: View, Detail: View>: View {
 struct DevCode: View {
     let text: String
     var body: some View {
-        Text(text).font(.system(size: 12, design: .monospaced)).lineSpacing(4).textSelection(.enabled)
+        Text(text).font(.mono(size: 12)).lineSpacing(4).textSelection(.enabled)
             .fixedSize(horizontal: false, vertical: true)
             .foregroundStyle(devPrimary).frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -165,7 +165,7 @@ struct DevPairs: View {
         Grid(alignment: .topLeading, horizontalSpacing: 16, verticalSpacing: 9) {
             ForEach(Array(rows.enumerated()), id: \.offset) { _, pair in
                 GridRow {
-                    Text(pair.0).font(.system(size: 11, design: .monospaced)).foregroundStyle(devSecondary)
+                    Text(pair.0).font(.mono(size: 11)).foregroundStyle(devSecondary)
                         .frame(minWidth: 80, maxWidth: 180, alignment: .leading).textSelection(.enabled)
                     DevCode(text: pair.1)
                 }

@@ -92,7 +92,7 @@ struct PageFilter {
     }
 
     /// Sets the matched word starts in semibold at the text's own size, so a filtered row shows why it matched.
-    func highlight(_ text: String, size: CGFloat, design: Font.Design = .default) -> AttributedString {
+    func highlight(_ text: String, size: CGFloat, mono: Bool = false) -> AttributedString {
         var result = AttributedString(text)
         for word in words {
             var searchStart = text.startIndex
@@ -100,7 +100,7 @@ struct PageFilter {
                 let startsWord = range.lowerBound == text.startIndex || !text[text.index(before: range.lowerBound)].isLetter
                     && !text[text.index(before: range.lowerBound)].isNumber
                 if startsWord, let marked = Range(range, in: result) {
-                    result[marked].font = .system(size: size, weight: .semibold, design: design)
+                    result[marked].font = mono ? .mono(size: size, weight: .semibold) : .system(size: size, weight: .semibold)
                 }
                 searchStart = range.upperBound
             }

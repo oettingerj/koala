@@ -95,7 +95,7 @@ struct DevConsoleView: View {
             HStack(alignment: .center, spacing: 8) {
                 Image(systemName: "chevron.right").foregroundStyle(Color(nsColor: Theme.accent))
                 TextField("Evaluate JavaScript", text: $model.command, axis: .vertical)
-                    .font(.system(size: 12, design: .monospaced)).textFieldStyle(.plain).lineLimit(1...4).focused($inputFocused)
+                    .font(.mono(size: 12)).textFieldStyle(.plain).lineLimit(1...4).focused($inputFocused)
                     .onSubmit { model.evaluate() }
                     .onKeyPress(.upArrow) { if !model.command.contains("\n") { model.moveHistory(-1); return .handled }; return .ignored }
                     .onKeyPress(.downArrow) { if !model.command.contains("\n") { model.moveHistory(1); return .handled }; return .ignored }
@@ -131,12 +131,12 @@ struct DevConsoleView: View {
         let entry = group.entry
         return HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(entry.date, format: .dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits).second(.twoDigits))
-                .font(.system(size: 10, design: .monospaced)).foregroundStyle(devSecondary).frame(width: 65, alignment: .leading)
+                .font(.mono(size: 10)).foregroundStyle(devSecondary).frame(width: 65, alignment: .leading)
             Image(systemName: entry.kind == "command" ? "chevron.right" : entry.kind == "result" ? "arrow.turn.down.right" : glyph(entry.level))
                 .font(.system(size: 10)).foregroundStyle(color(entry.level)).frame(width: 12)
-            Text(entry.text.components(separatedBy: .newlines).first ?? entry.text).font(.system(size: 12, design: .monospaced))
+            Text(entry.text.components(separatedBy: .newlines).first ?? entry.text).font(.mono(size: 12))
                 .foregroundStyle(devPrimary).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
-            if group.count > 1 { Text("×\(group.count)").font(.system(size: 10, design: .monospaced)).foregroundStyle(devSecondary) }
+            if group.count > 1 { Text("×\(group.count)").font(.mono(size: 10)).foregroundStyle(devSecondary) }
         }.help(entry.source)
     }
 
