@@ -21,7 +21,6 @@ final class ToolbarView: NSView {
                                                        action: #selector(showExtensionsMenu(_:)), target: self)
     private(set) lazy var queueButton = IconButton(symbol: "tray", label: "Review Queue", pointSize: 12,
                                               action: #selector(BrowserWindowController.showReviewQueue(_:)))
-    private let queueBadge = NSTextField(labelWithString: "")
     /// Marks a private window, before the address field.
     private let privateBadge = NSView()
     private let privateLabel = NSTextField(labelWithString: "Private")
@@ -43,8 +42,6 @@ final class ToolbarView: NSView {
         wantsLayer = true
         layer?.addSublayer(hairline)
         layer?.addSublayer(progressBar)
-        queueBadge.font = .monospacedDigitSystemFont(ofSize: 9, weight: .semibold)
-        queueBadge.textColor = Theme.textSecondary
         downloadsBadge.font = .monospacedDigitSystemFont(ofSize: 9, weight: .semibold)
         downloadsBadge.textColor = Theme.accent
         downloadsButton.isHidden = true
@@ -59,7 +56,7 @@ final class ToolbarView: NSView {
         privateBadge.setAccessibilityRole(.staticText)
         privateBadge.setAccessibilityLabel("Private window")
         [privateBadge, backButton, forwardButton, reloadButton, addressField, downloadsButton, downloadsBadge,
-         extensionsMenuButton, queueButton, queueBadge, devButton].forEach(addSubview)
+         extensionsMenuButton, queueButton, devButton].forEach(addSubview)
         setAccessibilityElement(true)
         setAccessibilityRole(.toolbar)
         observation = ObservationLoop { [weak self] in self?.sync() }
@@ -100,8 +97,6 @@ final class ToolbarView: NSView {
         devButton.frame = NSRect(x: trailing, y: y, width: Theme.iconButtonSize, height: Theme.iconButtonSize)
         trailing -= Theme.iconButtonSize + 2
         queueButton.frame = NSRect(x: trailing, y: y, width: Theme.iconButtonSize, height: Theme.iconButtonSize)
-        queueBadge.sizeToFit()
-        queueBadge.frame.origin = NSPoint(x: queueButton.frame.maxX - 9, y: queueButton.frame.maxY - 11)
         if !extensionsMenuButton.isHidden {
             trailing -= Theme.iconButtonSize + 2
             extensionsMenuButton.frame = NSRect(x: trailing, y: y, width: Theme.iconButtonSize, height: Theme.iconButtonSize)
@@ -198,7 +193,6 @@ final class ToolbarView: NSView {
         downloadsButton.isHidden = downloads.items.isEmpty
         downloadsBadge.stringValue = downloads.activeCount == 0 ? "" : "\(downloads.activeCount)"
         let queued = GitHubService.shared.queue.count
-        queueBadge.stringValue = queued == 0 ? "" : "\(queued)"
         queueButton.toolTip = queued == 0 ? "Review Queue" : "Review Queue · \(queued) waiting"
         // Console errors for the page in view, named in the tooltip only; the dev panel lists them.
         let errors = tab?.devTools.errorCount ?? 0
