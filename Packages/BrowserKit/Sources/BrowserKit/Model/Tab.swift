@@ -231,9 +231,16 @@ public final class Tab: NSObject, Identifiable {
         lastCrash = now
     }
 
+    /// Ends the page for good. Its back/forward state is not kept.
+    public func close() { detachWebView() }
+
     private func detachWebView() {
         guard let webView else { return }
         webView.stopLoading()
+        // WebKit frees the web content process some time after the web view goes, and the page
+        // keeps playing until then; silence it now, including picture in picture and full screen.
+        webView.setAllMediaPlaybackSuspended(true, completionHandler: nil)
+        webView.closeAllMediaPresentations(completionHandler: nil)
         webView.removeFromSuperview()
         webView.navigationDelegate = nil
         webView.uiDelegate = nil

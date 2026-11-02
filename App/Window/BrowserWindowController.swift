@@ -418,8 +418,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         if tabs.focusesSplit {
             closeDevTools(for: partner)
             tabs.unsplit(tab, keepingPartner: false)
-            partner.stop()
-            partner.webView?.removeFromSuperview()
+            partner.close()
         } else {
             // Closing the left side: the right side takes the tab's place.
             let index = tabs.index(of: tab) ?? 0
@@ -754,8 +753,8 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         if !isPrivate, tabs.tabs.count > 1, tab.url != nil, let index = tabs.index(of: tab) {
             services.remember(.tab(tab.snapshot, index: index))
         }
-        tab.stop()
-        tab.webView?.removeFromSuperview()
+        tab.close()
+        tab.splitTab?.close()
         tabs.remove(tab)
         if tabs.tabs.isEmpty { window?.close() }
     }
@@ -1148,8 +1147,9 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
             }
         }
         for tab in tabs.tabs {
-            tab.stop()
             if !isPrivate { ExtensionsHost.shared.didClose(tab, windowIsClosing: true) }
+            tab.close()
+            tab.splitTab?.close()
         }
         if !isPrivate { ExtensionsHost.shared.didClose(self) }
         extensionObservation?.cancel()
@@ -1320,7 +1320,7 @@ extension BrowserWindowController: TabDelegate {
     func tabDidRequestClose(_ tab: Tab) {
         if let owner = tabs.tabs.first(where: { $0.splitTab === tab }) {
             tabs.unsplit(owner, keepingPartner: false)
-            tab.webView?.removeFromSuperview()
+            tab.close()
         } else {
             close(tab)
         }
