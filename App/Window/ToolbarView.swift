@@ -34,6 +34,8 @@ final class ToolbarView: NSView {
     var showsHairline = true { didSet { hairline.isHidden = !showsHairline } }
     private let progressBar = CALayer()
     private var observation: ObservationLoop?
+    /// Progress and console errors change many times per load, so they don't re-run `sync`.
+    private var liveObservation: ObservationLoop?
     private var lastProgressTabID: UUID?
 
     init(tabs: TabCollection) {
@@ -60,6 +62,7 @@ final class ToolbarView: NSView {
         setAccessibilityElement(true)
         setAccessibilityRole(.toolbar)
         observation = ObservationLoop { [weak self] in self?.sync() }
+        liveObservation = ObservationLoop { [weak self] in self?.syncLive() }
     }
 
     @available(*, unavailable)
@@ -194,11 +197,14 @@ final class ToolbarView: NSView {
         downloadsBadge.stringValue = downloads.activeCount == 0 ? "" : "\(downloads.activeCount)"
         let queued = GitHubService.shared.queue.count
         queueButton.toolTip = queued == 0 ? "Review Queue" : "Review Queue · \(queued) waiting"
+        needsLayout = true
+    }
+
+    private func syncLive() {
+        let tab = tabs.focused
         // Console errors for the page in view, named in the tooltip only; the dev panel lists them.
         let errors = tab?.devTools.errorCount ?? 0
         devButton.toolTip = errors == 0 ? "Dev Panel (⌥⌘J)" : "Dev Panel (⌥⌘J) · \(errors) console error\(errors == 1 ? "" : "s")"
-        needsLayout = true
-        _ = tab?.progress
         let switchedTab = lastProgressTabID != tab?.id
         lastProgressTabID = tab?.id
         layoutProgress(animated: !switchedTab)

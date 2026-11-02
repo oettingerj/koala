@@ -7,6 +7,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     let tabs = TabCollection()
     private let rootView: BrowserRootView
     private var selectionObservation: ObservationLoop?
+    private var titleObservation: ObservationLoop?
     private var sessionObservation: ObservationLoop?
     private var bookmarkObservation: ObservationLoop?
     private var extensionObservation: ObservationLoop?
@@ -147,6 +148,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         }
 
         selectionObservation = ObservationLoop { [weak self] in self?.showSelectedTab() }
+        titleObservation = ObservationLoop { [weak self] in self?.updateWindowTitle() }
         sessionObservation = ObservationLoop { [weak self] in self?.observeSessionState() }
         bookmarkObservation = ObservationLoop { [weak self] in self?.updateBookmarkStar() }
         extensionObservation = ObservationLoop { [weak self] in self?.reportTabChangesToExtensions() }
@@ -796,9 +798,14 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         return nativeViews[tab.id]?.view as? RefreshablePage
     }
 
-    private func showSelectedTab() {
+    /// Apart from `showSelectedTab` so title changes while a page loads don't re-run it.
+    private func updateWindowTitle() {
         guard let tab = tabs.selected else { return }
         window?.title = isPrivate ? "\(tab.displayTitle) — Private" : tab.displayTitle
+    }
+
+    private func showSelectedTab() {
+        guard let tab = tabs.selected else { return }
         // No page loads until enabled extensions are in place; this re-runs when they are.
         guard ExtensionsHost.shared.isReady else { return }
         tab.markActive()
@@ -1148,6 +1155,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         extensionObservation?.cancel()
         sleepTimer?.invalidate()
         selectionObservation?.cancel()
+        titleObservation?.cancel()
         sessionObservation?.cancel()
         bookmarkObservation?.cancel()
         onClose?(self)

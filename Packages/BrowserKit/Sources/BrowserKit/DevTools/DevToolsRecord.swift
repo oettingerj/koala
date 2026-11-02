@@ -190,7 +190,7 @@ public final class DevToolsRecord {
         nextID += 1
         var entry = ConsoleEntry(id: nextID, level: level, text: DebugValue.text(text, limit: 16_000), source: "", date: Date())
         entry.kind = kind
-        append(entry)
+        append([entry])
     }
 
     func receive(network body: Any) {
@@ -230,15 +230,20 @@ public final class DevToolsRecord {
                                     mimeType: response.mimeType, headers: headers)
     }
 
+    /// The console hook posts batches: `{document, entries: [message]}`.
     func receive(console body: Any) {
-        nextID += 1
-        guard let entry = ConsoleEntry.decode(body, id: nextID) else { return }
-        append(entry)
+        guard let list = (body as? [String: Any])?["entries"] as? [Any] else { return }
+        append(list.prefix(Self.consoleLimit).compactMap { value -> ConsoleEntry? in
+            nextID += 1
+            return ConsoleEntry.decode(value, id: nextID)
+        })
     }
 
-    private func append(_ entry: ConsoleEntry) {
-        if entry.level == .error { errorCount += 1 }
-        console.append(entry)
+    private func append(_ entries: [ConsoleEntry]) {
+        guard !entries.isEmpty else { return }
+        let errors = entries.count { $0.level == .error }
+        if errors > 0 { errorCount += errors }
+        console.append(contentsOf: entries)
         if console.count > Self.consoleLimit { console.removeFirst(console.count - Self.consoleLimit) }
     }
 

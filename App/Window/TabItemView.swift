@@ -35,6 +35,8 @@ final class TabItemView: NSView {
     private var showsAudio = false
     private var tracking: NSTrackingArea?
     private var observation: ObservationLoop?
+    /// Progress changes many times per load, so the spinner doesn't re-run `apply`.
+    private var loadingObservation: ObservationLoop?
     private var isDragging = false
     private var isPinned = false
     private var checks: GitHubStatus.Checks = .none
@@ -75,12 +77,18 @@ final class TabItemView: NSView {
         setAccessibilityRole(.radioButton)
 
         observation = ObservationLoop { [weak self] in self?.apply() }
+        loadingObservation = ObservationLoop { [weak self] in self?.applyLoading() }
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    deinit { MainActor.assumeIsolated { observation?.cancel() } }
+    deinit {
+        MainActor.assumeIsolated {
+            observation?.cancel()
+            loadingObservation?.cancel()
+        }
+    }
 
     override var isFlipped: Bool { false }
     override var mouseDownCanMoveWindow: Bool { false }
@@ -124,6 +132,9 @@ final class TabItemView: NSView {
         if tab.isMuted { label += ", muted" } else if tab.isPlayingAudio { label += ", playing audio" }
         setAccessibilityLabel(label)
         updateColors()
+    }
+
+    private func applyLoading() {
         if tab.isLoading && tab.progress < 1 {
             spinner.startAnimation(nil)
             iconView.isHidden = true

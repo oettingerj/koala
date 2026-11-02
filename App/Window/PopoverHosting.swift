@@ -1,3 +1,4 @@
+import BrowserKit
 import SwiftUI
 
 /// A window's popover, kept for the window's life along with one hosting controller per kind of

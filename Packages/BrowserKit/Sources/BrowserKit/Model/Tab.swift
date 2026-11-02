@@ -90,6 +90,9 @@ public final class Tab: NSObject, Identifiable {
     /// Polls a local server that refused the connection, and reloads when it answers.
     @ObservationIgnored private var serverWait: Task<Void, Never>?
     @ObservationIgnored private var lastCrash: Date?
+    /// The main-frame load being timed, from its start, for the page-load signposts.
+    @ObservationIgnored private var loadTiming: (navigation: WKNavigation?, start: ContinuousClock.Instant,
+                                                 id: OSSignpostID, state: OSSignpostIntervalState)?
     /// Back/forward state from a restored session, applied when the web view is created.
     @ObservationIgnored private var restoredState: Data?
     /// The next committed navigation came from the address field (counts as typed in history).
@@ -245,8 +248,36 @@ public final class Tab: NSObject, Identifiable {
         automaticPictureInPicture = nil
         serverWait?.cancel()
         serverWait = nil
+        abandonLoadTiming()
         isLoading = false
         progress = 0
+    }
+
+    /// Signposts `page.load` from the start of a main-frame load to its finish, with a `page.commit`
+    /// event, and records both durations (see Perf). Error pages aren't timed.
+    private func beginLoadTiming(_ navigation: WKNavigation?) {
+        abandonLoadTiming()
+        let id = Perf.signposter.makeSignpostID()
+        loadTiming = (navigation, .now, id, Perf.signposter.beginInterval("page.load", id: id))
+    }
+
+    private func noteLoadCommitted(_ navigation: WKNavigation?) {
+        guard let timing = loadTiming, timing.navigation === navigation else { return }
+        Perf.signposter.emitEvent("page.commit", id: timing.id)
+        Perf.record("page.commit", ContinuousClock.now - timing.start)
+    }
+
+    /// Ends the interval when `navigation` is the timed load; `finished` records its duration.
+    private func endLoadTiming(_ navigation: WKNavigation?, finished: Bool = false) {
+        guard let timing = loadTiming, timing.navigation === navigation else { return }
+        loadTiming = nil
+        Perf.signposter.endInterval("page.load", timing.state)
+        if finished { Perf.record("page.load", ContinuousClock.now - timing.start) }
+    }
+
+    /// Ends the interval without recording: the load was replaced or its web view went away.
+    private func abandonLoadTiming() {
+        endLoadTiming(loadTiming?.navigation)
     }
 
     /// Picture in Picture this tab started on its own as it left view; nil when none.
@@ -496,13 +527,19 @@ extension Tab: WKNavigationDelegate {
         }
     }
 
+    public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        endLoadTiming(navigation)
+    }
+
     public func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        abandonLoadTiming()
         isLoading = false
         progress = 0
         delegate?.tabWebContentProcessDidTerminate(self)
     }
 
     public func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+        noteLoadCommitted(navigation)
         isShowingErrorPage = navigation != nil && navigation === errorNavigation
         if !isShowingErrorPage { pendingTrustKey = nil }
         devTools.reset()
@@ -526,18 +563,21 @@ extension Tab: WKNavigationDelegate {
     }
 
     public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        endLoadTiming(navigation, finished: true)
         if !isShowingErrorPage { delegate?.tabDidFinishNavigation(self) }
     }
 
     public func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
         devTools.willNavigate()
         if navigation !== errorNavigation {
+            beginLoadTiming(navigation)
             serverWait?.cancel()
             serverWait = nil
         }
     }
 
     public func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        endLoadTiming(navigation)
         guard !ErrorPage.isSilent(error) else { bindDevToolsDocument(webView); return }
         let failingURL = (error as NSError).userInfo[NSURLErrorFailingURLErrorKey] as? URL ?? url
         guard let failingURL else { return }

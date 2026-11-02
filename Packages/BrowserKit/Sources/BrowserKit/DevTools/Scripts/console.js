@@ -25,17 +25,28 @@
     const copied = clone(value);
     return (typeof copied === 'string' ? copied : JSON.stringify(copied)).slice(0, 4000);
   };
+  // Messages reach the app in batches, so a page that logs constantly doesn't pay an IPC message
+  // per call. The handler and timers are captured now, before the page can replace them.
+  const handler = globalThis.webkit?.messageHandlers?.koalaConsole, setTimer = setTimeout, clearTimer = clearTimeout;
+  let queue = [], timer = 0;
+  const flush = () => {
+    clearTimer(timer); timer = 0;
+    if (!queue.length) return;
+    try { handler.postMessage({ document: globalThis.__koalaDocumentID, entries: queue.splice(0) }); } catch { queue = []; }
+  };
   const post = (level, args, source = '') => {
     try {
       const values = args.slice(0, 12).map(value => snapshot(value));
       const error = args.find(value => value instanceof Error);
       const stack = (error ? String(error) + '\n' + (error.stack || '') : String(new Error().stack || '')).slice(0, 8000);
       const location = source || stack.split('\n').slice(3).join('\n').split('\n')[0] || '';
-      webkit.messageHandlers.koalaConsole.postMessage({ document: globalThis.__koalaDocumentID,
-        level, text: values.join(' ').slice(0, 4000), arguments: values, stack, source: location });
+      queue.push({ level, text: values.join(' ').slice(0, 4000), arguments: values, stack, source: location });
+      if (queue.length >= 200) flush();
+      else if (!timer) timer = setTimer(flush, 50);
     } catch {}
   };
-  Object.defineProperty(globalThis, '__koalaConsole', { value: { snapshot }, configurable: true });
+  addEventListener('pagehide', flush, true);
+  Object.defineProperty(globalThis, '__koalaConsole', { value: { snapshot, flush }, configurable: true });
   for (const level of ['log', 'info', 'warn', 'error', 'debug']) {
     const original = console[level];
     console[level] = function (...args) { post(level, args); return original.apply(this, args); };

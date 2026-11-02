@@ -15,7 +15,7 @@ import Testing
     @Test func countsErrorsAndCapsHistory() {
         let record = DevToolsRecord()
         for i in 0..<(DevToolsRecord.consoleLimit + 10) {
-            record.receive(console: ["level": i.isMultiple(of: 2) ? "error" : "log", "text": "\(i)"])
+            record.receive(console: ["entries": [["level": i.isMultiple(of: 2) ? "error" : "log", "text": "\(i)"]]])
         }
         #expect(record.console.count == DevToolsRecord.consoleLimit)
         #expect(record.errorCount == (DevToolsRecord.consoleLimit + 10) / 2)
@@ -67,12 +67,12 @@ import Testing
     @Test func rejectsOldDocumentsAndOldCaptureTokens() {
         let record = DevToolsRecord()
         record.bindDocument("page-token", isolated: "isolated-token")
-        record.route(name: DevToolsScripts.consoleHandler, body: ["document": "page-token", "level": "log", "text": "real timestamp"])
+        record.route(name: DevToolsScripts.consoleHandler, body: ["document": "page-token", "entries": [["level": "log", "text": "real timestamp"]]])
         #expect(record.console.last?.text == "real timestamp")
         record.clearConsole()
         record.willNavigate()
-        record.route(name: DevToolsScripts.consoleHandler, body: ["document": "10", "level": "log", "text": "new"])
-        record.route(name: DevToolsScripts.consoleHandler, body: ["document": "9", "level": "log", "text": "old"])
+        record.route(name: DevToolsScripts.consoleHandler, body: ["document": "10", "entries": [["level": "log", "text": "new"]]])
+        record.route(name: DevToolsScripts.consoleHandler, body: ["document": "9", "entries": [["level": "log", "text": "old"]]])
         record.bindDocument("10", isolated: "10")
         #expect(record.console.map(\.text) == ["new"])
         let old = record.beginCapture(origin: "https://a.test")
@@ -92,7 +92,7 @@ import Testing
         record.willNavigate()
         #expect(record.navigationID != generation && record.document == nil)
         record.bindDocument("11", isolated: "11")
-        record.route(name: DevToolsScripts.consoleHandler, body: ["document": "10", "level": "error", "text": "late"])
+        record.route(name: DevToolsScripts.consoleHandler, body: ["document": "10", "entries": [["level": "error", "text": "late"]]])
         #expect(record.console.count == 1)
     }
 

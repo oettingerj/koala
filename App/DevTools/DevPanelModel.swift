@@ -151,6 +151,7 @@ final class DevPanelModel {
                     let literal = String(decoding: encoded, as: UTF8.self)
                     result = try await webView.evaluateJavaScript("if (globalThis.__koalaDocumentID !== \(literal)) throw new Error('The inspected document changed.');\n" + source, contentWorld: .page)
                 }
+                await Self.flushConsole(in: webView)
                 guard current(webView, navigation), evaluationRevision == revision else { return }
                 let text: String
                 if awaits { text = result as? String ?? "undefined" }
@@ -162,11 +163,18 @@ final class DevPanelModel {
                 else { text = result.map { String(describing: $0) } ?? "undefined" }
                 tab.devTools.appendEvaluation(text, kind: "result")
             } catch {
+                await Self.flushConsole(in: webView)
                 guard current(webView, navigation), evaluationRevision == revision else { return }
                 let info = (error as NSError).userInfo["WKJavaScriptExceptionMessage"] as? String
                 tab.devTools.appendEvaluation(info ?? error.localizedDescription, level: .error, kind: "result")
             }
         }
+    }
+
+    /// The page sends console messages in batches; this hands over what a command logged, so its
+    /// output lands above its result.
+    private static func flushConsole(in webView: WKWebView) async {
+        _ = try? await webView.evaluateJavaScript("globalThis.__koalaConsole?.flush()", contentWorld: .page)
     }
 
     func moveHistory(_ direction: Int) {

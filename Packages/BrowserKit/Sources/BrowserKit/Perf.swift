@@ -3,12 +3,12 @@ import os
 
 /// Signposts for the input-latency budgets (view in Instruments › os_signpost). With the
 /// `KoalaPerfLog` default set, durations also go to tmp/koala-perf.log for checks without Instruments.
-enum Perf {
-    static let signposter = OSSignposter(subsystem: "com.joshoettinger.koala", category: .pointsOfInterest)
+public enum Perf {
+    public static let signposter = OSSignposter(subsystem: "com.joshoettinger.koala", category: .pointsOfInterest)
     private static let log = Logger(subsystem: "com.joshoettinger.koala", category: "perf")
 
     @discardableResult
-    static func measure<T>(_ name: StaticString, _ work: () throws -> T) rethrows -> T {
+    public static func measure<T>(_ name: StaticString, _ work: () throws -> T) rethrows -> T {
         let state = signposter.beginInterval(name)
         let start = ContinuousClock.now
         defer {
@@ -18,7 +18,7 @@ enum Perf {
         return try work()
     }
 
-    static func record(_ name: StaticString, _ duration: Duration) {
+    public static func record(_ name: StaticString, _ duration: Duration) {
         let ms = Double(duration.components.attoseconds) / 1e15 + Double(duration.components.seconds) * 1000
         log.debug("\(name, privacy: .public) \(ms, format: .fixed(precision: 2), privacy: .public) ms")
         if UserDefaults.standard.bool(forKey: "KoalaPerfLog") {
@@ -27,7 +27,7 @@ enum Perf {
     }
 
     /// Time since the process started, for the launch budget.
-    static var sinceProcessStart: Duration {
+    public static var sinceProcessStart: Duration {
         var info = kinfo_proc()
         var size = MemoryLayout<kinfo_proc>.size
         var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid()]

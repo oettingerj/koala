@@ -46,7 +46,7 @@ import WebKit
         #expect(pageToken != isolatedToken)
         let record = DevToolsRecord()
         record.bindDocument(pageToken, isolated: isolatedToken)
-        _ = try await page.js("console.log('bound document'); return true;")
+        _ = try await page.js("console.log('bound document'); __koalaConsole.flush(); return true;")
         _ = try await page.js("return true;")
         for (name, body) in page.messages { record.route(name: name, body: body) }
         #expect(record.console.last?.text == "bound document")
@@ -63,16 +63,32 @@ import WebKit
         let calls = 0; const value = { count: 3 }; value.self = value;
         Object.defineProperty(value, 'danger', { enumerable: true, get() { calls++; throw new Error('getter'); } });
         console.log(undefined, value); console.error(new Error('test error'));
+        __koalaConsole.flush();
         return calls;
         """) as? Int
         #expect(getterCount == 0)
         // A round trip drains earlier posted messages from the same web process.
         _ = try await page.js("return true;")
-        let logs = page.messages.filter { $0.0 == "koalaConsole" }.map(\.1)
+        let batches = page.messages.filter { $0.0 == "koalaConsole" }.map(\.1)
+        #expect(batches.count == 1)
+        let logs = batches.flatMap { $0["entries"] as? [[String: Any]] ?? [] }
         #expect(logs.count == 2)
         #expect((logs.first?["text"] as? String)?.contains("undefined") == true)
         #expect((logs.first?["text"] as? String)?.contains("[Circular]") == true)
         #expect((logs.last?["stack"] as? String)?.contains("test error") == true)
+    }
+
+    @Test(.timeLimit(.minutes(1))) func consoleMessagesArriveInOneBatch() async throws {
+        _ = NSApplication.shared
+        let page = Page(); defer { page.dispose() }
+        try await page.load()
+        _ = try await page.js("for (let i = 0; i < 5; i++) console.log('line', i); return true;")
+        #expect(page.messages.filter { $0.0 == "koalaConsole" }.isEmpty)
+        _ = try await page.js("await new Promise(resolve => setTimeout(resolve, 100)); return true;")
+        let batches = page.messages.filter { $0.0 == "koalaConsole" }.map(\.1)
+        #expect(batches.count == 1)
+        let texts = (batches.first?["entries"] as? [[String: Any]])?.compactMap { $0["text"] as? String }
+        #expect(texts == (0..<5).map { "line \($0)" })
     }
 
     @Test(.timeLimit(.minutes(1))) func fetchPreservesResultsRejectionsStreamsAndRestoration() async throws {
