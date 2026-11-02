@@ -147,6 +147,8 @@ final class ReviewsModel {
 
 struct ReviewsSection: View {
     @Bindable var model: ReviewsModel
+    /// The home page's sidebar, when the page is wide enough to show one.
+    var sidebarShown: Binding<Bool>?
     @FocusState private var searchFocused: Bool
     @State private var width: CGFloat = 0
     private var github: GitHubService { .shared }
@@ -193,6 +195,7 @@ struct ReviewsSection: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .center, spacing: 8) {
+                if let sidebarShown { SidebarToggle(isShown: sidebarShown) }
                 Text("Reviews").font(.system(size: 20, weight: .semibold)).foregroundStyle(settingsPrimary)
                     .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: 16)
@@ -704,26 +707,19 @@ struct PullRow: View {
         return "\(head) → \(base)"
     }
 
-    /// The gist, then the areas it touches. Without a gist the areas lead, then the branch;
+    /// The gist, given the whole line. Without a gist the areas it touches lead, then the branch;
     /// while the gist is being written over an empty description, a still placeholder holds its place.
     @ViewBuilder private var gist: some View {
         if let about {
-            HStack(spacing: 12) {
-                HStack(spacing: 5) {
-                    if isGenerated {
-                        Image(systemName: "apple.intelligence").font(.system(size: 9)).foregroundStyle(quiet)
-                            .accessibilityHidden(true)
-                    }
-                    Text(about).font(.system(size: 12)).foregroundStyle(settingsSecondary).lineLimit(1)
+            HStack(spacing: 5) {
+                if isGenerated {
+                    Image(systemName: "apple.intelligence").font(.system(size: 9)).foregroundStyle(quiet)
+                        .accessibilityHidden(true)
                 }
-                .help(isGenerated ? "Summarized on this Mac by Apple Intelligence" : "")
-                .layoutPriority(1)
-                if !isCompact, let areasText {
-                    // Sized before the gist, which truncates first.
-                    Text(areasText).font(.mono(size: 11)).foregroundStyle(quiet).lineLimit(1)
-                        .layoutPriority(2)
-                }
+                Text(about).font(.system(size: 12)).foregroundStyle(settingsSecondary).lineLimit(1)
             }
+            .help(isGenerated ? "Summarized on this Mac by Apple Intelligence" : "")
+            .layoutPriority(1)
         } else if summarizer.isPending(pull.id) {
             RoundedRectangle(cornerRadius: 3).fill(Color(nsColor: Theme.fieldFill)).frame(width: 160, height: 8)
                 .accessibilityHidden(true)

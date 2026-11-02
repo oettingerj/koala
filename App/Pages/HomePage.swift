@@ -15,6 +15,10 @@ final class HomePageModel {
     }
 
     var section: Section = .reviews
+    /// Folded away by default: with one section the sidebar has nothing to choose between.
+    var showsSidebar = UserDefaults.standard.bool(forKey: "HomeSidebarShown") {
+        didSet { UserDefaults.standard.set(showsSidebar, forKey: "HomeSidebarShown") }
+    }
     let reviews: ReviewsModel
 
     init(open: @escaping (URL, PageOpenTarget) -> Void) { reviews = ReviewsModel(open: open) }
@@ -70,17 +74,19 @@ struct HomePage: View {
     @Bindable var model: HomePageModel
     @State private var width: CGFloat = 0
 
-    /// Below this the sidebar folds away and the section takes the page.
+    /// Below this the sidebar folds away, its toggle with it, and the section takes the page.
     private static let sidebarMinimumPageWidth: CGFloat = 900
+
+    private var fitsSidebar: Bool { width >= Self.sidebarMinimumPageWidth }
 
     var body: some View {
         HStack(spacing: 0) {
-            if width >= Self.sidebarMinimumPageWidth {
+            if fitsSidebar && model.showsSidebar {
                 sidebar
                 VerticalRule()
             }
             switch model.section {
-            case .reviews: ReviewsSection(model: model.reviews)
+            case .reviews: ReviewsSection(model: model.reviews, sidebarShown: fitsSidebar ? $model.showsSidebar : nil)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -117,6 +123,23 @@ struct HomePage: View {
         }
         .padding(.horizontal, 10).padding(.top, 24)
         .frame(width: 200)
+    }
+}
+
+/// Shows and hides the home page's sidebar; a section puts it before its title.
+struct SidebarToggle: View {
+    @Binding var isShown: Bool
+
+    var body: some View {
+        let label = isShown ? "Hide Sidebar" : "Show Sidebar"
+        Button { isShown.toggle() } label: {
+            Image(systemName: "sidebar.left").font(.system(size: 13, weight: .medium)).foregroundStyle(settingsSecondary)
+                .frame(width: Theme.iconButtonSize, height: Theme.iconButtonSize)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(HoverFillButtonStyle(radius: Theme.controlRadius))
+        .help(label)
+        .accessibilityLabel(label)
     }
 }
 
