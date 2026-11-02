@@ -13,7 +13,8 @@ final class BookmarksBarView: NSView {
     /// The insertion line shown while a bookmark is dragged over the bar.
     private let dropIndicator = CALayer()
     private var dropTarget: BookmarkDrag.Target? { didSet { showDropTarget() } }
-    private let emptyLabel = NSTextField(labelWithString: "Bookmark pages with ⌘D to keep them here")
+    private let emptyLabel = NSTextField(labelWithString: MenuShortcuts.text(for: #selector(BrowserWindowController.toggleBookmark(_:)))
+        .map { "Bookmark pages with \($0) to keep them here" } ?? "Bookmark pages to keep them here")
     private var observation: ObservationLoop?
     private lazy var dropdown: BookmarkDropdown = {
         let dropdown = BookmarkDropdown(library: library) { [weak self] url, newTab in self?.onOpen?(url, newTab) }

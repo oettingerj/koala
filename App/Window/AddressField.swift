@@ -84,7 +84,8 @@ final class AddressField: NSView {
         starButton.image = NSImage(systemSymbolName: isBookmarked ? "star.fill" : "star",
                                    accessibilityDescription: isBookmarked ? "Remove Bookmark" : "Bookmark This Page")?
             .withSymbolConfiguration(.init(pointSize: 12, weight: .medium))
-        starButton.toolTip = isBookmarked ? "Remove Bookmark (⌘D)" : "Bookmark This Page (⌘D)"
+        starButton.toolTip = MenuShortcuts.label(isBookmarked ? "Remove Bookmark" : "Bookmark This Page",
+                                                 for: #selector(BrowserWindowController.toggleBookmark(_:)))
         starButton.contentTintColor = isBookmarked ? Theme.accent : Theme.textTertiary
     }
 

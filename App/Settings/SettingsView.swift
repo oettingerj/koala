@@ -41,6 +41,16 @@ enum Preferences {
         }
     }
 
+    /// Menu shortcuts the user changed, by `MenuShortcuts.id(for:)`. `.none` means removed.
+    static var menuShortcuts: [String: MenuShortcut] {
+        get {
+            guard let data = UserDefaults.standard.data(forKey: "MenuShortcuts"),
+                  let shortcuts = try? JSONDecoder().decode([String: MenuShortcut].self, from: data) else { return [:] }
+            return shortcuts
+        }
+        set { UserDefaults.standard.set(try? JSONEncoder().encode(newValue), forKey: "MenuShortcuts") }
+    }
+
     /// Reopen last session's windows at launch, or start with one new window.
     static var restoresSession: Bool {
         get { UserDefaults.standard.object(forKey: "RestoreSession") as? Bool ?? true }
@@ -84,7 +94,7 @@ let settingsTertiary = Color(nsColor: Theme.textTertiary)
 let settingsFail = Color(nsColor: Theme.fail)
 
 enum SettingsSection: String, CaseIterable, Identifiable {
-    case general, github, keywords, extensions, sites, data
+    case general, github, keywords, shortcuts, extensions, sites, data
 
     var id: String { rawValue }
 
@@ -93,19 +103,27 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .general: "General"
         case .github: "GitHub"
         case .keywords: "Search Keywords"
+        case .shortcuts: "Keyboard Shortcuts"
         case .extensions: "Extensions"
         case .sites: "Sites"
         case .data: "Browsing Data"
         }
     }
 
-    var indexTitle: String { self == .keywords ? "Keywords" : title }
+    var indexTitle: String {
+        switch self {
+        case .keywords: "Keywords"
+        case .shortcuts: "Shortcuts"
+        default: title
+        }
+    }
 
     var summary: String {
         switch self {
         case .general: "How the address field searches, and which browser opens links."
         case .github: "Pull request and CI status in tabs, and the review queue."
         case .keywords: "Type a keyword and a space in the address field or command bar to search that site."
+        case .shortcuts: "Change the shortcut for any menu command. Click a shortcut, then press the new keys."
         case .extensions: "Safari-compatible web extensions, including most Manifest V3 Chrome extensions."
         case .sites: "What each site may use, and what Koala keeps for it."
         case .data: "Bring in bookmarks and history from another browser, or clear what Koala remembers."
@@ -144,6 +162,22 @@ final class SettingsModel {
     var expandedKeyword: KeywordDraft.ID?
     var focusesKeyword: KeywordDraft.ID?
 
+    /// Every menu command with its shortcut, read from the menu bar.
+    private(set) var shortcuts = MenuShortcuts.commands()
+    let shortcutRecording = ShortcutRecording()
+
+    /// nil restores the command's built-in shortcut.
+    func setShortcut(_ shortcut: MenuShortcut?, for id: String) {
+        MenuShortcuts.set(shortcut, for: id)
+        shortcuts = MenuShortcuts.commands()
+    }
+
+    func resetShortcuts() {
+        shortcutRecording.stop()
+        MenuShortcuts.resetAll()
+        shortcuts = MenuShortcuts.commands()
+    }
+
     /// Appends an empty keyword, open for editing with its keyword field focused.
     func addKeyword() {
         let draft = KeywordDraft(search: KeywordSearch(keyword: "", name: "", template: "https://"))
@@ -157,6 +191,7 @@ final class SettingsModel {
         case .general: SettingEntries.general
         case .github: SettingEntries.github
         case .keywords: keywords.map(KeywordSettings.entry(for:))
+        case .shortcuts: shortcuts.map(ShortcutSettings.entry(for:))
         case .extensions: ExtensionSettings.entries()
         case .sites: SettingEntries.sites
         case .data: SettingEntries.data
@@ -293,6 +328,7 @@ struct SettingsPage: View {
             case .general: GeneralSettings()
             case .github: GitHubSettings()
             case .keywords: KeywordSettings(model: model)
+            case .shortcuts: ShortcutSettings(model: model)
             case .extensions: ExtensionSettings()
             case .sites: SitesSettings()
             case .data: BrowsingDataSettings()

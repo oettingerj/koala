@@ -46,15 +46,16 @@ enum SettingEntries {
         id: "import", section: .data, title: "Import",
         detail: "Bookmarks and history from a Chrome or Brave profile. For Arc or Safari, choose their bookmarks file.",
         terms: ["chrome", "brave", "arc", "safari", "bookmarks", "history"])
-    static let bookmarksBar = SettingEntry(
+    static var bookmarksBar: SettingEntry { SettingEntry(
         id: "bookmarks-bar", section: .data, title: "Show bookmarks bar",
-        detail: "A row of bookmarks under the toolbar. ⇧⌘B shows or hides it.",
-        terms: ["bookmarks", "toolbar"])
+        detail: "A row of bookmarks under the toolbar." + (MenuShortcuts.text(for: #selector(BrowserWindowController.toggleBookmarksBar(_:)))
+            .map { " \($0) shows or hides it." } ?? ""),
+        terms: ["bookmarks", "toolbar"]) }
     static let clearHistory = SettingEntry(
         id: "clear-history", section: .data, title: "Clear history",
         detail: "Removes visited pages from history and address suggestions. Bookmarks and open tabs stay.",
         terms: ["delete", "privacy", "visited"])
-    static let data = [importData, bookmarksBar, clearHistory]
+    static var data: [SettingEntry] { [importData, bookmarksBar, clearHistory] }
 }
 
 // MARK: General
@@ -263,7 +264,7 @@ struct GitHubSettings: View {
 // MARK: Browsing data
 
 struct BrowsingDataSettings: View {
-    /// Read here so ⇧⌘B in any window keeps the switch current.
+    /// Read here so the menu command in any window keeps the switch current.
     @AppStorage("ShowBookmarksBar") private var showsBookmarksBar = false
 
     var body: some View {

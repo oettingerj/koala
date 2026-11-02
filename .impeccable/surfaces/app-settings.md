@@ -9,7 +9,7 @@ related_targets: []
 
 Scope: Koala's settings, moved out of a separate window into a native SwiftUI page hosted in a browser tab. Mode: Operate.
 
-Audience/job: the engineer changes one setting and goes back to work: picks a search engine, edits a keyword, signs in to GitHub, points Koala at a code folder, enables or pins an extension, imports bookmarks, clears history. Success: any setting is found by typing a few letters, changed, and left in seconds.
+Audience/job: the engineer changes one setting and goes back to work: picks a search engine, edits a keyword, signs in to GitHub, points Koala at a code folder, enables or pins an extension, imports bookmarks, clears history, rebinds a menu shortcut. Success: any setting is found by typing a few letters, changed, and left in seconds.
 
 Constraints: inherits the app-window world (DESIGN.md). Native controls (pickers, switches, buttons), SF Pro / SF Mono, light and dark equal. Nothing animates on the input path. Every setting keyboard-reachable; ⌘, opens or focuses the one settings tab.
 
@@ -21,7 +21,7 @@ OWN-WORLD: The app-window world unchanged: chrome-surface ground, one neutral ra
 
 STORY: The engineer presses ⌘, and the settings tab opens (or comes forward) with the search field focused, types "pin" or "editor", sees only the matching rows with the match set in semibold, changes the setting, and closes or leaves the tab.
 
-FIRST VIEWPORT: A pinned header in a centered 680pt column: "Settings" at 20pt semibold, a 32pt search field with an esc / ⌘F hint, the section index (General, GitHub, Keywords, Extensions, Browsing Data, with counts) and a hairline. Below, General's rows, then the GitHub account card with avatar, login and review-queue count. The search field is the primary action.
+FIRST VIEWPORT: A pinned header in a centered 680pt column: "Settings" at 20pt semibold, a 32pt search field with an esc / ⌘F hint, the section index (General, GitHub, Keywords, Shortcuts, Extensions, Sites, Browsing Data, with counts) and a hairline. Below, General's rows, then the GitHub account card with avatar, login and review-queue count. The search field is the primary action.
 
 FORM: Search-first column, position 3 on the ordered list of seven structures; dealt lead of the surface roll, chosen by the user. Seed key 58b3f566.
 

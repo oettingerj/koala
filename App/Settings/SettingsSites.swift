@@ -8,10 +8,11 @@ extension SettingEntries {
         id: "site-media", section: .sites, title: "Camera and microphone",
         detail: "Sites you allowed or blocked. A site you remove asks again next time.",
         terms: ["permissions", "camera", "microphone", "video", "audio", "allow", "block"])
-    static let siteZoom = SettingEntry(
+    static var siteZoom: SettingEntry { SettingEntry(
         id: "site-zoom", section: .sites, title: "Zoom",
-        detail: "Sites you zoomed in or out. ⌘0 on a page resets it too.",
-        terms: ["zoom", "scale", "size", "text"])
+        detail: "Sites you zoomed in or out." + (MenuShortcuts.text(for: #selector(BrowserWindowController.actualSize(_:)))
+            .map { " \($0) on a page resets it too." } ?? ""),
+        terms: ["zoom", "scale", "size", "text"]) }
     static let certificates = SettingEntry(
         id: "site-certificates", section: .sites, title: "Certificate exceptions",
         detail: "Servers you visited despite an untrusted certificate. Koala forgets them when it quits.",
@@ -20,7 +21,7 @@ extension SettingEntries {
         id: "site-data", section: .sites, title: "Website data",
         detail: "Cookies, storage, and caches sites keep. Removing a site’s data signs you out of it.",
         terms: ["cookies", "storage", "cache", "local storage", "privacy", "sign out"])
-    static let sites = [mediaPermissions, siteZoom, certificates, websiteData]
+    static var sites: [SettingEntry] { [mediaPermissions, siteZoom, certificates, websiteData] }
 }
 
 // MARK: Sites

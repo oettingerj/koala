@@ -8,9 +8,9 @@ final class FindBar: NSView, NSSearchFieldDelegate {
 
     private let field = NSSearchField()
     private let status = NSTextField(labelWithString: "")
-    private lazy var previousButton = IconButton(symbol: "chevron.up", label: "Previous Match (⇧⌘G)", pointSize: 11,
+    private lazy var previousButton = IconButton(symbol: "chevron.up", label: MenuShortcuts.label("Previous Match", for: #selector(BrowserWindowController.findPrevious(_:))), pointSize: 11,
                                                  action: #selector(previous), target: self)
-    private lazy var nextButton = IconButton(symbol: "chevron.down", label: "Next Match (⌘G)", pointSize: 11,
+    private lazy var nextButton = IconButton(symbol: "chevron.down", label: MenuShortcuts.label("Next Match", for: #selector(BrowserWindowController.findNext(_:))), pointSize: 11,
                                              action: #selector(next), target: self)
     private let doneButton = NSButton(title: "Done", target: nil, action: nil)
     private let hairline = CALayer()

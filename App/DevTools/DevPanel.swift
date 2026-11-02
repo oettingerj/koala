@@ -85,7 +85,7 @@ struct DevPanel: View {
             DevIcon(model.isDetached ? "Dock tools in browser" : "Detach tools", symbol: model.isDetached ? "rectangle.bottomthird.inset.filled" : "arrow.up.right.square") {
                 model.perform(model.isDetached ? .redock : .detach)
             }
-            DevIcon("Close developer tools (⌥⌘J)", symbol: "xmark") { model.perform(.close) }
+            DevIcon(MenuShortcuts.label("Close developer tools", for: #selector(BrowserWindowController.toggleDevPanel(_:))), symbol: "xmark") { model.perform(.close) }
         }
     }
 }

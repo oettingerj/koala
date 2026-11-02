@@ -37,6 +37,17 @@ enum MainMenu {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
         item.keyEquivalentModifierMask = modifiers
         item.tag = tag
+        MenuShortcuts.register(item)
+        return item
+    }
+
+    /// A hidden second key for a command (⌃⇥ for Show Next Tab). It keeps its key when the user
+    /// rebinds the visible command.
+    private static func alternate(_ title: String, _ action: Selector, _ key: String, _ modifiers: NSEvent.ModifierFlags) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
+        item.keyEquivalentModifierMask = modifiers
+        item.isHidden = true
+        item.allowsKeyEquivalentWhenHidden = true
         return item
     }
 
@@ -124,9 +135,7 @@ enum MainMenu {
         let menu = NSMenu(title: "Develop")
         menu.addItem(item("Show Dev Panel", #selector(BrowserWindowController.toggleDevPanel(_:)), "j", [.command, .option]))
         for (index, section) in DevPanelModel.Section.allCases.enumerated() {
-            let command = item("Show \(section.rawValue)", #selector(BrowserWindowController.showDevSection(_:)))
-            command.tag = index
-            menu.addItem(command)
+            menu.addItem(item("Show \(section.rawValue)", #selector(BrowserWindowController.showDevSection(_:)), tag: index))
         }
         menu.addItem(item("Detach / Dock Developer Tools", #selector(BrowserWindowController.detachDevTools(_:))))
         menu.addItem(.separator())
@@ -177,14 +186,8 @@ enum MainMenu {
         menu.addItem(.separator())
         menu.addItem(item("Show Next Tab", #selector(BrowserWindowController.selectNextTab(_:)), "]", [.command, .shift]))
         menu.addItem(item("Show Previous Tab", #selector(BrowserWindowController.selectPreviousTab(_:)), "[", [.command, .shift]))
-        let nextAlt = item("Show Next Tab", #selector(BrowserWindowController.selectNextTab(_:)), "\t", .control)
-        nextAlt.isHidden = true
-        nextAlt.allowsKeyEquivalentWhenHidden = true
-        menu.addItem(nextAlt)
-        let previousAlt = item("Show Previous Tab", #selector(BrowserWindowController.selectPreviousTab(_:)), "\t", [.control, .shift])
-        previousAlt.isHidden = true
-        previousAlt.allowsKeyEquivalentWhenHidden = true
-        menu.addItem(previousAlt)
+        menu.addItem(alternate("Show Next Tab", #selector(BrowserWindowController.selectNextTab(_:)), "\t", .control))
+        menu.addItem(alternate("Show Previous Tab", #selector(BrowserWindowController.selectPreviousTab(_:)), "\t", [.control, .shift]))
         menu.addItem(item("Pin Tab", #selector(BrowserWindowController.togglePinTab(_:))))
         menu.addItem(item("Duplicate Tab", #selector(BrowserWindowController.duplicateTab(_:))))
         menu.addItem(item("Mute Tab", #selector(BrowserWindowController.toggleMuteTab(_:)), "m", .control))

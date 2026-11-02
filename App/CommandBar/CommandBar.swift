@@ -262,19 +262,7 @@ enum MenuCommands {
     }
 
     static func shortcut(for item: NSMenuItem) -> String? {
-        guard !item.keyEquivalent.isEmpty else { return nil }
-        let flags = item.keyEquivalentModifierMask
-        var text = ""
-        if flags.contains(.control) { text += "⌃" }
-        if flags.contains(.option) { text += "⌥" }
-        if flags.contains(.shift) { text += "⇧" }
-        if flags.contains(.command) { text += "⌘" }
-        let key: String = switch item.keyEquivalent {
-        case "\t": "⇥"
-        case "\r": "↩"
-        case " ": "Space"
-        default: item.keyEquivalent.uppercased()
-        }
-        return text + key
+        let shortcut = MenuShortcuts.shortcut(of: item)
+        return shortcut.isNone ? nil : shortcut.display
     }
 }

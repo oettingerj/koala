@@ -204,7 +204,8 @@ final class ToolbarView: NSView {
         let tab = tabs.focused
         // Console errors for the page in view, named in the tooltip only; the dev panel lists them.
         let errors = tab?.devTools.errorCount ?? 0
-        devButton.toolTip = errors == 0 ? "Dev Panel (⌥⌘J)" : "Dev Panel (⌥⌘J) · \(errors) console error\(errors == 1 ? "" : "s")"
+        let label = MenuShortcuts.label("Dev Panel", for: #selector(BrowserWindowController.toggleDevPanel(_:)))
+        devButton.toolTip = errors == 0 ? label : "\(label) · \(errors) console error\(errors == 1 ? "" : "s")"
         let switchedTab = lastProgressTabID != tab?.id
         lastProgressTabID = tab?.id
         layoutProgress(animated: !switchedTab)
