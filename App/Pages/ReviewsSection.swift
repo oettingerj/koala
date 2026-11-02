@@ -42,9 +42,9 @@ final class ReviewsModel {
     var showTeamRequests = true
     var showDrafts = false
     var showBots = false
-    /// The row arrow keys move and Return opens.
+    /// The row a click or the arrow keys pick, which Return opens and the detail pane holds to.
     var selection: GitHubPull.ID?
-    /// The row the detail pane describes: the last one pointed at or reached by keyboard.
+    /// The row last pointed at, which the detail pane follows while nothing is selected.
     var previewID: GitHubPull.ID?
     var focusRequest = 0
 
@@ -127,12 +127,11 @@ final class ReviewsModel {
         let current = selection.flatMap { id in rows.firstIndex { $0.id == id } }
         let next = current.map { min(max($0 + offset, 0), rows.count - 1) } ?? (offset > 0 ? 0 : rows.count - 1)
         selection = rows[next].id
-        previewID = selection
     }
 
-    /// What the detail pane shows: the previewed row while it's in the list, else the selection, else the first row.
+    /// What the detail pane shows: the selection while it's in the list, else the row pointed at, else the first row.
     func previewed(in rows: [GitHubPull]) -> GitHubPull? {
-        rows.first { $0.id == previewID } ?? rows.first { $0.id == selection } ?? rows.first
+        rows.first { $0.id == selection } ?? rows.first { $0.id == previewID } ?? rows.first
     }
 
     /// Opens the selected row, or the first when none is selected.
@@ -365,6 +364,9 @@ struct ReviewsSection: View {
         case .downArrow: model.moveSelection(by: 1)
         case .upArrow: model.moveSelection(by: -1)
         case .return: model.openSelection(.forClick(command: press.modifiers.contains(.command)))
+        case .escape:
+            guard model.selection != nil else { return .ignored }
+            model.selection = nil
         default: return .ignored
         }
         return .handled
@@ -492,6 +494,7 @@ struct ReviewsSection: View {
                                 ForEach(rows) { pull in
                                     PullRow(pull: pull, tab: model.tab, filter: model.filter, isSelected: model.selection == pull.id,
                                             isCompact: isCompact, now: context.date, open: model.open,
+                                            onSelect: { model.selection = pull.id },
                                             onHover: { if $0 { model.previewID = pull.id } })
                                         .id(pull.id)
                                 }
@@ -559,7 +562,9 @@ struct PullRow: View {
     let isCompact: Bool
     let now: Date
     let open: (URL, PageOpenTarget) -> Void
-    /// Pointer movement over the row or VoiceOver focus on it: the detail pane follows either.
+    /// A single click: the row becomes the selection and the detail pane holds to it.
+    var onSelect: () -> Void = {}
+    /// Pointer movement over the row or VoiceOver focus on it: the detail pane follows either while nothing is selected.
     var onHover: (Bool) -> Void = { _ in }
     @State private var isHovered = false
     @AccessibilityFocusState private var isFocused: Bool
@@ -616,7 +621,10 @@ struct PullRow: View {
                 onHover(true)
             }
         }
-        .onTapGesture { open(pull.url, .forCurrentEvent) }
+        // One tap gesture sees both clicks of a double-click, so the first selects at once and the second opens.
+        .onTapGesture {
+            if NSApp.currentEvent?.clickCount == 2 { open(pull.url, .forCurrentEvent) } else { onSelect() }
+        }
         .help(helpText)
         .contextMenu { menu }
         .accessibilityElement(children: .ignore)

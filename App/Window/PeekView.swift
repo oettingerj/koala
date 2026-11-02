@@ -8,6 +8,7 @@ import WebKit
 final class PeekView: NSView {
     private let card = NSView()
     private let header = NSView()
+    private let separator = NSView()
     private let hostLabel = NSTextField(labelWithString: "")
     private lazy var splitButton = IconButton(symbol: "rectangle.split.2x1", label: "Open in Split (⇧⌘↩)", pointSize: 12,
                                               action: #selector(openInSplit), target: self)
@@ -28,15 +29,18 @@ final class PeekView: NSView {
         card.wantsLayer = true
         card.layer?.cornerRadius = Theme.panelRadius
         card.layer?.cornerCurve = .continuous
-        card.layer?.masksToBounds = true
+        // AppKit owns `masksToBounds` on a layer-backed view and resets it from `clipsToBounds`,
+        // so clip here or the header and page draw square over the rounded corners.
+        card.clipsToBounds = true
         card.layer?.borderWidth = 1
-        card.shadow = NSShadow()
         hostLabel.font = Theme.fieldMono
         hostLabel.textColor = Theme.textSecondary
         hostLabel.lineBreakMode = .byTruncatingMiddle
         header.wantsLayer = true
+        separator.wantsLayer = true
         [hostLabel, splitButton, tabButton, closeButton].forEach(header.addSubview)
         card.addSubview(header)
+        card.addSubview(separator)
         addSubview(card)
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
@@ -54,6 +58,7 @@ final class PeekView: NSView {
         card.layer?.backgroundColor = resolved(Theme.chromeSurface)
         card.layer?.borderColor = resolved(Theme.hairline)
         header.layer?.backgroundColor = resolved(Theme.chromeSurface)
+        separator.layer?.backgroundColor = resolved(Theme.hairline)
     }
 
     /// `configuration` is the window's when it isn't the shared one (a private window's).
@@ -104,8 +109,11 @@ final class PeekView: NSView {
         closeButton.frame = NSRect(x: header.bounds.width - 6 - Theme.iconButtonSize, y: y, width: Theme.iconButtonSize, height: Theme.iconButtonSize)
         tabButton.frame = closeButton.frame.offsetBy(dx: -(Theme.iconButtonSize + 2), dy: 0)
         splitButton.frame = tabButton.frame.offsetBy(dx: -(Theme.iconButtonSize + 2), dy: 0)
-        hostLabel.frame = NSRect(x: 14, y: (headerHeight - 16) / 2, width: splitButton.frame.minX - 24, height: 16)
-        webView?.frame = NSRect(x: 0, y: 0, width: card.bounds.width, height: card.bounds.height - headerHeight - 1)
+        // The bundled mono font's line is taller than its point size; a fixed height clips descenders.
+        let labelHeight = ceil(hostLabel.intrinsicContentSize.height)
+        hostLabel.frame = NSRect(x: 14, y: ((headerHeight - labelHeight) / 2).rounded(), width: splitButton.frame.minX - 24, height: labelHeight)
+        separator.frame = NSRect(x: 0, y: header.frame.minY - 1, width: card.bounds.width, height: 1)
+        webView?.frame = NSRect(x: 0, y: 0, width: card.bounds.width, height: separator.frame.minY)
     }
 
     override func mouseDown(with event: NSEvent) {

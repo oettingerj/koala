@@ -199,7 +199,8 @@ final class CommandBarContainer: NSView {
         wantsLayer = true
         layer?.cornerRadius = Theme.panelRadius
         layer?.cornerCurve = .continuous
-        layer?.masksToBounds = true
+        // AppKit resets `masksToBounds` from `clipsToBounds`; set the view property so content clips to the corners.
+        clipsToBounds = true
         layer?.borderWidth = 1
     }
 

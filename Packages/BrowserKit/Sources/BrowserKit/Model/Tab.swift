@@ -467,8 +467,10 @@ extension Tab: WKNavigationDelegate {
             delegate?.tab(self, peek: url)
             return (.cancel, preferences)
         }
+        // WebKit reports `buttonNumber` as a button mask: 1 left, 2 right, 4 middle. The right
+        // button shows up when "Open Link in New Window" loads the link into its new web view.
         let opensNewTab = action.navigationType == .linkActivated
-            && (action.modifierFlags.contains(.command) || action.buttonNumber == 2)
+            && (action.modifierFlags.contains(.command) || action.buttonNumber == 4)
         if opensNewTab, let url = action.request.url {
             delegate?.tab(self, openInNewTab: url, inBackground: !action.modifierFlags.contains(.shift))
             return (.cancel, preferences)

@@ -18,7 +18,7 @@ struct PageSearchField: View {
     let prompt: String
     @Binding var text: String
     var focused: FocusState<Bool>.Binding
-    /// Arrow keys and Return, for pages whose list the field drives.
+    /// Arrow keys, Return, and Esc once the field is empty, for pages whose list the field drives.
     var onKey: ((KeyPress) -> KeyPress.Result)?
 
     var body: some View {
@@ -30,8 +30,8 @@ struct PageSearchField: View {
                 .tint(Color(nsColor: Theme.accent))
                 .focused(focused)
                 .accessibilityLabel(prompt)
-                .onKeyPress(.escape) {
-                    guard !text.isEmpty else { return .ignored }
+                .onKeyPress(keys: [.escape]) { press in
+                    guard !text.isEmpty else { return onKey?(press) ?? .ignored }
                     text = ""
                     return .handled
                 }
