@@ -22,6 +22,8 @@ public final class KoalaWebView: WKWebView {
     public private(set) var contextLink: ContextLink?
     /// Called as a context menu opens, with the right-clicked link (nil when there was none).
     public var contextMenuHook: ((NSMenu, ContextLink?) -> Void)?
+    /// Called when the page changes its icon links after it loaded, as client-rendered apps do.
+    public var iconLinksHook: (() -> Void)?
 
     override public func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
         super.willOpenMenu(menu, with: event)
@@ -40,21 +42,51 @@ public final class KoalaWebView: WKWebView {
     }, true);
     """
 
+    // MARK: Icon link tracking
+
+    static let iconLinksHandler = "koalaIconLinks"
+
+    /// Runs in the main frame. Links present at `load` are read when the navigation finishes, so
+    /// this reports only later changes, such as a client-rendered app adding its icon on mount.
+    static let iconLinksScript = """
+    addEventListener('load', () => {
+      const signature = () => [...document.querySelectorAll('\(FaviconCandidates.selector)')]
+        .map(e => e.rel + ' ' + e.href).join('\\n');
+      let last = signature(), timer = 0;
+      new MutationObserver(() => {
+        timer ||= setTimeout(() => {
+          timer = 0;
+          const now = signature();
+          if (now !== last) { last = now; webkit.messageHandlers.\(iconLinksHandler).postMessage(null); }
+        }, 250);
+      }).observe(document.head ?? document.documentElement,
+                 { childList: true, subtree: true, attributes: true, attributeFilter: ['href', 'rel'] });
+    }, { once: true });
+    """
+
     /// One handler for the shared configuration; it hands each message to the web view it came from.
-    private final class LinkTracker: NSObject, WKScriptMessageHandler {
+    private final class PageMessages: NSObject, WKScriptMessageHandler {
         func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
             MainActor.assumeIsolated {
-                (message.webView as? KoalaWebView)?.contextLink = ContextLink(message: message.body)
+                guard let webView = message.webView as? KoalaWebView else { return }
+                switch message.name {
+                case linkHandler: webView.contextLink = ContextLink(message: message.body)
+                case iconLinksHandler: webView.iconLinksHook?()
+                default: break
+                }
             }
         }
     }
 
-    @MainActor private static let tracker = LinkTracker()
+    @MainActor private static let messages = PageMessages()
 
-    @MainActor static func installLinkTracking(on controller: WKUserContentController) {
+    @MainActor static func installPageTracking(on controller: WKUserContentController) {
         controller.addUserScript(WKUserScript(source: linkScript, injectionTime: .atDocumentStart,
                                               forMainFrameOnly: false, in: DevToolsScripts.world))
-        controller.add(tracker, contentWorld: DevToolsScripts.world, name: linkHandler)
+        controller.addUserScript(WKUserScript(source: iconLinksScript, injectionTime: .atDocumentStart,
+                                              forMainFrameOnly: true, in: DevToolsScripts.world))
+        controller.add(messages, contentWorld: DevToolsScripts.world, name: linkHandler)
+        controller.add(messages, contentWorld: DevToolsScripts.world, name: iconLinksHandler)
     }
 }
 

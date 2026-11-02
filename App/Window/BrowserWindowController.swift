@@ -1309,10 +1309,31 @@ extension BrowserWindowController: TabUIHost {
         DownloadManager.shared.save(data, suggestedFilename: suggestedFilename, from: source)
         rootView.toolbar.flashDownloads()
     }
+
+    /// Pages can't launch apps unasked. One prompt at a time: Zoom's page fires its link on load and again on click.
+    func tab(_ tab: Tab, openExternally url: URL, in app: URL) {
+        guard let window, window.attachedSheet == nil else { return }
+        let name = ExternalApp.displayName(of: app)
+        let alert = NSAlert()
+        alert.messageText = "Open \(name)?"
+        let host = tab.url?.host() ?? ""
+        alert.informativeText = host.isEmpty ? "This page wants to open \(name)." : "\(host) wants to open \(name)."
+        alert.icon = NSWorkspace.shared.icon(forFile: app.path)
+        alert.addButton(withTitle: "Open \(name)")
+        alert.addButton(withTitle: "Cancel")
+        Task {
+            if await sheet(alert) == .alertFirstButtonReturn { NSWorkspace.shared.open(url) }
+        }
+    }
 }
 
 extension BrowserWindowController: TabDelegate {
     func tab(_ tab: Tab, createWebViewWith configuration: WKWebViewConfiguration, for action: WKNavigationAction) -> WKWebView? {
+        // A new window for an app link would stay blank once the app takes it.
+        if let url = action.request.url, let app = ExternalApp.handler(for: url) {
+            self.tab(tab, openExternally: url, in: app)
+            return nil
+        }
         let webView = WebViewFactory.makeWebView(configuration: configuration)
         let child = adopt(Tab(adopting: webView, openerID: tab.id))
         tabs.insert(child, select: !action.modifierFlags.contains(.command))
@@ -1385,6 +1406,11 @@ extension BrowserWindowController: TabDelegate {
         guard let url = tab.url else { return }
         let title = tab.title
         Task { try? await services.history.updateTitle(url: url, title: title) }
+    }
+
+    func tabDidChangeIconLinks(_ tab: Tab) {
+        guard !isPrivate else { return }
+        services.refreshFavicon(for: tab)
     }
 }
 

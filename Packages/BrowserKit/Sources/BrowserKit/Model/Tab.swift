@@ -17,6 +17,8 @@ public protocol TabUIHost: AnyObject {
     func tab(_ tab: Tab, didStart download: WKDownload)
     /// The PDF viewer's download button handed over the document's bytes to save.
     func tab(_ tab: Tab, save data: Data, suggestedFilename: String, from source: URL?)
+    /// The page navigated to a link only `app` can open (a Zoom meeting, a Slack channel). Ask, then open it.
+    func tab(_ tab: Tab, openExternally url: URL, in app: URL)
 }
 
 @MainActor
@@ -37,6 +39,8 @@ public protocol TabDelegate: AnyObject {
     /// A main-frame navigation committed (the URL changed for real) or finished loading.
     func tabDidCommitNavigation(_ tab: Tab)
     func tabDidFinishNavigation(_ tab: Tab)
+    /// The page changed its icon links after it finished loading.
+    func tabDidChangeIconLinks(_ tab: Tab)
 }
 
 /// One page in a window. The web view is created lazily, so restored or background tabs
@@ -245,6 +249,7 @@ public final class Tab: NSObject, Identifiable {
         webView.navigationDelegate = nil
         webView.uiDelegate = nil
         (webView as? KoalaWebView)?.contextMenuHook = nil
+        (webView as? KoalaWebView)?.iconLinksHook = nil
         observations = []
         if let audioObserved {
             audioObserved.removeObserver(self, forKeyPath: Self.isPlayingAudioKey)
@@ -429,6 +434,10 @@ public final class Tab: NSObject, Identifiable {
             guard let self, let link else { return }
             delegate?.tab(self, willOpenMenu: menu, for: link)
         }
+        (webView as? KoalaWebView)?.iconLinksHook = { [weak self] in
+            guard let self, !isShowingErrorPage else { return }
+            delegate?.tabDidChangeIconLinks(self)
+        }
         observations = [
             webView.observe(\.title) { [weak self] wv, _ in MainActor.assumeIsolated { self?.title = wv.title ?? "" } },
             webView.observe(\.url) { [weak self] wv, _ in MainActor.assumeIsolated { if let url = wv.url { self?.url = url } } },
@@ -455,6 +464,10 @@ extension Tab: WKNavigationDelegate {
         // Only the app opens native pages; a web page linking to one must not reach them.
         if action.request.url?.scheme?.lowercased() == KoalaPage.scheme {
             if action.request.url == ErrorPage.proceedURL { acceptCertificate(for: action) }
+            return (.cancel, preferences)
+        }
+        if let url = action.request.url, let app = ExternalApp.handler(for: url) {
+            uiHost?.tab(self, openExternally: url, in: app)
             return (.cancel, preferences)
         }
         if action.targetFrame?.isMainFrame == true, let url = action.request.url, needsNewWebView(for: url) {

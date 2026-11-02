@@ -31,7 +31,7 @@ public enum WebViewFactory {
         }
         config.applicationNameForUserAgent = "Version/26.0 Safari/605.1.15"
         DevToolsScripts.install(on: config.userContentController, handler: DevToolsRouter.shared)
-        KoalaWebView.installLinkTracking(on: config.userContentController)
+        KoalaWebView.installPageTracking(on: config.userContentController)
         config.userContentController.addUserScript(WKUserScript(source: scrollbarStyle, injectionTime: .atDocumentStart,
                                                                 forMainFrameOnly: false, in: .defaultClient))
     }

@@ -112,9 +112,12 @@ public enum FaviconCandidates {
         public var type: String
     }
 
+    /// The links a page declares its icons with.
+    static let selector = #"link[rel~="icon" i], link[rel="apple-touch-icon" i], link[rel="mask-icon" i]"#
+
     /// Script returning the page's icon links; runs in an isolated content world.
     public static let script = """
-    [...document.querySelectorAll('link[rel~="icon" i], link[rel="apple-touch-icon" i], link[rel="mask-icon" i]')]
+    [...document.querySelectorAll('\(selector)')]
       .map(e => ({ href: e.href, rel: (e.rel || '').toLowerCase(), sizes: e.sizes ? e.sizes.value : '', type: e.type || '' }))
     """
 
