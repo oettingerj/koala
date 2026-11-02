@@ -17,7 +17,7 @@ final class HomePageModel {
     var section: Section = .reviews
     let reviews: ReviewsModel
 
-    init(open: @escaping (URL, Bool) -> Void) { reviews = ReviewsModel(open: open) }
+    init(open: @escaping (URL, PageOpenTarget) -> Void) { reviews = ReviewsModel(open: open) }
 
     /// The count a section shows in the sidebar, if any.
     func count(_ section: Section) -> Int? {
@@ -27,6 +27,22 @@ final class HomePageModel {
             return github.isSignedIn && github.pullsUpdatedAt != nil ? github.pulls.reviewRequested.count : nil
         }
     }
+}
+
+/// Where a link on the home page opens. Pull requests open in a new tab by default, so Reviews stays put.
+enum PageOpenTarget {
+    /// A new tab, brought to the front.
+    case newTab
+    /// A new tab behind this one: ⌘-click and ⌘Return.
+    case backgroundTab
+    /// This tab, replacing the home page.
+    case here
+
+    /// A plain click or Return opens a new tab; holding ⌘ opens it in the background.
+    static func forClick(command: Bool) -> PageOpenTarget { command ? .backgroundTab : .newTab }
+
+    /// For a click handler, from the event being handled.
+    static var forCurrentEvent: PageOpenTarget { forClick(command: NSApp.currentEvent?.modifierFlags.contains(.command) ?? false) }
 }
 
 final class HomeHostingView: NSHostingView<HomePage>, SearchablePage, RefreshablePage {
@@ -42,7 +58,7 @@ final class HomeHostingView: NSHostingView<HomePage>, SearchablePage, Refreshabl
         }
     }
 
-    static func make(open: @escaping (URL, Bool) -> Void) -> HomeHostingView {
+    static func make(open: @escaping (URL, PageOpenTarget) -> Void) -> HomeHostingView {
         let view = HomeHostingView(rootView: HomePage(model: HomePageModel(open: open)))
         // The window sets the frame; the page scrolls rather than sizing the window.
         view.sizingOptions = []
@@ -105,7 +121,7 @@ struct HomePage: View {
 }
 
 /// A one-pixel vertical hairline.
-private struct VerticalRule: View {
+struct VerticalRule: View {
     @Environment(\.pixelLength) private var pixel
     var body: some View { Rectangle().fill(Color(nsColor: Theme.hairline)).frame(width: pixel) }
 }

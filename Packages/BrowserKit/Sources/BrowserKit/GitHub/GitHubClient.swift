@@ -64,12 +64,41 @@ public struct GitHubPull: Equatable, Sendable, Identifiable {
     public var isTeamRequest = false
     /// The first team asked to review, when GitHub lists one.
     public var requestedTeam: String?
+    /// The description as the author wrote it (Markdown), cut to `bodyLimit` characters.
+    public var body: String?
+    public var changedFiles: Int
+    /// Paths of the first files the pull request changes, up to 100.
+    public var files: [String]
+    public var labels: [String]
+    /// Comments and review comments together.
+    public var commentCount: Int
+    /// Each reviewer's latest approval or request for changes.
+    public var reviews: [Review]
+    /// People and teams asked to review who haven't yet.
+    public var pendingReviewers: [String]
+    /// The description's first paragraph of prose and the areas the files fall in, worked out
+    /// once from the body and files given at init, so rows never parse while they draw.
+    public let excerpt: String?
+    public let areas: [PullContext.Area]
     public var id: String { "\(repo)#\(number)" }
+
+    public struct Review: Equatable, Sendable {
+        public enum State: Equatable, Sendable { case approved, changesRequested, commented }
+        public var login: String
+        public var state: State
+        public init(login: String, state: State) { self.login = login; self.state = state }
+    }
+
+    public static let bodyLimit = 4000
+
+    public var approvals: Int { reviews.count { $0.state == .approved } }
+    public var changeRequests: Int { reviews.count { $0.state == .changesRequested } }
 
     public init(repo: String, number: Int, title: String, url: URL, author: String? = nil, authorAvatarURL: URL? = nil,
                 isBot: Bool = false, isDraft: Bool = false, createdAt: Date? = nil, updatedAt: Date? = nil, additions: Int = 0, deletions: Int = 0,
                 headRef: String? = nil, baseRef: String? = nil, reviewDecision: String? = nil, checks: GitHubStatus.Checks = .none,
-                isTeamRequest: Bool = false, requestedTeam: String? = nil) {
+                isTeamRequest: Bool = false, requestedTeam: String? = nil, body: String? = nil, changedFiles: Int = 0,
+                files: [String] = [], labels: [String] = [], commentCount: Int = 0, reviews: [Review] = [], pendingReviewers: [String] = []) {
         self.repo = repo
         self.number = number
         self.title = title
@@ -88,6 +117,15 @@ public struct GitHubPull: Equatable, Sendable, Identifiable {
         self.checks = checks
         self.isTeamRequest = isTeamRequest
         self.requestedTeam = requestedTeam
+        self.body = body
+        self.changedFiles = changedFiles
+        self.files = files
+        self.labels = labels
+        self.commentCount = commentCount
+        self.reviews = reviews
+        self.pendingReviewers = pendingReviewers
+        excerpt = PullContext.excerpt(markdown: body)
+        areas = PullContext.areas(paths: files)
     }
 }
 
@@ -272,10 +310,14 @@ public actor GitHubClient {
         }
         fragment Pull on PullRequest {
           number title url isDraft createdAt updatedAt additions deletions headRefName baseRefName reviewDecision
+          body changedFiles totalCommentsCount
           repository { nameWithOwner }
           author { __typename login avatarUrl(size: 40) }
           commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
-          reviewRequests(first: 10) { nodes { requestedReviewer { __typename ... on Team { name } } } }
+          reviewRequests(first: 10) { nodes { requestedReviewer { __typename ... on User { login } ... on Team { name } } } }
+          files(first: 100) { nodes { path } }
+          labels(first: 10) { nodes { name } }
+          latestOpinionatedReviews(first: 10) { nodes { state author { login } } }
         }
         """
         return Self.decodePulls(try await graphQL(query, variables: [:]))
@@ -308,9 +350,20 @@ public actor GitHubClient {
               let repo = (node["repository"] as? [String: Any])?["nameWithOwner"] as? String else { return nil }
         let author = node["author"] as? [String: Any]
         let rollup = ((((node["commits"] as? [String: Any])?["nodes"] as? [[String: Any]])?.first?["commit"] as? [String: Any])?["statusCheckRollup"] as? [String: Any])?["state"] as? String
-        let team = (((node["reviewRequests"] as? [String: Any])?["nodes"] as? [[String: Any]]) ?? [])
-            .compactMap { $0["requestedReviewer"] as? [String: Any] }
-            .first { $0["__typename"] as? String == "Team" }?["name"] as? String
+        func list(_ key: String) -> [[String: Any]] { ((node[key] as? [String: Any])?["nodes"] as? [[String: Any]]) ?? [] }
+        let requested = list("reviewRequests").compactMap { $0["requestedReviewer"] as? [String: Any] }
+        let team = requested.first { $0["__typename"] as? String == "Team" }?["name"] as? String
+        let reviews: [GitHubPull.Review] = list("latestOpinionatedReviews").compactMap { review in
+            guard let login = (review["author"] as? [String: Any])?["login"] as? String else { return nil }
+            let state: GitHubPull.Review.State? = switch review["state"] as? String {
+            case "APPROVED": .approved
+            case "CHANGES_REQUESTED": .changesRequested
+            case "COMMENTED": .commented
+            default: nil
+            }
+            return state.map { GitHubPull.Review(login: login, state: $0) }
+        }
+        let body = (node["body"] as? String).flatMap { $0.isEmpty ? nil : String($0.prefix(GitHubPull.bodyLimit)) }
         func date(_ key: String) -> Date? { (node[key] as? String).flatMap { try? Date($0, strategy: .iso8601) } }
         return GitHubPull(repo: repo, number: number, title: title, url: url,
                           author: author?["login"] as? String,
@@ -321,7 +374,13 @@ public actor GitHubClient {
                           additions: node["additions"] as? Int ?? 0, deletions: node["deletions"] as? Int ?? 0,
                           headRef: node["headRefName"] as? String, baseRef: node["baseRefName"] as? String,
                           reviewDecision: node["reviewDecision"] as? String,
-                          checks: rollupState(rollup), requestedTeam: team)
+                          checks: rollupState(rollup), requestedTeam: team, body: body,
+                          changedFiles: node["changedFiles"] as? Int ?? 0,
+                          files: list("files").compactMap { $0["path"] as? String },
+                          labels: list("labels").compactMap { $0["name"] as? String },
+                          commentCount: node["totalCommentsCount"] as? Int ?? 0,
+                          reviews: reviews,
+                          pendingReviewers: requested.compactMap { ($0["login"] as? String) ?? ($0["name"] as? String) })
     }
 
     // MARK: Account

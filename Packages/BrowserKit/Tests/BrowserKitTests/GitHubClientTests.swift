@@ -81,6 +81,32 @@ import Testing
         #expect(team.checks == GitHubStatus.Checks.none)
     }
 
+    @Test func pullsCarryWhatTheyAreAbout() throws {
+        let data = json("""
+        {"review":{"issueCount":1,"nodes":[
+           {"number":7,"title":"Cache","url":"https://github.com/a/b/pull/7","repository":{"nameWithOwner":"a/b"},
+            "body":"Moves the cache to GRDB.","changedFiles":14,"totalCommentsCount":3,
+            "files":{"nodes":[{"path":"App/Cache/Store.swift"},{"path":"App/Cache/Model.swift"}]},
+            "labels":{"nodes":[{"name":"bug"},{"name":"needs-qa"}]},
+            "latestOpinionatedReviews":{"nodes":[
+              {"state":"APPROVED","author":{"login":"ana"}},{"state":"CHANGES_REQUESTED","author":{"login":"sam"}},
+              {"state":"DISMISSED","author":{"login":"jo"}}]},
+            "reviewRequests":{"nodes":[{"requestedReviewer":{"__typename":"User","login":"mira"}},
+                                       {"requestedReviewer":{"__typename":"Team","name":"platform"}}]}}]},
+         "mine":{"nodes":[]}}
+        """)
+        let pull = try #require(GitHubClient.decodePulls(data).reviewRequested.first)
+        #expect(pull.body == "Moves the cache to GRDB.")
+        #expect(pull.changedFiles == 14)
+        #expect(pull.commentCount == 3)
+        #expect(pull.files == ["App/Cache/Store.swift", "App/Cache/Model.swift"])
+        #expect(pull.labels == ["bug", "needs-qa"])
+        #expect(pull.reviews == [.init(login: "ana", state: .approved), .init(login: "sam", state: .changesRequested)])
+        #expect(pull.approvals == 1 && pull.changeRequests == 1)
+        #expect(pull.pendingReviewers == ["mira", "platform"])
+        #expect(pull.requestedTeam == "platform")
+    }
+
     @Test func failingQueueItemsLeadToChecks() {
         let url = URL(string: "https://github.com/a/b/pull/3")!
         #expect(GitHubQueueItem(repo: "a/b", number: 3, title: "", url: url, reason: .failingChecks).destination.absoluteString

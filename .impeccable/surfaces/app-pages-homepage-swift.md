@@ -19,9 +19,9 @@ THESIS: The new tab is a work queue, not a launcher. One dense flat list per tab
 
 OWN-WORLD: The app-window world unchanged: chrome-surface ground, one neutral ramp, 1px hairlines, flat 36pt rows with hover fill, no cards. Sidebar rows and the tab switch in dev-section-tab grammar. Facet chips in field well at 5pt. Teal only on the search focus ring and Sign In. State hues only as the PR glyph and 7pt checks dot; diffstat neutral mono.
 
-STORY: The engineer presses ⌘T, sees Review Requested with counts, types "api" or picks Repo ▾, reads title, repo#number, author, size, checks and age in one line, presses Return, and the PR loads in that tab.
+STORY: The engineer presses ⌘T, sees Review Requested with counts, types "api" or picks Repo ▾, reads title, repo#number, author, size, checks and age on the first line and what the PR is about (gist, areas, reviews, files, comments) on the second, glances at the detail pane for the overview on a wide page, presses Return, and the PR loads in that tab.
 
-FIRST VIEWPORT: 200pt sidebar left (Reviews selected, count). Right, a column up to 960pt: "Reviews" 20pt semibold with refresh and updated-ago; Review Requested / My PRs tabs with mono counts; 32pt search field; facet chips row with Sort trailing; hairline; then rows from the top. The address field holds the caret; the search field is one ⌘F away.
+FIRST VIEWPORT: 200pt sidebar left (Reviews selected, count). Right, a column up to 960pt: "Reviews" 20pt semibold with refresh and updated-ago; Review Requested / My PRs tabs with mono counts; 32pt search field; facet chips row with Sort trailing; hairline; then two-line rows from the top. From 1180pt of section width the column grows to 1280pt with a 320pt detail pane beside the list. The address field holds the caret; the search field is one ⌘F away.
 
 FORM: Flat list + facets, position 2 on the ordered list of seven structures; seed key ea4a404d.
 

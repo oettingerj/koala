@@ -16,24 +16,7 @@ struct SuggestionPreview: View {
             let facts = self.factRows
             if !facts.isEmpty {
                 hairline
-                Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 12, verticalSpacing: 7) {
-                    ForEach(facts) { fact in
-                        GridRow {
-                            Text(fact.label)
-                                .font(.system(size: 11))
-                                .foregroundStyle(Color(nsColor: Theme.textTertiary))
-                                .gridColumnAlignment(.leading)
-                            fact.value
-                                .font(.system(size: 12))
-                                .foregroundStyle(Color(nsColor: Theme.textPrimary))
-                                .lineLimit(2)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .help(fact.help ?? "")
-                        }
-                        .accessibilityElement(children: .combine)
-                    }
-                }
-                .padding(14)
+                PreviewFactGrid(facts: facts).padding(14)
             }
             Spacer(minLength: 0)
             hairline
@@ -93,12 +76,7 @@ struct SuggestionPreview: View {
 
     // MARK: Facts
 
-    private struct Fact: Identifiable {
-        let label: String
-        let value: Text
-        var help: String?
-        var id: String { label }
-    }
+    private typealias Fact = PreviewFact
 
     private var factRows: [Fact] {
         var rows: [Fact] = []

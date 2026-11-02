@@ -139,6 +139,7 @@ final class GitHubService {
             if includeQueue {
                 pulls = try await client.pulls()
                 pullsUpdatedAt = Date()
+                PullSummarizer.shared.update(pulls.reviewRequested + pulls.mine)
             }
             if account == nil { account = try await client.viewer() }
             lastError = nil

@@ -44,12 +44,14 @@ final class ReviewsModel {
     var showBots = false
     /// The row arrow keys move and Return opens.
     var selection: GitHubPull.ID?
+    /// The row the detail pane describes: the last one pointed at or reached by keyboard.
+    var previewID: GitHubPull.ID?
     var focusRequest = 0
 
-    @ObservationIgnored let open: (URL, _ newTab: Bool) -> Void
+    @ObservationIgnored let open: (URL, PageOpenTarget) -> Void
     private var github: GitHubService { .shared }
 
-    init(open: @escaping (URL, Bool) -> Void) { self.open = open }
+    init(open: @escaping (URL, PageOpenTarget) -> Void) { self.open = open }
 
     var filter: PageFilter { PageFilter(query: query) }
 
@@ -77,7 +79,8 @@ final class ReviewsModel {
     }
 
     static func haystack(_ pull: GitHubPull) -> String {
-        [pull.title, pull.repo, pull.author ?? "", "\(pull.number)", pull.headRef ?? "", pull.requestedTeam ?? ""].joined(separator: " ")
+        ([pull.title, pull.repo, pull.author ?? "", "\(pull.number)", pull.headRef ?? "", pull.requestedTeam ?? ""]
+            + pull.labels + pull.areas.map(\.name)).joined(separator: " ")
     }
 
     var repos: [String] { Array(Set(all.map(\.repo))).sorted { $0.localizedStandardCompare($1) == .orderedAscending } }
@@ -106,6 +109,7 @@ final class ReviewsModel {
         showDrafts = false
         showBots = false
         selection = nil
+        previewID = nil
     }
 
     /// Lets every kind of pull request into the list.
@@ -123,13 +127,19 @@ final class ReviewsModel {
         let current = selection.flatMap { id in rows.firstIndex { $0.id == id } }
         let next = current.map { min(max($0 + offset, 0), rows.count - 1) } ?? (offset > 0 ? 0 : rows.count - 1)
         selection = rows[next].id
+        previewID = selection
+    }
+
+    /// What the detail pane shows: the previewed row while it's in the list, else the selection, else the first row.
+    func previewed(in rows: [GitHubPull]) -> GitHubPull? {
+        rows.first { $0.id == previewID } ?? rows.first { $0.id == selection } ?? rows.first
     }
 
     /// Opens the selected row, or the first when none is selected.
-    func openSelection(newTab: Bool) {
+    func openSelection(_ target: PageOpenTarget) {
         let rows = rows
         guard let pull = rows.first(where: { $0.id == selection }) ?? rows.first else { return }
-        open(pull.url, newTab)
+        open(pull.url, target)
     }
 }
 
@@ -142,6 +152,13 @@ struct ReviewsSection: View {
     private var github: GitHubService { .shared }
 
     private static let columnWidth: CGFloat = 960
+    /// With the detail pane the column grows to fit it beside the list.
+    private static let paneColumnWidth: CGFloat = 1280
+    /// The list keeps about 800pt beside the pane, so titles and gists stay readable.
+    private static let paneMinimumWidth: CGFloat = 1180
+    static let paneWidth: CGFloat = 320
+    /// Between the list and the pane's hairline.
+    private static let listGap: CGFloat = 12
 
     var body: some View {
         VStack(spacing: 0) {
@@ -154,16 +171,22 @@ struct ReviewsSection: View {
         .onChange(of: model.focusRequest) { searchFocused = true }
     }
 
-    /// Up to 960pt with 20pt gutters, centered.
+    /// Wide pages show the detail pane beside the list.
+    private var showsPane: Bool { width >= Self.paneMinimumWidth }
+
+    private var columnWidth: CGFloat { max(0, min(showsPane ? Self.paneColumnWidth : Self.columnWidth, width - 40)) }
+
+    /// Up to 960pt (1280pt with the pane) with 20pt gutters, centered.
     private func column<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        let column = max(0, min(Self.columnWidth, width - 40))
-        return VStack(alignment: .leading, spacing: 0, content: content)
-            .frame(width: column, alignment: .leading)
+        VStack(alignment: .leading, spacing: 0, content: content)
+            .frame(width: columnWidth, alignment: .leading)
             .frame(maxWidth: .infinity)
     }
 
-    /// Narrow pages drop the author's login and the diffstat from rows.
-    private var isCompact: Bool { width < 720 }
+    private var listWidth: CGFloat { showsPane ? columnWidth - Self.paneWidth - 1 - Self.listGap : columnWidth }
+
+    /// Narrow lists drop the login, team, diffstat, decision words, and second-line facts from rows.
+    private var isCompact: Bool { listWidth < 680 }
 
     // MARK: Header
 
@@ -338,7 +361,7 @@ struct ReviewsSection: View {
         switch press.key {
         case .downArrow: model.moveSelection(by: 1)
         case .upArrow: model.moveSelection(by: -1)
-        case .return: model.openSelection(newTab: press.modifiers.contains(.command))
+        case .return: model.openSelection(.forClick(command: press.modifiers.contains(.command)))
         default: return .ignored
         }
         return .handled
@@ -351,12 +374,44 @@ struct ReviewsSection: View {
             column { signedOut }.padding(.top, 32)
             Spacer()
         } else if github.pullsUpdatedAt == nil {
-            column {
-                if let error = github.lastError { errorLine(error).padding(.top, 16) } else { skeleton }
+            if let error = github.lastError {
+                column { errorLine(error).padding(.top, 16) }
+                Spacer()
+            } else {
+                split { VStack(spacing: 0) { skeleton; Spacer(minLength: 0) } } pane: { Color.clear }
             }
-            Spacer()
         } else {
-            list
+            let rows = model.rows
+            if showsPane, !rows.isEmpty {
+                split { list(rows) } pane: {
+                    TimelineView(.periodic(from: .now, by: 60)) { context in
+                        if let pull = model.previewed(in: rows) {
+                            PullDetailPane(pull: pull, tab: model.tab, now: context.date)
+                        }
+                    }
+                }
+                .onChange(of: model.previewed(in: rows)?.id, initial: true) { _, id in
+                    if let id { PullSummarizer.shared.prioritize(id) }
+                }
+            } else {
+                list(rows)
+            }
+        }
+    }
+
+    /// The list and, on wide pages, the detail pane behind a hairline, filling the height below the header.
+    @ViewBuilder private func split<List: View, Pane: View>(@ViewBuilder _ list: () -> List, @ViewBuilder pane: () -> Pane) -> some View {
+        if showsPane {
+            HStack(alignment: .top, spacing: 0) {
+                list().frame(maxWidth: .infinity, maxHeight: .infinity).padding(.trailing, Self.listGap)
+                VerticalRule()
+                pane().frame(width: Self.paneWidth).frame(maxHeight: .infinity, alignment: .top)
+            }
+            .frame(width: columnWidth)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            column { list() }
+            Spacer(minLength: 0)
         }
     }
 
@@ -370,29 +425,39 @@ struct ReviewsSection: View {
         }
     }
 
-    /// Placeholder rows while the first fetch runs; static, so nothing moves.
+    /// Placeholder rows while the first fetch runs; static, so nothing moves. They mirror both
+    /// lines of a row, column for column.
     private var skeleton: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        let fill = Color(nsColor: Theme.fieldFill)
+        func bar(_ width: CGFloat, _ height: CGFloat = 10) -> some View {
+            RoundedRectangle(cornerRadius: 3).fill(fill).frame(width: width, height: height)
+        }
+        return VStack(alignment: .leading, spacing: 0) {
             ForEach(0..<6, id: \.self) { index in
-                HStack(spacing: 10) {
-                    Circle().fill(Color(nsColor: Theme.fieldFill)).frame(width: 12, height: 12)
-                    RoundedRectangle(cornerRadius: 3).fill(Color(nsColor: Theme.fieldFill))
-                        .frame(width: [280, 220, 340, 190, 260, 300][index], height: 10)
-                    Spacer()
-                    HStack(spacing: 12) {
-                        HStack(spacing: 6) {
-                            Circle().fill(Color(nsColor: Theme.fieldFill)).frame(width: 16, height: 16)
-                            RoundedRectangle(cornerRadius: 3).fill(Color(nsColor: Theme.fieldFill)).frame(width: 56, height: 10)
+                HStack(alignment: .top, spacing: 10) {
+                    Circle().fill(fill).frame(width: 12, height: 12).frame(width: 16, height: PullRow.firstLine)
+                    VStack(alignment: .leading, spacing: PullRow.lineGap) {
+                        HStack(spacing: 12) {
+                            bar([280, 220, 340, 190, 260, 300][index])
+                            Spacer(minLength: 12)
+                            HStack(spacing: 6) {
+                                Circle().fill(fill).frame(width: 16, height: 16)
+                                if !isCompact { bar(56) }
+                            }
+                            .frame(width: isCompact ? 16 : PullRow.peopleWidth, alignment: .leading)
+                            if !isCompact { bar(52).frame(width: PullRow.sizeWidth, alignment: .trailing) }
+                            Circle().fill(fill).frame(width: 7, height: 7)
+                            bar(20).frame(width: PullRow.ageWidth, alignment: .trailing)
                         }
-                        .frame(width: 120, alignment: .leading)
-                        RoundedRectangle(cornerRadius: 3).fill(Color(nsColor: Theme.fieldFill)).frame(width: 52, height: 10)
-                            .frame(width: 84, alignment: .trailing)
-                        Circle().fill(Color(nsColor: Theme.fieldFill)).frame(width: 7, height: 7)
-                        RoundedRectangle(cornerRadius: 3).fill(Color(nsColor: Theme.fieldFill)).frame(width: 20, height: 10)
-                            .frame(width: 30, alignment: .trailing)
+                        .frame(height: PullRow.firstLine)
+                        HStack(spacing: 12) {
+                            bar([360, 300, 420, 260, 340, 380][index], 8)
+                            Spacer(minLength: 0)
+                        }
+                        .frame(height: PullRow.secondLine)
                     }
                 }
-                .padding(.horizontal, 8).frame(height: 36)
+                .padding(.horizontal, 8).padding(.vertical, PullRow.verticalInset)
             }
         }
         .padding(.top, 8)
@@ -411,11 +476,10 @@ struct ReviewsSection: View {
         }
     }
 
-    private var list: some View {
-        let rows = model.rows
-        return ScrollViewReader { proxy in
+    private func list(_ rows: [GitHubPull]) -> some View {
+        ScrollViewReader { proxy in
             ScrollView {
-                column {
+                VStack(alignment: .leading, spacing: 0) {
                     if let error = github.lastError { errorLine(error).padding(.bottom, 8) }
                     if rows.isEmpty {
                         emptyState.padding(.top, 16)
@@ -424,7 +488,8 @@ struct ReviewsSection: View {
                             LazyVStack(spacing: 0) {
                                 ForEach(rows) { pull in
                                     PullRow(pull: pull, tab: model.tab, filter: model.filter, isSelected: model.selection == pull.id,
-                                            isCompact: isCompact, now: context.date, open: model.open)
+                                            isCompact: isCompact, now: context.date, open: model.open,
+                                            onHover: { if $0 { model.previewID = pull.id } })
                                         .id(pull.id)
                                 }
                             }
@@ -432,7 +497,11 @@ struct ReviewsSection: View {
                         footer
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.top, 8).padding(.bottom, 40)
+                // Centered like the header when the page has no pane; the split sizes it otherwise.
+                .frame(width: showsPane ? nil : columnWidth)
+                .frame(maxWidth: .infinity)
             }
             .onChange(of: model.selection) { _, id in
                 if let id { proxy.scrollTo(id) }
@@ -468,7 +537,7 @@ struct ReviewsSection: View {
                     .font(.system(size: 11).monospacedDigit()).foregroundStyle(settingsTertiary)
                 Button("Open on GitHub") {
                     let path = model.tab == .requested ? "pulls/review-requested" : "pulls"
-                    model.open(URL(string: "https://github.com/\(path)")!, NSApp.currentEvent?.modifierFlags.contains(.command) ?? false)
+                    model.open(URL(string: "https://github.com/\(path)")!, .forCurrentEvent)
                 }
                 .buttonStyle(.plain).font(.system(size: 11, weight: .medium)).foregroundStyle(settingsSecondary)
             }
@@ -479,57 +548,80 @@ struct ReviewsSection: View {
 
 // MARK: Row
 
-private struct PullRow: View {
+struct PullRow: View {
     let pull: GitHubPull
     let tab: ReviewsModel.Tab
     let filter: PageFilter
     let isSelected: Bool
     let isCompact: Bool
     let now: Date
-    let open: (URL, Bool) -> Void
+    let open: (URL, PageOpenTarget) -> Void
+    /// Pointer movement over the row or VoiceOver focus on it: the detail pane follows either.
+    var onHover: (Bool) -> Void = { _ in }
     @State private var isHovered = false
+    @AccessibilityFocusState private var isFocused: Bool
+    /// Where the pointer was when a row last took the preview. Rows scrolling under a still pointer
+    /// (arrow keys, a refresh) don't take it from the keyboard selection.
+    private static var lastPointer = NSPoint(x: -1, y: -1)
+    private var summarizer: PullSummarizer { .shared }
+
+    // Two lines on a 4pt grid: 8 + 18 + 2 + 16 + 8 = 52pt.
+    static let firstLine: CGFloat = 18
+    static let secondLine: CGFloat = 16
+    static let lineGap: CGFloat = 2
+    static let verticalInset: CGFloat = 8
+    // Trailing columns, shared by both lines so the facts stack under the ones they belong with.
+    static let peopleWidth: CGFloat = 120
+    static let sizeWidth: CGFloat = 84
+    static let ageWidth: CGFloat = 30
+    /// The checks dot, the gap, and the age, which the comment count spans on the second line.
+    static let activityWidth: CGFloat = 7 + 12 + ageWidth
 
     /// Tertiary text steps up to secondary on the selected row, so it clears 4.5:1 on the pressed fill.
     private var quiet: Color { isSelected ? settingsSecondary : settingsTertiary }
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(alignment: .top, spacing: 10) {
             stateGlyph
-            HStack(spacing: 8) {
-                Text(filter.highlight(pull.title, size: 13))
-                    .font(.system(size: 13, weight: isSelected ? .medium : .regular)).foregroundStyle(settingsPrimary)
-                    .lineLimit(1)
-                // The reference is what an engineer copies, so the title truncates first.
-                HStack(spacing: 0) {
-                    Text(filter.highlight(pull.repo, size: 11, mono: true)).foregroundStyle(settingsSecondary)
-                    Text(verbatim: "#\(pull.number)").foregroundStyle(quiet)
+            VStack(alignment: .leading, spacing: Self.lineGap) {
+                HStack(spacing: 12) {
+                    headline
+                    Spacer(minLength: 12)
+                    trailing
                 }
-                .font(.mono(size: 11)).lineLimit(1).fixedSize()
-                if !isCompact, pull.isTeamRequest, let team = pull.requestedTeam {
-                    HStack(spacing: 3) {
-                        Image(systemName: "person.2").font(.system(size: 9, weight: .medium)).accessibilityHidden(true)
-                        Text(filter.highlight(team, size: 11, mono: true)).font(.mono(size: 11)).lineLimit(1)
+                .frame(height: Self.firstLine)
+                HStack(spacing: 12) {
+                    gist
+                    if !isCompact {
+                        Spacer(minLength: 12)
+                        facts
                     }
-                    .foregroundStyle(quiet)
-                    .help("Requested of the \(team) team")
                 }
+                .frame(height: Self.secondLine)
             }
-            Spacer(minLength: 12)
-            trailing
         }
-        .padding(.horizontal, 8).frame(height: 36)
+        .padding(.horizontal, 8).padding(.vertical, Self.verticalInset)
         // Keyboard selection sits one ramp step deeper than hover, so Return's target is never ambiguous.
         .background(RoundedRectangle(cornerRadius: 5).fill(
             isSelected ? Color(nsColor: Theme.pressedFill) : isHovered ? Color(nsColor: Theme.hoverFill) : .clear))
         .contentShape(Rectangle())
-        .onHover { isHovered = $0 }
-        .onTapGesture { open(pull.url, NSApp.currentEvent?.modifierFlags.contains(.command) ?? false) }
+        .onHover { inside in
+            isHovered = inside
+            let pointer = NSEvent.mouseLocation
+            if inside, pointer != Self.lastPointer {
+                Self.lastPointer = pointer
+                onHover(true)
+            }
+        }
+        .onTapGesture { open(pull.url, .forCurrentEvent) }
         .help(helpText)
         .contextMenu { menu }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText)
         .accessibilityAddTraits(isSelected ? [.isLink, .isSelected] : .isLink)
-        .accessibilityAction { open(pull.url, false) }
+        .accessibilityAction { open(pull.url, .newTab) }
+        .accessibilityFocused($isFocused)
+        .onChange(of: isFocused) { _, focused in if focused { onHover(true) } }
     }
 
     private var stateGlyph: some View {
@@ -538,7 +630,29 @@ private struct PullRow: View {
                 Image(nsImage: image)
             }
         }
-        .frame(width: 16)
+        .frame(width: 16, height: Self.firstLine)
+    }
+
+    private var headline: some View {
+        HStack(spacing: 8) {
+            Text(filter.highlight(pull.title, size: 13))
+                .font(.system(size: 13, weight: isSelected ? .medium : .regular)).foregroundStyle(settingsPrimary)
+                .lineLimit(1)
+            // The reference is what an engineer copies, so the title truncates first.
+            HStack(spacing: 0) {
+                Text(filter.highlight(pull.repo, size: 11, mono: true)).foregroundStyle(settingsSecondary)
+                Text(verbatim: "#\(pull.number)").foregroundStyle(quiet)
+            }
+            .font(.mono(size: 11)).lineLimit(1).fixedSize()
+            if !isCompact, pull.isTeamRequest, let team = pull.requestedTeam {
+                HStack(spacing: 3) {
+                    Image(systemName: "person.2").font(.system(size: 9, weight: .medium)).accessibilityHidden(true)
+                    Text(filter.highlight(team, size: 11, mono: true)).font(.mono(size: 11)).lineLimit(1)
+                }
+                .foregroundStyle(quiet)
+                .help("Requested of the \(team) team")
+            }
+        }
     }
 
     private var trailing: some View {
@@ -551,9 +665,9 @@ private struct PullRow: View {
                             .foregroundStyle(settingsSecondary).lineLimit(1)
                     }
                 }
-                .frame(width: isCompact ? 16 : 120, alignment: .leading)
+                .frame(width: isCompact ? 16 : Self.peopleWidth, alignment: .leading)
             } else {
-                reviewDecision.frame(width: isCompact ? 16 : 120, alignment: .leading)
+                reviewDecision.frame(width: isCompact ? 16 : Self.peopleWidth, alignment: .leading)
             }
             if !isCompact {
                 HStack(spacing: 4) {
@@ -561,14 +675,125 @@ private struct PullRow: View {
                     Text(verbatim: "−\(pull.deletions)")
                 }
                 .font(.mono(size: 11)).foregroundStyle(quiet)
-                .frame(width: 84, alignment: .trailing)
+                .frame(width: Self.sizeWidth, alignment: .trailing)
             }
             Circle().fill(Color(nsColor: GitHubStyle.color(pull.checks) ?? .clear)).frame(width: 7, height: 7)
                 .help(GitHubStyle.label(pull.checks).map { $0.prefix(1).uppercased() + $0.dropFirst() } ?? "No checks")
             Text(pull.updatedAt.map { RelativeAge.short(since: $0, now: now) } ?? "")
                 .font(.system(size: 11).monospacedDigit()).foregroundStyle(quiet)
-                .frame(width: 30, alignment: .trailing)
+                .frame(width: Self.ageWidth, alignment: .trailing)
         }
+    }
+
+    // MARK: Second line
+
+    /// What the pull request is about: the written gist, else the author's first paragraph.
+    private var about: String? { summarizer.summary(for: pull.id)?.gist ?? pull.excerpt }
+
+    /// The second line's text was written by the model rather than the author.
+    private var isGenerated: Bool { summarizer.summary(for: pull.id) != nil }
+
+    private var areasText: String? {
+        guard !pull.areas.isEmpty else { return nil }
+        let names = pull.areas.prefix(2).map(\.name).joined(separator: " · ")
+        return pull.areas.count > 2 ? "\(names) +\(pull.areas.count - 2)" : names
+    }
+
+    private var branchText: String? {
+        guard let head = pull.headRef, let base = pull.baseRef else { return nil }
+        return "\(head) → \(base)"
+    }
+
+    /// The gist, then the areas it touches. Without a gist the areas lead, then the branch;
+    /// while the gist is being written over an empty description, a still placeholder holds its place.
+    @ViewBuilder private var gist: some View {
+        if let about {
+            HStack(spacing: 12) {
+                HStack(spacing: 5) {
+                    if isGenerated {
+                        Image(systemName: "apple.intelligence").font(.system(size: 9)).foregroundStyle(quiet)
+                            .accessibilityHidden(true)
+                    }
+                    Text(about).font(.system(size: 12)).foregroundStyle(settingsSecondary).lineLimit(1)
+                }
+                .help(isGenerated ? "Summarized on this Mac by Apple Intelligence" : "")
+                .layoutPriority(1)
+                if !isCompact, let areasText {
+                    // Sized before the gist, which truncates first.
+                    Text(areasText).font(.mono(size: 11)).foregroundStyle(quiet).lineLimit(1)
+                        .layoutPriority(2)
+                }
+            }
+        } else if summarizer.isPending(pull.id) {
+            RoundedRectangle(cornerRadius: 3).fill(Color(nsColor: Theme.fieldFill)).frame(width: 160, height: 8)
+                .accessibilityHidden(true)
+        } else if let lead = areasText ?? branchText {
+            Text(lead).font(.mono(size: 11)).foregroundStyle(quiet).lineLimit(1)
+        }
+    }
+
+    /// Reviews, size, and conversation, each under the first-line column it belongs with.
+    private var facts: some View {
+        HStack(spacing: 12) {
+            // Review Requested counts reviews so far; My PRs already shows the decision above, so it names who's left.
+            Group { if tab == .requested { reviewCounts } else { waiting } }
+                .frame(width: Self.peopleWidth, alignment: .leading)
+            Text(pull.changedFiles == 1 ? "1 file" : "\(pull.changedFiles) files")
+                .font(.mono(size: 11)).foregroundStyle(quiet).lineLimit(1)
+                .frame(width: Self.sizeWidth, alignment: .trailing)
+                .opacity(pull.changedFiles > 0 ? 1 : 0)
+            HStack(spacing: 3) {
+                if pull.commentCount > 0 {
+                    Image(systemName: "bubble.left").font(.system(size: 9, weight: .medium)).accessibilityHidden(true)
+                    Text("\(pull.commentCount)").font(.system(size: 11).monospacedDigit())
+                }
+            }
+            .foregroundStyle(quiet)
+            .frame(width: Self.activityWidth, alignment: .trailing)
+            .help(pull.commentCount == 1 ? "1 comment" : "\(pull.commentCount) comments")
+        }
+    }
+
+    /// Approvals and requests for changes so far: convention-colored glyphs beside tabular counts.
+    private var reviewCounts: some View {
+        HStack(spacing: 8) {
+            // The first glyph takes the avatar's 16pt and gap, so its count starts under the login.
+            if pull.approvals > 0 { count("checkmark", Theme.pass, pull.approvals, leading: true) }
+            if pull.changeRequests > 0 { count("exclamationmark", Theme.fail, pull.changeRequests, leading: pull.approvals == 0) }
+        }
+        .help(reviewHelp)
+    }
+
+    @ViewBuilder private var waiting: some View {
+        if !pull.pendingReviewers.isEmpty {
+            // Glyph framed like the decision glyph above, so the names start under its words.
+            HStack(spacing: 5) {
+                Image(systemName: "hourglass").font(.system(size: 9, weight: .medium)).frame(width: 12).accessibilityHidden(true)
+                Text(pull.pendingReviewers.joined(separator: ", ")).font(.mono(size: 11)).lineLimit(1)
+            }
+            .foregroundStyle(quiet)
+            .help("Waiting on \(pull.pendingReviewers.joined(separator: ", "))")
+        }
+    }
+
+    /// On the selected row the glyph steps to secondary: state hues fall under 3:1 on the pressed fill,
+    /// and the shape still tells approval from changes.
+    private func count(_ symbol: String, _ color: NSColor, _ value: Int, leading: Bool) -> some View {
+        HStack(spacing: leading ? 6 : 3) {
+            Image(systemName: symbol).font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(isSelected ? settingsSecondary : Color(nsColor: color))
+                .frame(width: leading ? 16 : nil)
+            Text("\(value)").font(.mono(size: 11)).foregroundStyle(quiet)
+        }
+    }
+
+    private var reviewHelp: String {
+        let approved = pull.reviews.filter { $0.state == .approved }.map(\.login)
+        let changes = pull.reviews.filter { $0.state == .changesRequested }.map(\.login)
+        var parts: [String] = []
+        if !approved.isEmpty { parts.append("Approved by \(approved.joined(separator: ", "))") }
+        if !changes.isEmpty { parts.append("Changes requested by \(changes.joined(separator: ", "))") }
+        return parts.joined(separator: "\n")
     }
 
     /// Approval state of your own pull request: a glyph in its convention color, words in text color.
@@ -590,7 +815,9 @@ private struct PullRow: View {
     }
 
     @ViewBuilder private var menu: some View {
-        Button("Open in New Tab") { open(pull.url, true) }
+        Button("Open in New Tab") { open(pull.url, .newTab) }
+        Button("Open in Background Tab") { open(pull.url, .backgroundTab) }
+        Button("Open in This Tab") { open(pull.url, .here) }
         Button("Copy Link") { Pasteboard.copy(url: pull.url, title: pull.title) }
         Divider()
         if let head = pull.headRef {
@@ -615,7 +842,14 @@ private struct PullRow: View {
         if let author = pull.author, tab == .requested { parts.append("by \(author)") }
         if pull.isTeamRequest { parts.append("requested of \(pull.requestedTeam ?? "your team")") }
         if let checks = GitHubStyle.label(pull.checks) { parts.append(checks) }
+        if let about { parts.append(isGenerated ? "summary by Apple Intelligence: \(about)" : about) }
+        if !pull.areas.isEmpty { parts.append("in \(pull.areas.prefix(3).map(\.name).joined(separator: ", "))") }
         parts.append("\(pull.additions) additions, \(pull.deletions) deletions")
+        if pull.changedFiles > 0 { parts.append(pull.changedFiles == 1 ? "1 file" : "\(pull.changedFiles) files") }
+        if pull.approvals > 0 { parts.append(pull.approvals == 1 ? "1 approval" : "\(pull.approvals) approvals") }
+        if pull.changeRequests > 0 { parts.append(pull.changeRequests == 1 ? "1 request for changes" : "\(pull.changeRequests) requests for changes") }
+        if pull.commentCount > 0 { parts.append(pull.commentCount == 1 ? "1 comment" : "\(pull.commentCount) comments") }
+        if tab == .mine, !pull.pendingReviewers.isEmpty { parts.append("waiting on \(pull.pendingReviewers.joined(separator: ", "))") }
         if let updated = pull.updatedAt { parts.append("updated \(RelativeAge.long(since: updated, now: now))") }
         return parts.joined(separator: ", ")
     }

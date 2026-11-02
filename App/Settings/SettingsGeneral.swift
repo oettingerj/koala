@@ -36,7 +36,11 @@ enum SettingEntries {
         id: "dock-badge", section: .github, title: "Show review count on Dock icon",
         detail: "Pull requests waiting on your review.",
         terms: ["badge", "dock", "notifications", "review queue", "count"])
-    static let github = [githubAccount, dockBadge]
+    static let pullSummaries = SettingEntry(
+        id: "pull-summaries", section: .github, title: "Summarize pull requests",
+        detail: "Apple Intelligence writes what each pull request on Reviews is about. It runs on this Mac, and pull request text never leaves it.",
+        terms: ["apple intelligence", "ai", "summary", "reviews", "description", "on-device"])
+    static let github = [githubAccount, dockBadge, pullSummaries]
 
     static let importData = SettingEntry(
         id: "import", section: .data, title: "Import",
@@ -164,6 +168,7 @@ struct GeneralSettings: View {
 
 struct GitHubSettings: View {
     @Bindable private var github = GitHubService.shared
+    @Bindable private var summarizer = PullSummarizer.shared
 
     var body: some View {
         VStack(spacing: 0) {
@@ -171,6 +176,21 @@ struct GitHubSettings: View {
             SettingRow(SettingEntries.dockBadge) {
                 Toggle("Show review count on Dock icon", isOn: $github.showsDockBadge).settingsSwitch()
             }
+            summaries
+        }
+    }
+
+    /// Off and disabled where Apple Intelligence can't run, with the reason under the detail.
+    private var summaries: some View {
+        let unavailable: String? = if case .unavailable(let reason) = summarizer.availability { reason } else { nil }
+        return SettingRow(SettingEntries.pullSummaries) {
+            VStack(alignment: .leading, spacing: 3) {
+                SettingDetail(text: SettingEntries.pullSummaries.detail)
+                if let unavailable { SettingDetail(text: unavailable) }
+            }
+        } control: {
+            Toggle("Summarize pull requests", isOn: unavailable == nil ? $summarizer.isEnabled : .constant(false))
+                .settingsSwitch().disabled(unavailable != nil)
         }
     }
 

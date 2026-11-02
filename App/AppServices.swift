@@ -12,6 +12,7 @@ final class AppServices {
     @ObservationIgnored let database: AppDatabase
     @ObservationIgnored let history: HistoryStore
     @ObservationIgnored let favicons: FaviconStore
+    @ObservationIgnored let pullSummaries: PullSummaryStore
     @ObservationIgnored let bookmarks: BookmarkLibrary
     @ObservationIgnored let sessionStore: SessionStore?
     @ObservationIgnored let suggestions: SuggestionEngine
@@ -43,6 +44,7 @@ final class AppServices {
         self.database = database
         history = HistoryStore(database: database)
         favicons = FaviconStore(database: database)
+        pullSummaries = PullSummaryStore(database: database)
         bookmarks = BookmarkLibrary(database: database)
         sessionStore = try? SessionStore.defaultStore()
         suggestions = SuggestionEngine(bookmarks: bookmarks, history: history, database: database)

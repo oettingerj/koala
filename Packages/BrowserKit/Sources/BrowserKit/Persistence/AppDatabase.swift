@@ -1,7 +1,7 @@
 import Foundation
 import GRDB
 
-/// Koala's SQLite database: history (with full-text search), bookmarks, and favicons.
+/// Koala's SQLite database: history (with full-text search), bookmarks, favicons, and pull request summaries.
 /// Reads and writes happen off the main thread; UI models observe it.
 public final class AppDatabase: Sendable {
     public let writer: any DatabaseWriter
@@ -55,6 +55,15 @@ public final class AppDatabase: Sendable {
                 t.primaryKey("host", .text)
                 t.column("data", .blob).notNull()
                 t.column("fetchedAt", .datetime).notNull()
+            }
+        }
+        migrator.registerMigration("v2") { db in
+            try db.create(table: "pullSummary") { t in
+                t.primaryKey("id", .text)
+                t.column("fingerprint", .text).notNull()
+                t.column("gist", .text).notNull()
+                t.column("overview", .text).notNull()
+                t.column("generatedAt", .datetime).notNull().indexed()
             }
         }
         return migrator

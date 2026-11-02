@@ -785,7 +785,13 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         case .settings: SettingsPage.host()
         case .history: HistoryHostingView.make(open: open)
         case .bookmarks: BookmarksHostingView.make(open: open)
-        case nil: HomeHostingView.make(open: open)
+        case nil: HomeHostingView.make { [weak self] url, target in
+            switch target {
+            case .newTab: _ = self?.openTab(url: url, select: true)
+            case .backgroundTab: self?.openBookmark(url, newTab: true)
+            case .here: self?.openBookmark(url, newTab: false)
+            }
+        }
         }
         nativeViews[tab.id] = (page, view)
         return view
