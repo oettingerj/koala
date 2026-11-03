@@ -147,10 +147,25 @@ public final class DevToolsRecord {
         mainResponse = nil
     }
 
-    public func bindDocument(_ value: String, isolated: String) {
-        guard !value.isEmpty, value.count <= 120, !isolated.isEmpty, isolated.count <= 120 else { return }
-        document = value
+    /// Binds the committed document. The page world has no token until the dev panel hooks it,
+    /// so `value` is nil then and `bindPageDocument` supplies it later.
+    public func bindDocument(_ value: String?, isolated: String) {
+        guard Self.isToken(isolated) else { return }
         isolatedDocument = isolated
+        if let value, Self.isToken(value) { document = value }
+        replayPending()
+    }
+
+    /// The page world's token, read once the dev panel has hooked the console.
+    public func bindPageDocument(_ value: String) {
+        guard Self.isToken(value) else { return }
+        document = value
+        replayPending()
+    }
+
+    private static func isToken(_ value: String) -> Bool { !value.isEmpty && value.count <= 120 }
+
+    private func replayPending() {
         let pending = pendingMessages
         pendingMessages.removeAll()
         for (name, body) in pending { route(name: name, body: body) }

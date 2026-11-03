@@ -31,10 +31,10 @@ public struct MenuShortcut: Codable, Hashable, Sendable {
         return (UInt32(NSF1FunctionKey)...UInt32(NSF20FunctionKey)).contains(scalar.value)
     }
 
-    /// A shortcut needs ⌘ or ⌃ (or an F-key), so plain typing never triggers a command.
+    /// A shortcut needs ⌘, ⌃, or ⌥, or is an F-key, so plain typing never triggers a command.
     public var isAssignable: Bool {
         guard !isNone else { return false }
-        return isFunctionKey || !modifierFlags.isDisjoint(with: [.command, .control])
+        return isFunctionKey || !modifierFlags.isDisjoint(with: [.command, .control, .option])
     }
 
     /// The shortcut as menus show it, such as ⇧⌘T. Empty for `none`.

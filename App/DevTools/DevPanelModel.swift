@@ -22,9 +22,10 @@ final class DevPanelModel {
     let tab: BrowserKit.Tab?
     var section: Section = .console
     var isDetached = false
-    /// Showing the tools starts fetch/XHR capture; each committed navigation re-arms it while they stay open.
+    /// Showing the tools hooks the console and starts fetch/XHR capture; each committed navigation
+    /// re-arms both while they stay open. Pages carry no hooks otherwise (see `DevToolsScripts.install`).
     var isPresented = false {
-        didSet { if isPresented && !oldValue { startCapture() } }
+        didSet { if isPresented && !oldValue { hookConsole(); startCapture() } }
     }
     var status: String?
     var cookies: [HTTPCookie] = []
@@ -86,10 +87,25 @@ final class DevPanelModel {
         storageRevision = UUID()
         cookies = []; localStorage = []; sessionStorage = []
         guard let record = tab?.devTools else { return }
+        if isPresented { hookConsole() }
         // Each document is bound to its own origin; the previous capture token never carries over.
         if isPresented && !capturePaused && origin != nil { startCapture() }
         else if record.captureID != nil { stopCapture() }
         if section == .storage && isPresented { refreshStorage() }
+    }
+
+    /// Hooks the current document's console and binds its page-world token. Messages logged before
+    /// the tools opened are not captured. The hook stays for the document's lifetime.
+    private func hookConsole() {
+        guard let tab, let webView = tab.webView else { return }
+        let navigation = tab.devTools.navigationID
+        Task {
+            guard current(webView, navigation), isPresented,
+                  let document = try? await webView.callAsyncJavaScript(
+                      DevToolsScripts.console + "\nreturn globalThis.__koalaDocumentID;", contentWorld: .page) as? String,
+                  current(webView, navigation) else { return }
+            tab.devTools.bindPageDocument(document)
+        }
     }
 
     func startCapture() {

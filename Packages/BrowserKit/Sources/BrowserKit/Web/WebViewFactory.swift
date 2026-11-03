@@ -29,12 +29,24 @@ public enum WebViewFactory {
         if config.preferences.responds(to: allowPictureInPicture) {
             config.preferences.setValue(true, forKey: "allowsPictureInPictureMediaPlayback")
         }
-        config.applicationNameForUserAgent = "Version/26.0 Safari/605.1.15"
+        config.applicationNameForUserAgent = "Version/\(safariVersion) Safari/605.1.15"
         DevToolsScripts.install(on: config.userContentController, handler: DevToolsRouter.shared)
         KoalaWebView.installPageTracking(on: config.userContentController)
         config.userContentController.addUserScript(WKUserScript(source: scrollbarStyle, injectionTime: .atDocumentStart,
                                                                 forMainFrameOnly: false, in: .defaultClient))
     }
+
+    /// The installed Safari's version, which ships with the same WebKit Koala runs on. Bot checks
+    /// compare the user agent with the engine; a stale version costs an extra challenge round on
+    /// Akamai sites such as chewy.com. Falls back to the OS version, which Safari's tracks.
+    static let safariVersion: String = {
+        let safari = Bundle(url: URL(fileURLWithPath: "/Applications/Safari.app"))
+        if let version = safari?.infoDictionary?["CFBundleShortVersionString"] as? String, !version.isEmpty {
+            return version
+        }
+        let os = ProcessInfo.processInfo.operatingSystemVersion
+        return "\(os.majorVersion).\(os.minorVersion)"
+    }()
 
     /// Light, thin scrollbars that darken on hover. In a cascade layer so any scrollbar styles the
     /// page sets win; a constructed stylesheet because strict CSP blocks `<style>` elements.

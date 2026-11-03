@@ -576,9 +576,10 @@ extension Tab: WKNavigationDelegate {
     private func bindDevToolsDocument(_ webView: WKWebView) {
         let generation = devTools.navigationID
         Task { [weak self, weak webView] in
-            guard let webView,
-                  let page = try? await webView.evaluateJavaScript("globalThis.__koalaDocumentID", contentWorld: .page) as? String,
-                  let isolated = try? await webView.evaluateJavaScript("globalThis.__koalaDocumentID", contentWorld: DevToolsScripts.world) as? String,
+            guard let webView else { return }
+            // The page world has a token only if the dev panel already hooked this document.
+            let page = try? await webView.evaluateJavaScript("globalThis.__koalaDocumentID", contentWorld: .page) as? String
+            guard let isolated = try? await webView.evaluateJavaScript("globalThis.__koalaDocumentID", contentWorld: DevToolsScripts.world) as? String,
                   let self, self.devTools.navigationID == generation else { return }
             self.devTools.bindDocument(page, isolated: isolated)
         }

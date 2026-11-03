@@ -2,7 +2,7 @@ import AppKit
 import BrowserKit
 import SwiftUI
 
-/// Records a new shortcut for one command: the next key press with ⌘ or ⌃ becomes its shortcut.
+/// Records a new shortcut for one command: the next key press with ⌘, ⌃, or ⌥, or an F-key alone, becomes its shortcut.
 /// While recording, key presses go nowhere else, so ⌘W names a shortcut instead of closing the tab.
 @MainActor
 @Observable
@@ -45,26 +45,33 @@ final class ShortcutRecording {
 
     private func handle(_ event: NSEvent) {
         guard let id = commandID else { return }
-        let modifiers = event.modifierFlags.intersection([.command, .option, .control, .shift])
-        switch (event.keyCode, modifiers.isEmpty) {
+        // The key without ⇧ or ⌥ applied, so ⇧⌘] is "]" with ⇧, the menu's convention.
+        var key = event.characters(byApplyingModifiers: []) ?? event.charactersIgnoringModifiers ?? ""
+        if key == "\u{7f}" { key = "\u{8}" } // menus name the Delete key by backspace
+        let shortcut = MenuShortcut(key: key, modifiers: event.modifierFlags)
+        switch (event.keyCode, shortcut.modifierFlags.isEmpty) {
         case (53, true): return stop() // Esc
         case (51, true), (117, true): // Delete, Forward Delete
             onRecord?(.none)
             return stop()
         default: break
         }
-        // The key without ⇧ or ⌥ applied, so ⇧⌘] is "]" with ⇧, the menu's convention.
-        var key = event.characters(byApplyingModifiers: []) ?? event.charactersIgnoringModifiers ?? ""
-        if key == "\u{7f}" { key = "\u{8}" } // menus name the Delete key by backspace
-        let shortcut = MenuShortcut(key: key, modifiers: modifiers)
-        if !shortcut.isAssignable {
-            issue = "Add ⌘ or ⌃ to the keys."
+        if event.modifierFlags.contains(.function), !Self.isFunctionRange(key) {
+            issue = "fn can't be part of a shortcut."
+        } else if !shortcut.isAssignable {
+            issue = "Add ⌘, ⌃, or ⌥ to the keys."
         } else if let owner = MenuShortcuts.owner(of: shortcut, excluding: id) {
             issue = "\(shortcut.display) is already the shortcut for \(owner)."
         } else {
             onRecord?(shortcut)
             stop()
         }
+    }
+
+    /// F-keys, arrows, and navigation keys, which AppKit always flags with fn whether or not fn is held.
+    private static func isFunctionRange(_ key: String) -> Bool {
+        guard let scalar = key.unicodeScalars.first, key.unicodeScalars.count == 1 else { return false }
+        return (0xF700...0xF8FF).contains(scalar.value)
     }
 }
 

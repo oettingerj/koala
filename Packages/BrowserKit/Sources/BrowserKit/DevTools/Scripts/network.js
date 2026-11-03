@@ -1,4 +1,5 @@
 (() => {
+  globalThis.__koalaDocumentID ||= String(performance.timeOrigin) + ":" + Math.random().toString(36).slice(2);
   if (globalThis.__koalaNetwork) return;
   const limit = 65536;
   let token = null, sequence = 0, restore = [];

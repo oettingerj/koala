@@ -15,7 +15,7 @@ public enum DevToolsScripts {
         return source
     }
 
-    static let console = source("console")
+    public static let console = source("console")
     static let metrics = source("metrics")
     public static let network = source("network")
     public static let readStorage = """
@@ -30,8 +30,10 @@ public enum DevToolsScripts {
     return { local: dump(localStorage), session: dump(sessionStorage), document: globalThis.__koalaDocumentID };
     """
 
+    /// Nothing here touches the page's own world. The console hook (`console`) and fetch/XHR capture
+    /// (`network`) wrap page APIs, which bot checks such as Akamai's treat as tampering and answer by
+    /// never letting the page load, so the dev panel injects them only while it is open.
     public static func install(on controller: WKUserContentController, handler: WKScriptMessageHandler) {
-        controller.addUserScript(WKUserScript(source: console, injectionTime: .atDocumentStart, forMainFrameOnly: true, in: .page))
         controller.addUserScript(WKUserScript(source: metrics, injectionTime: .atDocumentStart, forMainFrameOnly: true, in: world))
         controller.add(handler, contentWorld: .page, name: consoleHandler)
         controller.add(handler, contentWorld: world, name: metricsHandler)

@@ -11,7 +11,7 @@ struct MenuShortcutTests {
     }
 
     @Test func ignoresUnrelatedModifiers() {
-        let shortcut = MenuShortcut(key: "k", modifiers: [.command, .capsLock, .numericPad])
+        let shortcut = MenuShortcut(key: "k", modifiers: [.command, .capsLock, .numericPad, .function])
         #expect(shortcut == MenuShortcut(key: "k", modifiers: .command))
     }
 
@@ -25,13 +25,17 @@ struct MenuShortcutTests {
         #expect(MenuShortcut(key: f5, modifiers: []).display == "F5")
     }
 
-    @Test func assignableNeedsCommandControlOrFunctionKey() {
+    @Test func assignableNeedsCommandControlOptionOrFunctionKey() {
         #expect(MenuShortcut(key: "t", modifiers: .command).isAssignable)
         #expect(MenuShortcut(key: "m", modifiers: .control).isAssignable)
+        #expect(MenuShortcut(key: "t", modifiers: [.option, .shift]).isAssignable)
+        #expect(!MenuShortcut(key: "f", modifiers: .function).isAssignable)
         #expect(!MenuShortcut(key: "t", modifiers: []).isAssignable)
-        #expect(!MenuShortcut(key: "t", modifiers: [.option, .shift]).isAssignable)
+        #expect(!MenuShortcut(key: "t", modifiers: .shift).isAssignable)
         let f2 = String(Character(UnicodeScalar(NSF2FunctionKey)!))
         #expect(MenuShortcut(key: f2, modifiers: []).isAssignable)
+        let f20 = String(Character(UnicodeScalar(NSF20FunctionKey)!))
+        #expect(MenuShortcut(key: f20, modifiers: []).isAssignable)
         #expect(!MenuShortcut.none.isAssignable)
     }
 

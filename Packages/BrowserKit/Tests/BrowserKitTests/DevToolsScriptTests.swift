@@ -41,15 +41,24 @@ import WebKit
         _ = NSApplication.shared
         let page = Page(); defer { page.dispose() }
         try await page.load()
-        let pageToken = try #require(try await page.js("return globalThis.__koalaDocumentID;") as? String)
+        // Pages start untouched: bot checks treat a wrapped console as tampering.
+        #expect(try await page.js("return console.log.toString().includes('[native code]') && !('__koalaDocumentID' in globalThis);") as? Bool == true)
         let isolatedToken = try #require(try await page.js("return globalThis.__koalaDocumentID;", world: DevToolsScripts.world) as? String)
-        #expect(pageToken != isolatedToken)
         let record = DevToolsRecord()
-        record.bindDocument(pageToken, isolated: isolatedToken)
+        record.bindDocument(nil, isolated: isolatedToken)
+        let pageToken = try #require(try await page.js(DevToolsScripts.console + "\nreturn globalThis.__koalaDocumentID;") as? String)
+        #expect(pageToken != isolatedToken)
         _ = try await page.js("console.log('bound document'); __koalaConsole.flush(); return true;")
         _ = try await page.js("return true;")
         for (name, body) in page.messages { record.route(name: name, body: body) }
+        #expect(record.console.isEmpty)
+        record.bindPageDocument(pageToken)
         #expect(record.console.last?.text == "bound document")
+        page.messages.removeAll()
+        _ = try await page.js("console.log('after bind'); __koalaConsole.flush(); return true;")
+        _ = try await page.js("return true;")
+        for (name, body) in page.messages { record.route(name: name, body: body) }
+        #expect(record.console.last?.text == "after bind")
         _ = try await page.js("await new Promise(resolve => setTimeout(resolve, 40)); return true;")
         #expect(try await page.js("return globalThis.__koalaDocumentID;") as? String == pageToken)
     }
@@ -82,6 +91,7 @@ import WebKit
         _ = NSApplication.shared
         let page = Page(); defer { page.dispose() }
         try await page.load()
+        _ = try await page.js(DevToolsScripts.console)
         _ = try await page.js("for (let i = 0; i < 5; i++) console.log('line', i); return true;")
         #expect(page.messages.filter { $0.0 == "koalaConsole" }.isEmpty)
         _ = try await page.js("await new Promise(resolve => setTimeout(resolve, 100)); return true;")
