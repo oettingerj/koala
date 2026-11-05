@@ -63,10 +63,21 @@ public enum ClosedItem: Codable, Equatable, Sendable {
 public struct Session: Codable, Equatable, Sendable {
     public var windows: [WindowSnapshot]
     public var recentlyClosed: [ClosedItem]
+    /// When the session was written. The last write happens at quit, so this is when Koala closed.
+    /// nil in sessions saved before it was recorded.
+    public var savedAt: Date?
 
-    public init(windows: [WindowSnapshot] = [], recentlyClosed: [ClosedItem] = []) {
+    public init(windows: [WindowSnapshot] = [], recentlyClosed: [ClosedItem] = [], savedAt: Date? = nil) {
         self.windows = windows
         self.recentlyClosed = recentlyClosed
+        self.savedAt = savedAt
+    }
+
+    /// The windows to reopen at launch: none once the session is older than `maxAge`
+    /// (nil reopens at any age). A session without a save time counts as fresh.
+    public func restorableWindows(maxAge: TimeInterval?, now: Date = Date()) -> [WindowSnapshot] {
+        if let maxAge, let savedAt, now.timeIntervalSince(savedAt) > maxAge { return [] }
+        return windows.filter { !$0.tabs.isEmpty }
     }
 }
 

@@ -20,6 +20,10 @@ enum SettingEntries {
         id: "startup", section: .general, title: "At startup",
         detail: "Recently closed tabs and windows stay available either way.",
         terms: ["launch", "restore", "session", "windows", "tabs", "open"])
+    static let restoreWithin = SettingEntry(
+        id: "restore-within", section: .general, title: "Restore if quit within",
+        detail: "After a longer break, Koala starts with a new window instead.",
+        terms: ["launch", "restore", "session", "windows", "tabs", "time", "hour", "expire"])
     static let tabSleep = SettingEntry(
         id: "tab-sleep", section: .general, title: "Sleep background tabs",
         detail: "Frees a tab’s memory after it sits unseen this long. It reloads when you return. Tabs that are pinned, playing sound, or holding typed text stay awake.",
@@ -27,7 +31,7 @@ enum SettingEntries {
     static let downloads = SettingEntry(
         id: "download-folder", section: .general, title: "Download to",
         terms: ["downloads", "folder", "save", "files", "location"])
-    static let general = [searchEngine, suggestions, defaultBrowser, startup, tabSleep, downloads]
+    static let general = [searchEngine, suggestions, defaultBrowser, startup, restoreWithin, tabSleep, downloads]
 
     static let githubAccount = SettingEntry(
         id: "github-account", section: .github, title: "Account",
@@ -63,6 +67,7 @@ enum SettingEntries {
 struct GeneralSettings: View {
     @State private var template = Preferences.searchTemplate
     @State private var restoresSession = Preferences.restoresSession
+    @State private var restoreWithinMinutes = Preferences.restoreWithinMinutes
     @State private var sleepMinutes = Preferences.tabSleepMinutes
     @State private var downloadFolder = Preferences.downloadFolder
     @State private var suggestions = Preferences.webSuggestions
@@ -119,6 +124,18 @@ struct GeneralSettings: View {
                 }
                 .labelsHidden()
                 .onChange(of: restoresSession) { _, value in Preferences.restoresSession = value }
+            }
+            SettingRow(SettingEntries.restoreWithin) {
+                Picker("Restore if quit within", selection: $restoreWithinMinutes) {
+                    Text("15 minutes").tag(15)
+                    Text("1 hour").tag(60)
+                    Text("1 day").tag(1440)
+                    Text("1 week").tag(10080)
+                    Text("Any time").tag(0)
+                }
+                .labelsHidden()
+                .disabled(!restoresSession)
+                .onChange(of: restoreWithinMinutes) { _, value in Preferences.restoreWithinMinutes = value }
             }
             SettingRow(SettingEntries.tabSleep) {
                 Picker("Sleep background tabs", selection: $sleepMinutes) {

@@ -57,6 +57,12 @@ enum Preferences {
         set { UserDefaults.standard.set(newValue, forKey: "RestoreSession") }
     }
 
+    /// Restore last session's windows only if Koala quit at most this many minutes ago; 0 restores at any age.
+    static var restoreWithinMinutes: Int {
+        get { UserDefaults.standard.object(forKey: "RestoreWithinMinutes") as? Int ?? 60 }
+        set { UserDefaults.standard.set(newValue, forKey: "RestoreWithinMinutes") }
+    }
+
     /// Idle minutes before a background tab sleeps; 0 never sleeps tabs.
     static var tabSleepMinutes: Int {
         get { UserDefaults.standard.object(forKey: "TabSleepMinutes") as? Int ?? 30 }

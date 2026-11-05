@@ -36,9 +36,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Perf.record("launch.didFinishLaunching", Perf.sinceProcessStart)
         // Windows (chrome) appear now; pages wait for extensions so content blockers cover the
         // first load. See BrowserWindowController.showSelectedTab.
-        // Recently closed comes back either way; windows only when the user wants them.
+        // Recently closed comes back either way; windows only when the user wants them and
+        // Koala quit recently enough.
         let session = services.loadSession()
-        let restored = Preferences.restoresSession ? session?.windows.filter { !$0.tabs.isEmpty } ?? [] : []
+        let maxAge = Preferences.restoreWithinMinutes > 0 ? TimeInterval(Preferences.restoreWithinMinutes * 60) : nil
+        let restored = Preferences.restoresSession ? session?.restorableWindows(maxAge: maxAge) ?? [] : []
         if restored.isEmpty {
             newWindow(nil)
         } else {

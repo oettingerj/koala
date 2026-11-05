@@ -149,9 +149,22 @@ import Testing
         let tab = TabSnapshot(id: UUID(), url: URL(string: "https://github.com"), title: "GitHub",
                               isPinned: true, openerID: nil, interactionState: Data([1, 2, 3]))
         let session = Session(windows: [WindowSnapshot(frame: CGRect(x: 1, y: 2, width: 3, height: 4), tabs: [tab], selectedIndex: 0)],
-                              recentlyClosed: [.tab(tab, index: 2)])
+                              recentlyClosed: [.tab(tab, index: 2)], savedAt: Date())
         store.save(session, sync: true)
         #expect(store.load() == session)
+    }
+
+    @Test func restoresWindowsOnlyWithinMaxAge() {
+        let tab = TabSnapshot(id: UUID(), url: URL(string: "https://github.com"), title: "GitHub",
+                              isPinned: false, openerID: nil, interactionState: nil)
+        let window = WindowSnapshot(frame: nil, tabs: [tab], selectedIndex: 0)
+        let empty = WindowSnapshot(frame: nil, tabs: [], selectedIndex: nil)
+        let now = Date()
+        let session = Session(windows: [window, empty], savedAt: now.addingTimeInterval(-30 * 60))
+        #expect(session.restorableWindows(maxAge: 3600, now: now) == [window])
+        #expect(session.restorableWindows(maxAge: 15 * 60, now: now).isEmpty)
+        #expect(session.restorableWindows(maxAge: nil, now: now) == [window])
+        #expect(Session(windows: [window]).restorableWindows(maxAge: 60, now: now) == [window])
     }
 }
 

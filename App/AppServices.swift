@@ -93,7 +93,7 @@ final class AppServices {
 
     func saveSession(sync: Bool) {
         saveTask?.cancel()
-        sessionStore?.save(Session(windows: windowSnapshots(), recentlyClosed: recentlyClosed), sync: sync)
+        sessionStore?.save(Session(windows: windowSnapshots(), recentlyClosed: recentlyClosed, savedAt: Date()), sync: sync)
     }
 
     func clearHistory(since date: Date?) async {

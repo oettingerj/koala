@@ -33,13 +33,12 @@ public final class TabCollection {
         tabs.firstIndex { $0.id == tab.id }
     }
 
-    /// Opens `tab`. A tab with an opener lands after the opener's existing children,
-    /// so links opened in a burst keep their reading order next to their source.
+    /// Opens `tab`. A tab with an opener lands right after it; the opener may be either page of a split.
     public func insert(_ tab: Tab, select shouldSelect: Bool) {
         var index = tabs.endIndex
-        if let openerID = tab.openerID, let openerIndex = tabs.firstIndex(where: { $0.id == openerID }) {
-            index = openerIndex + 1
-            while index < tabs.endIndex, tabs[index].openerID == openerID { index += 1 }
+        if let openerID = tab.openerID,
+           let openerIndex = tabs.firstIndex(where: { $0.id == openerID || $0.splitTab?.id == openerID }) {
+            index = max(openerIndex + 1, pinnedCount)
         } else if tab.isPinned {
             index = tabs.firstIndex { !$0.isPinned } ?? tabs.endIndex
         }

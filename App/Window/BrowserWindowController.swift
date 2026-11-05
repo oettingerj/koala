@@ -179,7 +179,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
 
     @objc func showReviewQueue(_ sender: Any?) {
         let view = ReviewQueuePopover(items: github.queue, isSignedIn: github.isSignedIn,
-                                      open: { [weak self] url in self?.popover.close(); self?.openTab(url: url, select: true) },
+                                      open: { [weak self] url in self?.popover.close(); self?.openTab(url: url, select: true, opener: self?.tabs.selected) },
                                       signIn: { [weak self] in self?.popover.close(); self?.signInToGitHub(nil) })
         GitHubHosting.show(view, in: popover, from: rootView.toolbar.queueButton)
     }
@@ -614,7 +614,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
 
     func openBookmark(_ url: URL, newTab: Bool) {
         if newTab {
-            openTab(url: url, select: false, opener: nil)
+            openTab(url: url, select: false, opener: tabs.selected)
         } else if let tab = tabs.focused {
             tab.load(url)
             focusPage()
@@ -787,7 +787,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         case .bookmarks: BookmarksHostingView.make(open: open)
         case nil: HomeHostingView.make { [weak self] url, target in
             switch target {
-            case .newTab: _ = self?.openTab(url: url, select: true)
+            case .newTab: _ = self?.openTab(url: url, select: true, opener: self?.tabs.selected)
             case .backgroundTab: self?.openBookmark(url, newTab: true)
             case .here: self?.openBookmark(url, newTab: false)
             }
@@ -993,7 +993,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         case .open(let url):
             let typed = row.kind == .navigate || row.kind == .search || row.kind == .keyword
             if inNewTab, !(tabs.focused.map { $0.url == nil && !$0.canGoBack } ?? false) {
-                let tab = openTab(url: nil, select: true)
+                let tab = openTab(url: nil, select: true, opener: tabs.selected)
                 tab.nextNavigationIsTyped = typed
                 tab.load(url)
             } else {

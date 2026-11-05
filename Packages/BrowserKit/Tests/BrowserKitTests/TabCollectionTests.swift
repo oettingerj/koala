@@ -8,7 +8,7 @@ import Testing
         Tab(url: URL(string: "https://\(name).com"), title: name, openerID: opener?.id)
     }
 
-    @Test func childrenLandAfterOpenerInOrder() {
+    @Test func childrenLandRightAfterOpener() {
         let tabs = TabCollection()
         let a = tab("a"), b = tab("b")
         tabs.insert(a, select: true)
@@ -16,7 +16,27 @@ import Testing
         let c1 = tab("c1", opener: a), c2 = tab("c2", opener: a)
         tabs.insert(c1, select: false)
         tabs.insert(c2, select: false)
-        #expect(tabs.tabs.map(\.title) == ["a", "c1", "c2", "b"])
+        #expect(tabs.tabs.map(\.title) == ["a", "c2", "c1", "b"])
+    }
+
+    @Test func childOfSplitPageLandsAfterItsTab() {
+        let tabs = TabCollection()
+        let a = tab("a"), b = tab("b"), partner = tab("partner")
+        tabs.insert(a, select: true)
+        tabs.insert(b, select: false)
+        tabs.split(a, with: partner)
+        tabs.insert(tab("child", opener: partner), select: false)
+        #expect(tabs.tabs.map(\.title) == ["a", "child", "b"])
+    }
+
+    @Test func childOfPinnedTabLandsAfterPinnedGroup() {
+        let tabs = TabCollection()
+        let a = tab("a"), p = tab("p")
+        tabs.insert(a, select: true)
+        tabs.insert(p, select: false)
+        tabs.setPinned(p, true)
+        tabs.insert(tab("child", opener: p), select: false)
+        #expect(tabs.tabs.map(\.title) == ["p", "child", "a"])
     }
 
     @Test func closingChildReturnsToOpener() {
