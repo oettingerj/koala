@@ -5,9 +5,9 @@ import WebKit
 
 extension SettingEntries {
     static let mediaPermissions = SettingEntry(
-        id: "site-media", section: .sites, title: "Camera and microphone",
+        id: "site-media", section: .sites, title: "Camera, microphone, and location",
         detail: "Sites you allowed or blocked. A site you remove asks again next time.",
-        terms: ["permissions", "camera", "microphone", "video", "audio", "allow", "block"])
+        terms: ["permissions", "camera", "microphone", "video", "audio", "location", "geolocation", "allow", "block"])
     static var siteZoom: SettingEntry { SettingEntry(
         id: "site-zoom", section: .sites, title: "Zoom",
         detail: "Sites you zoomed in or out." + (MenuShortcuts.text(for: #selector(BrowserWindowController.actualSize(_:)))

@@ -1,44 +1,56 @@
 import AppKit
+import BrowserKit
 import Observation
 import WebKit
 
-/// Camera and microphone choices, remembered per site across launches. Settings › Sites lists them.
+/// Camera, microphone, and location choices, remembered per site across launches. Settings › Sites lists them.
 @MainActor
 @Observable
 final class SitePermissions {
     static let shared = SitePermissions()
 
-    /// "origin|type" to allowed. `type` is a `WKMediaCaptureType` raw value.
+    /// "origin|kind" to allowed. `kind` is a `WKMediaCaptureType` raw value, or "location".
     private(set) var decisions: [String: Bool] {
         didSet { UserDefaults.standard.set(decisions, forKey: Self.defaultsKey) }
     }
 
     private static let defaultsKey = "MediaPermissions"
+    private static let locationKind = "location"
 
     private init() {
         decisions = UserDefaults.standard.dictionary(forKey: Self.defaultsKey) as? [String: Bool] ?? [:]
     }
 
-    static func key(origin: String, type: WKMediaCaptureType) -> String { "\(origin)|\(type.rawValue)" }
+    static func key(origin: String, permission: SitePermission) -> String {
+        switch permission {
+        case .media(let type): "\(origin)|\(type.rawValue)"
+        case .location: "\(origin)|\(locationKind)"
+        }
+    }
 
     /// The site and what it asked for, for display.
     static func describe(_ key: String) -> (origin: String, device: String) {
         let parts = key.split(separator: "|", maxSplits: 1).map(String.init)
-        let type = parts.count == 2 ? Int(parts[1]).flatMap(WKMediaCaptureType.init(rawValue:)) : nil
-        return (parts.first ?? key, type.map(deviceName) ?? "Media devices")
+        let kind = parts.count == 2 ? parts[1] : nil
+        let permission: SitePermission? = kind == locationKind ? .location
+            : kind.flatMap { Int($0) }.flatMap(WKMediaCaptureType.init(rawValue:)).map { .media($0) }
+        return (parts.first ?? key, permission.map(deviceName) ?? "Media devices")
     }
 
-    static func deviceName(_ type: WKMediaCaptureType) -> String {
-        switch type {
-        case .camera: "Camera"
-        case .microphone: "Microphone"
-        case .cameraAndMicrophone: "Camera and microphone"
-        @unknown default: "Media devices"
+    static func deviceName(_ permission: SitePermission) -> String {
+        switch permission {
+        case .media(.camera): "Camera"
+        case .media(.microphone): "Microphone"
+        case .media(.cameraAndMicrophone): "Camera and microphone"
+        case .media: "Media devices"
+        case .location: "Location"
         }
     }
 
-    func decision(origin: String, type: WKMediaCaptureType) -> Bool? { decisions[Self.key(origin: origin, type: type)] }
-    func set(_ allowed: Bool, origin: String, type: WKMediaCaptureType) { decisions[Self.key(origin: origin, type: type)] = allowed }
+    func decision(origin: String, permission: SitePermission) -> Bool? { decisions[Self.key(origin: origin, permission: permission)] }
+    func set(_ allowed: Bool, origin: String, permission: SitePermission) {
+        decisions[Self.key(origin: origin, permission: permission)] = allowed
+    }
     func set(_ allowed: Bool, key: String) { decisions[key] = allowed }
     func remove(_ key: String) { decisions[key] = nil }
 }

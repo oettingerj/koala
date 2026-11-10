@@ -36,6 +36,8 @@ targets:
         LSFileQuarantineEnabled: true
         NSCameraUsageDescription: Websites you allow can use your camera, for example for video calls.
         NSMicrophoneUsageDescription: Websites you allow can use your microphone, for example for calls and recordings.
+        NSLocationUsageDescription: Websites you allow can use your location, for example for maps and directions.
+        NSLocationWhenInUseUsageDescription: Websites you allow can use your location, for example for maps and directions.
         # A browser loads whatever the user opens: App Transport Security would refuse plain HTTP pages
         # and certificate exceptions in web views. Koala's own requests still follow ATS.
         NSAppTransportSecurity:
@@ -54,6 +56,7 @@ targets:
         # sandboxed app's child processes inherit its sandbox. The hardened runtime still applies.
         com.apple.security.device.camera: true
         com.apple.security.device.audio-input: true
+        com.apple.security.personal-information.location: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.joshoettinger.koala

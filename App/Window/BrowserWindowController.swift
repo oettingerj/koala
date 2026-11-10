@@ -69,8 +69,8 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     /// Private windows share one in-memory data store, so a tab moves between them with its
     /// session. It goes away when the last private window closes.
     private static weak var sharedPrivateConfiguration: WKWebViewConfiguration?
-    /// A private window's camera and microphone choices, forgotten when it closes.
-    private var privateMediaDecisions: [String: Bool] = [:]
+    /// A private window's camera, microphone, and location choices, forgotten when it closes.
+    private var privatePermissionDecisions: [String: Bool] = [:]
 
     /// Opens a window with one tab at `initialURL` (blank when nil), the tabs of `snapshot`, or
     /// `tab`, torn off another window.
@@ -1257,17 +1257,19 @@ extension BrowserWindowController: TabUIHost {
         return response == .OK ? panel.urls : nil
     }
 
-    func tab(_ tab: Tab, allowMediaCapture type: WKMediaCaptureType, from origin: String) async -> Bool {
+    func tab(_ tab: Tab, allow permission: SitePermission, from origin: String) async -> Bool {
         let permissions = SitePermissions.shared
-        let key = SitePermissions.key(origin: origin, type: type)
-        if let decision = privateMediaDecisions[key] ?? permissions.decision(origin: origin, type: type) { return decision }
+        let key = SitePermissions.key(origin: origin, permission: permission)
+        if let decision = privatePermissionDecisions[key] ?? permissions.decision(origin: origin, permission: permission) {
+            return decision
+        }
         let alert = NSAlert()
-        alert.messageText = "Allow \(origin) to use your \(SitePermissions.deviceName(type).lowercased())?"
+        alert.messageText = "Allow \(origin) to use your \(SitePermissions.deviceName(permission).lowercased())?"
         alert.informativeText = "Koala remembers your choice for this site. You can change it in Settings › Sites."
         alert.addButton(withTitle: "Allow")
         alert.addButton(withTitle: "Don’t Allow")
         let allowed = await sheet(alert) == .alertFirstButtonReturn
-        if isPrivate { privateMediaDecisions[key] = allowed } else { permissions.set(allowed, origin: origin, type: type) }
+        if isPrivate { privatePermissionDecisions[key] = allowed } else { permissions.set(allowed, origin: origin, permission: permission) }
         return allowed
     }
 

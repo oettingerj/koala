@@ -3,6 +3,12 @@ import Observation
 import os
 import WebKit
 
+/// A device or sensor a page asked to use.
+public enum SitePermission: Hashable, Sendable {
+    case media(WKMediaCaptureType)
+    case location
+}
+
 /// Window-level UI a page can ask for: JavaScript dialogs, permission prompts, file pickers,
 /// and downloads. Implemented by the window that shows the tab.
 @MainActor
@@ -11,7 +17,7 @@ public protocol TabUIHost: AnyObject {
     func tab(_ tab: Tab, confirm message: String, from origin: String) async -> Bool
     func tab(_ tab: Tab, prompt message: String, defaultText: String?, from origin: String) async -> String?
     func tab(_ tab: Tab, chooseFiles parameters: WKOpenPanelParameters) async -> [URL]?
-    func tab(_ tab: Tab, allowMediaCapture type: WKMediaCaptureType, from origin: String) async -> Bool
+    func tab(_ tab: Tab, allow permission: SitePermission, from origin: String) async -> Bool
     /// A server asked for HTTP authentication. `failures` counts rejected attempts so far. Return nil to cancel.
     func tab(_ tab: Tab, credentialFor space: URLProtectionSpace, failures: Int) async -> URLCredential?
     func tab(_ tab: Tab, didStart download: WKDownload)
@@ -646,9 +652,10 @@ extension Tab: WKUIDelegate {
         delegate?.tabDidRequestClose(self)
     }
 
-    private func origin(_ frame: WKFrameInfo) -> String {
-        let origin = frame.securityOrigin
-        return origin.port == 0 ? origin.host : "\(origin.host):\(origin.port)"
+    private func origin(_ frame: WKFrameInfo) -> String { name(frame.securityOrigin) }
+
+    private func name(_ origin: WKSecurityOrigin) -> String {
+        origin.port == 0 ? origin.host : "\(origin.host):\(origin.port)"
     }
 
     public func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String,
@@ -673,8 +680,24 @@ extension Tab: WKUIDelegate {
 
     public func webView(_ webView: WKWebView, decideMediaCapturePermissionsFor origin: WKSecurityOrigin,
                         initiatedBy frame: WKFrameInfo, type: WKMediaCaptureType) async -> WKPermissionDecision {
-        let name = origin.port == 0 ? origin.host : "\(origin.host):\(origin.port)"
-        return await uiHost?.tab(self, allowMediaCapture: type, from: name) == true ? .grant : .deny
+        await uiHost?.tab(self, allow: .media(type), from: name(origin)) == true ? .grant : .deny
+    }
+
+    /// Without this WebKit denies every `navigator.geolocation` request.
+    @available(macOS 27.0, *)
+    public func webView(_ webView: WKWebView, requestGeolocationPermissionFor origin: WKSecurityOrigin,
+                        initiatedBy frame: WKFrameInfo) async -> WKPermissionDecision {
+        await uiHost?.tab(self, allow: .location, from: name(origin)) == true ? .grant : .deny
+    }
+
+    /// WebKit SPI: screen sharing (`getDisplayMedia`). Without it the request never settles.
+    /// Answering "screen prompt" (`WKDisplayCapturePermissionDecisionScreenPrompt`) makes WebKit show
+    /// the macOS screen and window picker. That picker is the consent, every time, so Koala adds no
+    /// prompt of its own and remembers nothing.
+    @objc(_webView:requestDisplayCapturePermissionForOrigin:initiatedByFrame:withSystemAudio:decisionHandler:)
+    public func webViewRequestDisplayCapture(_ webView: WKWebView, origin: WKSecurityOrigin, frame: WKFrameInfo,
+                                             withSystemAudio: Bool, decisionHandler: @escaping (Int) -> Void) {
+        decisionHandler(1)
     }
 
     /// WebKit SPI: the window frame behind `window.outerWidth`, `outerHeight`, `screenX` and `screenY`.
