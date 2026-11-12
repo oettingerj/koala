@@ -13,6 +13,8 @@ settings:
 packages:
   BrowserKit:
     path: Packages/BrowserKit
+  Eucalyptus:
+    path: ../eucalyptus
 targets:
   Koala:
     type: application
@@ -21,6 +23,7 @@ targets:
       - App
     dependencies:
       - package: BrowserKit
+      - package: Eucalyptus
     info:
       path: App/Info.plist
       properties:

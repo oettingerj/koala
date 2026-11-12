@@ -1,5 +1,6 @@
 import AppKit
 import BrowserKit
+import Eucalyptus
 import SwiftUI
 
 /// The fixed rows of each section. Lists (keywords, extensions) build their entries from live data.

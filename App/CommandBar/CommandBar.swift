@@ -1,5 +1,6 @@
 import AppKit
 import BrowserKit
+import Eucalyptus
 import SwiftUI
 
 /// ⌘K: a floating bar over the page that opens URLs, searches, switches tabs, and runs any

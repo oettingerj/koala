@@ -1,11 +1,14 @@
 import AppKit
 import BrowserKit
+import Eucalyptus
 
 /// The menu bar is the single source of truth for every command and its shortcut.
 /// The command bar reads its commands from here.
 @MainActor
 enum MainMenu {
     static func build() -> NSMenu {
+        // Koala's own dynamic menus; AppKit's delegates (Help's search) must not be driven by hand.
+        MenuShortcuts.isPopulatableMenu = { $0 is HistoryMenuDelegate || $0 is BookmarksMenuDelegate }
         let main = NSMenu()
         main.addItem(submenu(appMenu()))
         main.addItem(submenu(fileMenu()))

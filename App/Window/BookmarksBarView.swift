@@ -1,5 +1,6 @@
 import AppKit
 import BrowserKit
+import Eucalyptus
 
 /// Optional third chrome row: bookmarks and folders on the bar, overflow behind a chevron.
 final class BookmarksBarView: NSView {

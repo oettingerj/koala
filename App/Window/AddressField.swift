@@ -1,5 +1,6 @@
 import AppKit
 import BrowserKit
+import Eucalyptus
 
 /// The address field. At rest it reads as host in primary text and the rest of the URL in
 /// quieter monospace; on focus it becomes the full URL, selected, ready to overwrite.

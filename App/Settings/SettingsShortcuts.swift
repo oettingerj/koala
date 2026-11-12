@@ -1,5 +1,6 @@
 import AppKit
 import BrowserKit
+import Eucalyptus
 import SwiftUI
 
 /// Records a new shortcut for one command: the next key press with ⌘, ⌃, or ⌥, or an F-key alone, becomes its shortcut.

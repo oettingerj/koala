@@ -1,4 +1,5 @@
 import AppKit
+import Eucalyptus
 import SwiftUI
 
 /// GitHub avatars, fetched once each and kept in memory, so list rows draw them without flicker.

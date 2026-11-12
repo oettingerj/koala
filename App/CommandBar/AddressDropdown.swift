@@ -1,5 +1,6 @@
 import AppKit
 import BrowserKit
+import Eucalyptus
 import SwiftUI
 
 /// Suggestions under the address field while it is being edited. Never takes key status, so

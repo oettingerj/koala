@@ -1,4 +1,5 @@
 import AppKit
+import Eucalyptus
 import SwiftUI
 
 let devPrimary = Color(nsColor: Theme.textPrimary)

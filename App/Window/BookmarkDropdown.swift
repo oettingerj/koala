@@ -1,5 +1,6 @@
 import AppKit
 import BrowserKit
+import Eucalyptus
 import SwiftUI
 
 /// A bookmark folder's contents dropped below its bar button, with favicons; subfolders cascade

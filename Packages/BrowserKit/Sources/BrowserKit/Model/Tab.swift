@@ -1,7 +1,8 @@
 import AppKit
+import Eucalyptus
 import Observation
-import os
 import WebKit
+import os
 
 /// A device or sensor a page asked to use.
 public enum SitePermission: Hashable, Sendable {

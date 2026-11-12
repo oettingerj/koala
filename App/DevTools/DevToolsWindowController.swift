@@ -1,5 +1,6 @@
 import AppKit
 import BrowserKit
+import Eucalyptus
 
 /// A normal document-style window, not a nonactivating utility panel: console input needs key focus.
 final class DevToolsWindowController: NSWindowController, NSWindowDelegate {

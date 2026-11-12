@@ -1,5 +1,6 @@
 import AppKit
 import BrowserKit
+import Eucalyptus
 import SwiftUI
 
 /// What a blank tab shows: a sidebar of sections beside the selected one. The address field keeps

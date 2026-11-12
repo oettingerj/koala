@@ -1,5 +1,6 @@
 import AppKit
 import BrowserKit
+import Eucalyptus
 import SwiftUI
 
 /// Colors and glyphs for GitHub state, shared by the tab strip, command bar, and popovers.

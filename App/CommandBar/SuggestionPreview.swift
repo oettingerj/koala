@@ -1,4 +1,5 @@
 import BrowserKit
+import Eucalyptus
 import SwiftUI
 
 /// The pane beside the suggestion list: what the highlighted row is, why it's there, and what

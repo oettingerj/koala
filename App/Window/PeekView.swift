@@ -1,5 +1,6 @@
 import AppKit
 import BrowserKit
+import Eucalyptus
 import WebKit
 
 /// ⇧-click preview: the linked page floats over the current one. ⌘↩ makes it a tab, ⌘⇧↩

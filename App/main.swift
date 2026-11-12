@@ -1,6 +1,8 @@
 import AppKit
 import BrowserKit
+import Eucalyptus
 
+Perf.app = Perf.App(subsystem: "com.joshoettinger.koala", name: "Koala")
 MonoFont.register()
 NSScroller.makeAllSmall()
 

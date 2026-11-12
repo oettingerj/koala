@@ -1,5 +1,6 @@
 import AppKit
 import BrowserKit
+import Eucalyptus
 import os
 
 /// Koala left the App Sandbox; what it saved while sandboxed is still in its container.

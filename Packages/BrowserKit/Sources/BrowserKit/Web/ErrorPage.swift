@@ -1,3 +1,4 @@
+import Eucalyptus
 import Foundation
 
 /// The page shown when a navigation fails before any content arrives.

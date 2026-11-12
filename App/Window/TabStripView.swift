@@ -1,5 +1,6 @@
 import AppKit
 import BrowserKit
+import Eucalyptus
 
 /// The titlebar row: traffic lights, tabs, and the new-tab button.
 /// Lays tabs out by frame (no Auto Layout per tab) so a hundred tabs relayout in one pass.

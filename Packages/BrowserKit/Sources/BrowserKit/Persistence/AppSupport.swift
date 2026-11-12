@@ -1,22 +1,5 @@
 import Foundation
 
-/// Release and Debug use separate Application Support folders for history, sessions, and extensions.
-public enum AppSupport {
-    public static var folderName: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "Koala"
-    }
-
-    /// The folder, or a subfolder of it, created if needed.
-    public static func directory(_ subfolder: String? = nil) throws -> URL {
-        var directory = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
-                                                    appropriateFor: nil, create: true)
-            .appendingPathComponent(folderName, isDirectory: true)
-        if let subfolder { directory.appendPathComponent(subfolder, isDirectory: true) }
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        return directory
-    }
-}
-
 /// Koala used to run in the App Sandbox, which kept its data in its container. This copies that data
 /// to where an unsandboxed app keeps it. It copies and never overwrites, so the container stays
 /// intact for a rollback.

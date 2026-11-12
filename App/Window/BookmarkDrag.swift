@@ -1,5 +1,6 @@
 import AppKit
 import BrowserKit
+import Eucalyptus
 
 /// Dragging bookmarks to reorder them on the bar and in folder dropdowns. The pasteboard carries the
 /// bookmark's id for Koala's own drop targets, and its URL so it also drops into pages and other apps.

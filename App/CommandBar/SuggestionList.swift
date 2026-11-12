@@ -1,4 +1,5 @@
 import BrowserKit
+import Eucalyptus
 import SwiftUI
 
 /// Rows shared by the command bar and the address field dropdown, grouped into sections, with

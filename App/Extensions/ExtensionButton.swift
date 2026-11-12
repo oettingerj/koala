@@ -1,5 +1,6 @@
 import AppKit
 import BrowserKit
+import Eucalyptus
 import WebKit
 
 /// One extension's toolbar action: its icon, badge, and click.

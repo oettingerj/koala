@@ -1,5 +1,6 @@
 import AppKit
 import BrowserKit
+import Eucalyptus
 import Observation
 
 /// State behind the command bar and the address field dropdown: the query, its rows, and

@@ -1,5 +1,6 @@
 import AppKit
 import BrowserKit
+import Eucalyptus
 import SwiftUI
 
 /// A keyword search being edited. `KeywordSearch` is identified by its keyword, which changes

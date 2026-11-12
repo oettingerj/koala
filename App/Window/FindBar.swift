@@ -1,5 +1,6 @@
 import AppKit
 import BrowserKit
+import Eucalyptus
 import WebKit
 
 /// ⌘F: a slim row above the page. ↩ next, ⇧↩ previous, Esc closes.

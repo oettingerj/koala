@@ -1,4 +1,5 @@
 import BrowserKit
+import Eucalyptus
 import SwiftUI
 
 private struct StorageRow: Identifiable {

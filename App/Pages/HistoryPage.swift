@@ -1,5 +1,6 @@
 import AppKit
 import BrowserKit
+import Eucalyptus
 import SwiftUI
 
 /// koala://history: every visited page by day, searchable, with deletes by page or by site.

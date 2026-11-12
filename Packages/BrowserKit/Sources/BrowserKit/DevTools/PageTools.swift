@@ -1,3 +1,4 @@
+import Eucalyptus
 import Foundation
 
 /// Developer page tools that render inside the page: the JSON viewer and view source.

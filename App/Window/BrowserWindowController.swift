@@ -1,5 +1,6 @@
 import AppKit
 import BrowserKit
+import Eucalyptus
 import WebKit
 
 /// One browser window: tab strip in the titlebar, toolbar, and the selected tab's page.

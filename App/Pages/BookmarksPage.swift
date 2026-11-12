@@ -1,5 +1,6 @@
 import AppKit
 import BrowserKit
+import Eucalyptus
 import SwiftUI
 
 /// koala://bookmarks: every folder and bookmark, to search, open, edit, move, and reorder.

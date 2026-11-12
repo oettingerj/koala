@@ -1,5 +1,6 @@
 import AppKit
 import BrowserKit
+import Eucalyptus
 import SwiftUI
 
 /// The home page's Reviews: pull requests waiting on your review (directly or through a team) and

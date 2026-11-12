@@ -1,5 +1,6 @@
 import AppKit
 import BrowserKit
+import Eucalyptus
 import SwiftUI
 
 /// Beside the Reviews list on wide pages: what the previewed pull request is about, where it

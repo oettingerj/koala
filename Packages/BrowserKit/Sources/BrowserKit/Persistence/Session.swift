@@ -1,3 +1,4 @@
+import Eucalyptus
 import Foundation
 
 public struct TabSnapshot: Codable, Equatable, Sendable {

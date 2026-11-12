@@ -1,5 +1,6 @@
 import AppKit
 import BrowserKit
+import Eucalyptus
 import SwiftUI
 
 /// Settings that persist in user defaults and feed AppServices.
@@ -39,16 +40,6 @@ enum Preferences {
             UserDefaults.standard.set(try? JSONEncoder().encode(newValue), forKey: "KeywordSearches")
             apply()
         }
-    }
-
-    /// Menu shortcuts the user changed, by `MenuShortcuts.id(for:)`. `.none` means removed.
-    static var menuShortcuts: [String: MenuShortcut] {
-        get {
-            guard let data = UserDefaults.standard.data(forKey: "MenuShortcuts"),
-                  let shortcuts = try? JSONDecoder().decode([String: MenuShortcut].self, from: data) else { return [:] }
-            return shortcuts
-        }
-        set { UserDefaults.standard.set(try? JSONEncoder().encode(newValue), forKey: "MenuShortcuts") }
     }
 
     /// Reopen last session's windows at launch, or start with one new window.
@@ -93,11 +84,6 @@ enum Preferences {
 }
 
 // MARK: Page
-
-let settingsPrimary = Color(nsColor: Theme.textPrimary)
-let settingsSecondary = Color(nsColor: Theme.textSecondary)
-let settingsTertiary = Color(nsColor: Theme.textTertiary)
-let settingsFail = Color(nsColor: Theme.fail)
 
 enum SettingsSection: String, CaseIterable, Identifiable {
     case general, github, keywords, shortcuts, extensions, sites, data
@@ -370,12 +356,6 @@ struct SettingsPage: View {
 
 // MARK: Rows
 
-/// A one-pixel separator from the neutral ramp.
-struct SettingsRule: View {
-    @Environment(\.pixelLength) private var pixel
-    var body: some View { Rectangle().fill(Color(nsColor: Theme.hairline)).frame(height: pixel) }
-}
-
 /// The frame every row shares: hidden when the search doesn't match, a hairline above, a 44pt minimum.
 struct SettingsRowFrame<Content: View>: View {
     let entry: SettingEntry
@@ -454,27 +434,5 @@ struct SettingRow<Detail: View, Control: View>: View {
 extension SettingRow where Detail == SettingDetail {
     init(_ entry: SettingEntry, @ViewBuilder control: () -> Control) {
         self.init(entry, detail: { SettingDetail(text: entry.detail) }, control: control)
-    }
-}
-
-/// The filled primary action: deep teal behind white in light appearance, teal behind dark text in dark.
-struct SettingsPrimaryButtonStyle: ButtonStyle {
-    @Environment(\.isEnabled) private var isEnabled
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 13, weight: .medium))
-            .foregroundStyle(Color(nsColor: Theme.onAccent))
-            .padding(.horizontal, 12).frame(height: 24)
-            .background(RoundedRectangle(cornerRadius: Theme.controlRadius).fill(Color(nsColor: Theme.accentText)))
-            .opacity(isEnabled ? (configuration.isPressed ? 0.85 : 1) : 0.5)
-            .contentShape(RoundedRectangle(cornerRadius: Theme.controlRadius))
-    }
-}
-
-extension Toggle {
-    /// A small switch without its label (the row names it). On reads in a neutral tint; teal stays on focus and primary actions.
-    func settingsSwitch() -> some View {
-        labelsHidden().toggleStyle(.switch).controlSize(.small).tint(Color(nsColor: Theme.switchTint))
     }
 }

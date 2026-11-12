@@ -1,4 +1,5 @@
 import CryptoKit
+import Eucalyptus
 import Foundation
 
 /// Chrome Web Store packages and Koala's record of installed extensions.

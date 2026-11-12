@@ -1,4 +1,5 @@
 import AppKit
+import Eucalyptus
 import SwiftUI
 
 struct DownloadsPopover: View {

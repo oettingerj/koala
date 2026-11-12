@@ -1,5 +1,6 @@
 import AppKit
 import BrowserKit
+import Eucalyptus
 
 /// Second chrome row: navigation, the address field, and page-level actions.
 /// Shares the selected tab's surface so the two read as one piece.
