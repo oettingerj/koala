@@ -19,6 +19,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #endif
         let services = AppServices.shared
         Preferences.apply()
+        // macOS's gray inline predictions fight the address bar's own completion, and autocorrect
+        // mangles URLs and code, so Koala turns both off for every field it hosts, web pages
+        // included. Koala's defaults outrank the system-wide Keyboard settings. WebKit keeps its
+        // own autocorrect key, which wins over AppKit's when present.
+        let defaults = UserDefaults.standard
+        defaults.set(false, forKey: "NSAutomaticInlinePredictionEnabled")
+        defaults.set(false, forKey: "NSAutomaticSpellingCorrectionEnabled")
+        defaults.set(false, forKey: "WebAutomaticSpellingCorrectionEnabled")
         // Extensions attach to the shared web view configuration, so they load before any page.
         ExtensionsHost.shared.anchorForAction = { context in
             let controller = (NSApp.keyWindow?.windowController as? BrowserWindowController)
